@@ -10,4 +10,4 @@ services:
     startCommand: pnpm start
     envVars:
       - key: NODE_VERSION
-        value: "22"
+        value: "24.14.1"

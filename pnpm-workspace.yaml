@@ -73,6 +73,7 @@ onlyBuiltDependencies:
   - '@swc/core'
   - esbuild
   - msw
+  - protobufjs
   - unrs-resolver
 
 overrides:
@@ -85,4 +86,5 @@ allowBuilds:
   '@swc/core': true
   esbuild: true
   msw: true
+  protobufjs: true
   unrs-resolver: true
