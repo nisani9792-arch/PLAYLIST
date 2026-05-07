@@ -1,8 +1,16 @@
 /**
- * Build Content-Security-Policy directive values for the API app.
- * Note: CSP applies to documents served by this origin; server-side fetch() is not limited by CSP.
- * We still widen connect-src/img-src for HTML responses, BFF pages, or a future same-origin SPA.
+ * Build Content-Security-Policy directive values for the API / SPA origin.
+ * These are consumed by the Helmet middleware wired up in app.ts.
+ *
+ * gstatic.com & translate.googleapis.com are whitelisted so the native Google
+ * Translate toolbar that browsers inject does not trigger CSP violations.
  */
+
+const GOOGLE_TRANSLATE = [
+  "https://www.gstatic.com",
+  "https://translate.googleapis.com",
+  "https://translate.google.com",
+];
 
 function tryParseOrigin(raw: string | undefined): string | null {
   const s = raw?.trim();
@@ -15,13 +23,14 @@ function tryParseOrigin(raw: string | undefined): string | null {
   }
 }
 
-/** Comma-or-whitespace-separated extra URL(s) → origins (e.g. CDN API, websocket host). */
+/** Comma-or-whitespace-separated extra URL(s) → origins. */
 function extraConnectSrcFromEnv(): string[] {
   const raw = process.env.CSP_EXTRA_CONNECT_SRC?.trim();
   if (!raw) return [];
-  const parts = raw.split(/[, \t]+/).map((p) => p.trim()).filter(Boolean);
-  const origins = parts.map((p) => tryParseOrigin(p)).filter((x): x is string => x !== null);
-  return [...new Set(origins)];
+  return [...new Set(
+    raw.split(/[, \t]+/).map((p) => p.trim()).filter(Boolean)
+       .map((p) => tryParseOrigin(p)).filter((x): x is string => x !== null),
+  )];
 }
 
 /** Origins the browser may connect to (fetch / EventSource / WebSocket). */
@@ -32,21 +41,54 @@ export function buildConnectSrc(): string[] {
     ...extraConnectSrcFromEnv(),
   ].filter((x): x is string => Boolean(x));
 
-  // Google GenAI / Vertex-style endpoints (SDK or future direct browser use)
-  const googleAi = [
+  return [...new Set([
+    "'self'",
+    ...fromEnv,
     "https://generativelanguage.googleapis.com",
     "https://*.googleapis.com",
-  ];
-
-  return [...new Set(["'self'", ...fromEnv, ...googleAi])];
+    ...GOOGLE_TRANSLATE,
+  ])];
 }
 
-/** Fonts loaded via @font-face / link (e.g. Google Fonts CSS). */
-export function buildFontSrc(): string[] {
-  return ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com"];
+/** Scripts (Vite build uses inline init; Google Translate injects from gstatic). */
+export function buildScriptSrc(): string[] {
+  return [...new Set([
+    "'self'",
+    "'unsafe-inline'",     // Vite injects small inline bootstrap scripts
+    "https://www.gstatic.com",
+    "https://translate.googleapis.com",
+  ])];
 }
 
-/** Stylesheets (Google Fonts CSS @import/link). */
+/** Stylesheets — Google Fonts CSS + Google Translate injects styles from gstatic. */
 export function buildStyleSrc(): string[] {
-  return ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"];
+  return [...new Set([
+    "'self'",
+    "'unsafe-inline'",
+    "https://fonts.googleapis.com",
+    "https://www.gstatic.com",
+    "https://translate.googleapis.com",
+  ])];
+}
+
+/** Fonts loaded via @font-face / link (Google Fonts). */
+export function buildFontSrc(): string[] {
+  return [...new Set([
+    "'self'",
+    "https://fonts.gstatic.com",
+    "https://fonts.googleapis.com",
+    "https://www.gstatic.com",
+  ])];
+}
+
+/** Images: data URIs (favicons), blobs (previews), Google Translate flags. */
+export function buildImgSrc(): string[] {
+  return [...new Set([
+    "'self'",
+    "data:",
+    "blob:",
+    "https://www.gstatic.com",
+    "https://translate.googleapis.com",
+    "https://translate.google.com",
+  ])];
 }

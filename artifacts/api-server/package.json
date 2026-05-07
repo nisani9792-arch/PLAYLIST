@@ -20,6 +20,7 @@
     "drizzle-orm": "catalog:",
     "express": "^5",
     "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
     "lru-cache": "^11.2.4",
     "node-cron": "^4.2.1",
     "pino": "^9",
