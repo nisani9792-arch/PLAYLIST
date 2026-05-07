@@ -1,5 +1,8 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { validateMeilisearchAtStartup } from "./lib/meilisearch-config";
+
+validateMeilisearchAtStartup();
 
 const rawPort = process.env["PORT"];
 

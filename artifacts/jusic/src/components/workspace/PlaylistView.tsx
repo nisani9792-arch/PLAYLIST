@@ -2,21 +2,20 @@ import { useRef } from 'react';
 import { MsHit } from '../../lib/meilisearch';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { GripVertical, Play, X, Download, Trash2, Search, Music } from 'lucide-react';
+import { GripVertical, X, Download, Trash2, Search, Music } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { exportToOdooCSV } from '../../lib/export';
+import { recordPlaylistExport } from '../../lib/playlist-learning';
 import { motion } from 'framer-motion';
 
 interface PlaylistViewProps {
   playlistName: string;
   setPlaylistName: (name: string) => void;
-  songs: (MsHit & { _id?: string })[];
+  songs: MsHit[];
   removeSong: (index: number) => void;
   reorderSongs: (startIndex: number, endIndex: number) => void;
   clearPlaylist: () => void;
-  onPlaySong: (song: MsHit) => void;
-  currentPlayingId?: string;
 }
 
 export function PlaylistView({
@@ -26,8 +25,6 @@ export function PlaylistView({
   removeSong,
   reorderSongs,
   clearPlaylist,
-  onPlaySong,
-  currentPlayingId,
 }: PlaylistViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -38,14 +35,21 @@ export function PlaylistView({
     overscan: 8,
   });
 
-  const onDragEnd = (result: any) => {
+  const onDragEnd = (result: {
+    destination?: { index: number } | null;
+    source: { index: number };
+  }) => {
     if (!result.destination) return;
     reorderSongs(result.source.index, result.destination.index);
   };
 
+  const handleExport = () => {
+    recordPlaylistExport(playlistName, songs);
+    exportToOdooCSV(playlistName, songs);
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden" data-testid="playlist-container">
-      {/* Header */}
       <div
         className="flex items-center justify-between px-5 py-3 border-b border-black/[0.06] flex-shrink-0"
         style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(12px)' }}
@@ -80,7 +84,7 @@ export function PlaylistView({
             <Button
               data-testid="export-csv-button"
               size="sm"
-              onClick={() => exportToOdooCSV(playlistName, songs)}
+              onClick={handleExport}
               disabled={!songs.length}
               className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-sm text-xs"
             >
@@ -90,12 +94,11 @@ export function PlaylistView({
         </div>
       </div>
 
-      {/* List */}
       <div className="flex-1 overflow-hidden relative">
         {songs.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/40">
             <Search className="w-10 h-10 mb-3" />
-            <p className="text-sm">חפש שירים למעלה ולחץ הוסף</p>
+            <p className="text-sm">בחר פילטרים למעלה, חפש והוסף שירים</p>
           </div>
         ) : (
           <DragDropContext onDragEnd={onDragEnd}>
@@ -131,7 +134,6 @@ export function PlaylistView({
                   <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
                     {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                       const song = songs[virtualRow.index];
-                      const isPlaying = currentPlayingId === song.id;
 
                       return (
                         <Draggable
@@ -157,8 +159,6 @@ export function PlaylistView({
                                 className={`flex items-center group h-full rounded-xl border transition-colors ${
                                   snapshot.isDragging
                                     ? 'bg-white border-primary/25 shadow-[0_4px_16px_rgba(0,0,0,0.1)] z-50'
-                                    : isPlaying
-                                    ? 'bg-primary/8 border-primary/20'
                                     : 'bg-white/60 border-transparent hover:bg-white hover:border-black/[0.06] hover:shadow-sm'
                                 }`}
                                 transition={{ duration: 0.1 }}
@@ -170,40 +170,28 @@ export function PlaylistView({
                                 </div>
 
                                 <div
-                                  className="w-7 text-center text-xs tabular-nums flex-shrink-0"
-                                  style={{ fontFamily: "'Space Grotesk', monospace", color: isPlaying ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))' }}
+                                  className="w-7 text-center text-xs tabular-nums flex-shrink-0 text-muted-foreground"
+                                  style={{ fontFamily: "'Space Grotesk', monospace" }}
                                 >
                                   {virtualRow.index + 1}
                                 </div>
 
-                                {isPlaying && (
-                                  <div className="flex-shrink-0 mx-2">
-                                    <Music className="w-3.5 h-3.5 text-primary animate-pulse" />
-                                  </div>
-                                )}
-
                                 <div className="flex-1 min-w-0 px-2 py-1 flex flex-col justify-center">
-                                  <div className={`font-medium text-sm truncate ${isPlaying ? 'text-primary' : 'text-foreground'}`}>
+                                  <div className="font-medium text-sm truncate text-foreground">
                                     {song.song_name}
                                   </div>
                                   <div className="text-xs text-muted-foreground/70 flex items-center gap-1.5 truncate">
                                     <span className="truncate">{song.artist}</span>
-                                    {song.genre && <><span className="opacity-40">·</span><span className="truncate opacity-70">{song.genre}</span></>}
+                                    {song.genre && (
+                                      <>
+                                        <span className="opacity-40">·</span>
+                                        <span className="truncate opacity-70">{song.genre}</span>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
 
                                 <div className="flex items-center gap-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                                  <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 rounded-xl hover:bg-primary/10 hover:text-primary"
-                                      onClick={() => onPlaySong(song)}
-                                      title="נגן"
-                                    >
-                                      <Play className="w-3.5 h-3.5 ml-0.5" />
-                                    </Button>
-                                  </motion.div>
                                   <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                                     <Button
                                       variant="ghost"

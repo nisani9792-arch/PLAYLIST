@@ -25,13 +25,13 @@ pnpm workspace monorepo using TypeScript. Contains **BUILD PLAY** (formerly Jusi
 - **Theme**: Dark navy background, cyan accents, Heebo + Inter + Space Grotesk fonts (Hebrew RTL)
 - **Design**: rounded-xl/2xl corners, bg-primary/10 badges, subtle shadows, Framer Motion AnimatePresence + whileHover
 - **Features**:
-  - Live Meilisearch search (via `/api/search` backend proxy)
+  - Live Meilisearch search (via `/api/search` backend proxy) with filter bar (songs-only default + optional genre)
   - Drag-and-drop playlist reorder (`@hello-pangea/dnd`)
   - Virtual scrolling (`@tanstack/react-virtual`)
   - AI playlist generator (Gemini via `/api/gemini/playlist`)
-  - Bulk import panel with staging area
-  - Custom cyan mini-player
-  - localStorage auto-save (`jusic_playlist_draft` key)
+  - Bulk import panel with staging area (same filters as search)
+  - localStorage draft + flush on `pagehide` / `beforeunload` (`jusic_playlist_draft`)
+  - Usage signals + playlist export history for optional JSON training export
   - Odoo CSV export (UTF-8 BOM)
 
 ### API Server (`artifacts/api-server`)
@@ -45,11 +45,10 @@ pnpm workspace monorepo using TypeScript. Contains **BUILD PLAY** (formerly Jusi
 
 ## Meilisearch
 
-- **Host**: `http://164.92.213.53`
-- **Index**: `music`
-- **Auth**: Bearer token in `artifacts/api-server/src/routes/search.ts`
-- **Field mapping**: `name_he` → song_name, `artists[]` → artist, `genres[]` → genre, `uid` → id
-- All search calls go through the backend proxy at `/api/search` to avoid CORS issues
+- **Configuration**: `MEILISEARCH_URL`, `MEILISEARCH_API_KEY`, optional `MEILISEARCH_INDEX` (see `artifacts/api-server/.env.example`). Secrets must never be committed.
+- **Default index name**: `music` if unset
+- **Field mapping** (client normalize): `name_he` → song_name, `artists[]` → artist, `genres[]` → genre, `uid` → id
+- All search calls go through the backend proxy at `POST /api/search` to avoid CORS and hide the API key
 
 ## Gemini AI Integration
 

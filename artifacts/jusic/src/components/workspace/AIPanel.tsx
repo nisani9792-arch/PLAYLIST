@@ -5,27 +5,45 @@ import { StagingArea, StagingItem } from './StagingArea';
 import { useGeneratePlaylist } from '@workspace/api-client-react';
 import { Sparkles, Loader2, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { MsHit } from '../../lib/meilisearch';
+import { newClientId } from '../../lib/ids';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { useSearchFilters } from '@/contexts/SearchFiltersContext';
 
 export function AIPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void }) {
+  const { filters } = useSearchFilters();
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [stagingBatchId, setStagingBatchId] = useState(0);
   const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
   const generatePlaylist = useGeneratePlaylist();
 
+  const stagingBusy = stagingItems.some(
+    (i) => i.status === 'searching' || i.status === 'pending',
+  );
+
   const handleGenerate = () => {
     if (!prompt.trim()) return;
-    generatePlaylist.mutate({ data: { prompt } }, {
-      onSuccess: (res) => {
-        if (res.lines && res.lines.length) {
-          setStagingItems(res.lines.map(line => ({ query: line, status: 'pending' })));
-        } else {
-          toast.error("לא התקבלו תוצאות");
-        }
+    generatePlaylist.mutate(
+      { data: { prompt } },
+      {
+        onSuccess: (res) => {
+          if (res.lines && res.lines.length) {
+            setStagingBatchId((b) => b + 1);
+            setStagingItems(
+              res.lines.map((line) => ({
+                id: newClientId(),
+                query: line,
+                status: 'pending' as const,
+              })),
+            );
+          } else {
+            toast.error('לא התקבלו תוצאות');
+          }
+        },
+        onError: () => toast.error('שגיאה ביצירת פלייליסט'),
       },
-      onError: () => toast.error("שגיאה ביצירת פלייליסט"),
-    });
+    );
   };
 
   const handleApprove = (songs: MsHit[]) => {
@@ -37,7 +55,9 @@ export function AIPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void }
   };
 
   return (
-    <div className={`relative h-full flex flex-col border-r border-black/[0.07] transition-all duration-300 ${isOpen ? 'w-80' : 'w-12'}`}>
+    <div
+      className={`relative h-full flex flex-col border-r border-black/[0.07] transition-all duration-300 ${isOpen ? 'w-80' : 'w-12'}`}
+    >
       <div
         className="flex flex-col h-full"
         style={{
@@ -47,12 +67,17 @@ export function AIPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void }
         }}
       >
         <motion.button
+          type="button"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsOpen(!isOpen)}
           className="absolute -right-3.5 top-1/2 -translate-y-1/2 bg-white border border-black/[0.09] rounded-xl p-1.5 z-10 shadow-sm hover:bg-primary/5 hover:text-primary hover:border-primary/20 transition-colors"
         >
-          {isOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
+          {isOpen ? (
+            <PanelRightClose className="w-3.5 h-3.5" />
+          ) : (
+            <PanelRightOpen className="w-3.5 h-3.5" />
+          )}
         </motion.button>
 
         <AnimatePresence mode="wait">
@@ -85,22 +110,28 @@ export function AIPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void }
                   data-testid="generate-playlist-button"
                   className="w-full rounded-xl shadow-sm"
                   onClick={handleGenerate}
-                  disabled={generatePlaylist.isPending || !prompt.trim()}
+                  disabled={generatePlaylist.isPending || !prompt.trim() || stagingBusy}
                 >
                   {generatePlaylist.isPending ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> מייצר...</>
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> מייצר...
+                    </>
                   ) : (
-                    <><Sparkles className="mr-2 h-4 w-4" /> צור פלייליסט</>
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" /> צור פלייליסט
+                    </>
                   )}
                 </Button>
               </motion.div>
 
               {stagingItems.length > 0 && (
                 <StagingArea
+                  key={stagingBatchId}
                   items={stagingItems}
                   setItems={setStagingItems}
                   onApproveAll={handleApprove}
                   onCancel={() => setStagingItems([])}
+                  searchFilters={filters}
                 />
               )}
             </motion.div>

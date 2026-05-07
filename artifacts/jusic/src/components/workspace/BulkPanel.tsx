@@ -4,18 +4,33 @@ import { Textarea } from '../ui/textarea';
 import { StagingArea, StagingItem } from './StagingArea';
 import { List, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import { MsHit } from '../../lib/meilisearch';
+import { newClientId } from '../../lib/ids';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchFilters } from '@/contexts/SearchFiltersContext';
 
 export function BulkPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void }) {
+  const { filters } = useSearchFilters();
   const [isOpen, setIsOpen] = useState(false);
   const [text, setText] = useState('');
+  const [stagingBatchId, setStagingBatchId] = useState(0);
   const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
 
+  const stagingBusy = stagingItems.some(
+    (i) => i.status === 'searching' || i.status === 'pending',
+  );
+
   const handleMatch = () => {
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
     if (!lines.length) return;
-    setStagingItems(lines.map(line => ({ query: line, status: 'pending' })));
+    setStagingBatchId((b) => b + 1);
+    setStagingItems(
+      lines.map((line) => ({
+        id: newClientId(),
+        query: line,
+        status: 'pending' as const,
+      })),
+    );
   };
 
   const handleApprove = (songs: MsHit[]) => {
@@ -27,7 +42,9 @@ export function BulkPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void
   };
 
   return (
-    <div className={`relative h-full flex flex-col border-l border-black/[0.07] transition-all duration-300 ${isOpen ? 'w-80' : 'w-12'}`}>
+    <div
+      className={`relative h-full flex flex-col border-l border-black/[0.07] transition-all duration-300 ${isOpen ? 'w-80' : 'w-12'}`}
+    >
       <div
         className="flex flex-col h-full"
         style={{
@@ -37,12 +54,17 @@ export function BulkPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void
         }}
       >
         <motion.button
+          type="button"
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           onClick={() => setIsOpen(!isOpen)}
           className="absolute -left-3.5 top-1/2 -translate-y-1/2 bg-white border border-black/[0.09] rounded-xl p-1.5 z-10 shadow-sm hover:bg-primary/5 hover:text-primary hover:border-primary/20 transition-colors"
         >
-          {isOpen ? <PanelLeftClose className="w-3.5 h-3.5" /> : <PanelLeftOpen className="w-3.5 h-3.5" />}
+          {isOpen ? (
+            <PanelLeftClose className="w-3.5 h-3.5" />
+          ) : (
+            <PanelLeftOpen className="w-3.5 h-3.5" />
+          )}
         </motion.button>
 
         <AnimatePresence mode="wait">
@@ -75,19 +97,21 @@ export function BulkPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void
                   data-testid="bulk-match-button"
                   className="w-full rounded-xl shadow-sm"
                   onClick={handleMatch}
-                  disabled={!text.trim()}
+                  disabled={!text.trim() || stagingBusy}
                   variant="secondary"
                 >
-                  חפש והתאם ({text.split('\n').filter(l => l.trim()).length} שורות)
+                  חפש והתאם ({text.split('\n').filter((l) => l.trim()).length} שורות)
                 </Button>
               </motion.div>
 
               {stagingItems.length > 0 && (
                 <StagingArea
+                  key={stagingBatchId}
                   items={stagingItems}
                   setItems={setStagingItems}
                   onApproveAll={handleApprove}
                   onCancel={() => setStagingItems([])}
+                  searchFilters={filters}
                 />
               )}
             </motion.div>

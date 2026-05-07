@@ -2,11 +2,12 @@ import { Router, type IRouter } from "express";
 import healthRouter from "./health";
 import geminiRouter from "./gemini";
 import searchRouter from "./search";
+import { geminiRateLimiter, searchRateLimiter } from "../middleware/rate-limit";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
-router.use("/gemini", geminiRouter);
-router.use("/search", searchRouter);
+router.use("/gemini", geminiRateLimiter, geminiRouter);
+router.use("/search", searchRateLimiter, searchRouter);
 
 export default router;

@@ -1,0 +1,5 @@
+{
+  "npm.packageManager": "pnpm",
+  "npm.scriptRunner": "pnpm",
+  "eslint.packageManager": "pnpm"
+}

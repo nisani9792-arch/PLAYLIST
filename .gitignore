@@ -37,6 +37,15 @@ yarn-error.log
 testem.log
 /typings
 
+# Secrets — never commit credentials
+.env
+.env.local
+.env.*.local
+
+# Archives too large for GitHub (>100MB limit)
+/JUSIC PLAYLIST.zip
+/פלייליסטים.zip
+
 # System Files
 .DS_Store
 Thumbs.db

@@ -1,11 +1,14 @@
 import { useEffect } from 'react';
 import { MsHit, meilisearchSearch } from '../../lib/meilisearch';
+import type { SearchFilterOptions } from '../../lib/search-filters';
+import { DEFAULT_SEARCH_FILTERS } from '../../lib/search-filters';
 import { Button } from '../ui/button';
 import { Loader2, X, CheckCircle2, SearchX, Clock, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import React from 'react';
 
 export interface StagingItem {
+  id: string;
   query: string;
   status: 'pending' | 'searching' | 'matched' | 'review' | 'not-found' | 'skipped';
   match?: MsHit;
@@ -13,10 +16,12 @@ export interface StagingItem {
 }
 
 const CONFIDENCE_THRESHOLD = 0.28;
+const RANKING_BOOST = 0.12;
 
 function calcSimilarity(query: string, hit: MsHit): number {
   const norm = (s: string) =>
-    s.toLowerCase()
+    s
+      .toLowerCase()
       .replace(/[^\u0590-\u05FF\u200c-\u200fa-z0-9\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -45,7 +50,11 @@ function calcSimilarity(query: string, hit: MsHit): number {
     }
   }
 
-  return score / Math.max(qWords.length, 1);
+  let conf = score / Math.max(qWords.length, 1);
+  if (typeof hit._rankingScore === 'number' && hit._rankingScore > 0.75) {
+    conf = Math.min(1, conf + RANKING_BOOST);
+  }
+  return conf;
 }
 
 export function StagingArea({
@@ -53,13 +62,15 @@ export function StagingArea({
   setItems,
   onApproveAll,
   onCancel,
+  searchFilters = DEFAULT_SEARCH_FILTERS,
 }: {
   items: StagingItem[];
   setItems: React.Dispatch<React.SetStateAction<StagingItem[]>>;
   onApproveAll: (songs: MsHit[]) => void;
   onCancel: () => void;
+  /** Same filters as header search — default songs-only applies to text import & AI matching */
+  searchFilters?: SearchFilterOptions;
 }) {
-
   const processBatch = async (pendingItems: StagingItem[]) => {
     if (!pendingItems.length) return;
 
@@ -67,31 +78,44 @@ export function StagingArea({
       const batch = pendingItems.slice(i, i + 5);
 
       const promises = batch.map(async (item) => {
-        setItems((prev) => prev.map((p) =>
-          p.query === item.query ? { ...p, status: 'searching' as const } : p
-        ));
+        setItems((prev) =>
+          prev.map((p) =>
+            p.id === item.id ? { ...p, status: 'searching' as const } : p,
+          ),
+        );
         try {
-          const hits = await meilisearchSearch(item.query, 3);
-          return { query: item.query, hit: hits[0] ?? null };
+          const hits = await meilisearchSearch(item.query, 3, searchFilters);
+          return { id: item.id, hit: hits[0] ?? null };
         } catch {
-          return { query: item.query, hit: null };
+          return { id: item.id, hit: null };
         }
       });
 
       const results = await Promise.all(promises);
 
-      setItems((prev) => prev.map((p) => {
-        const res = results.find((r) => r.query === p.query);
-        if (!res) return p;
-        if (!res.hit) return { ...p, status: 'not-found' as const, confidence: 0 };
+      setItems((prev) =>
+        prev.map((p) => {
+          const res = results.find((r) => r.id === p.id);
+          if (!res) return p;
+          if (!res.hit) return { ...p, status: 'not-found' as const, confidence: 0 };
 
-        const conf = calcSimilarity(p.query, res.hit);
-        if (conf >= CONFIDENCE_THRESHOLD) {
-          return { ...p, status: 'matched' as const, match: res.hit, confidence: conf };
-        } else {
-          return { ...p, status: 'review' as const, match: res.hit, confidence: conf };
-        }
-      }));
+          const conf = calcSimilarity(p.query, res.hit);
+          if (conf >= CONFIDENCE_THRESHOLD) {
+            return {
+              ...p,
+              status: 'matched' as const,
+              match: res.hit,
+              confidence: conf,
+            };
+          }
+          return {
+            ...p,
+            status: 'review' as const,
+            match: res.hit,
+            confidence: conf,
+          };
+        }),
+      );
     }
   };
 
@@ -99,24 +123,31 @@ export function StagingArea({
     const pending = items.filter((i) => i.status === 'pending');
     const isIdle = !items.some((i) => i.status === 'searching');
     if (pending.length > 0 && isIdle) {
-      processBatch(pending);
+      void processBatch(pending);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- parent uses key to reset batches; mount handles each batch
   }, []);
 
-  const handleSkip = (query: string) => {
-    setItems((prev) => prev.map((i) =>
-      i.query === query ? { ...i, status: 'skipped' as const } : i
-    ));
+  const handleSkip = (id: string) => {
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, status: 'skipped' as const } : i,
+      ),
+    );
   };
 
-  const handleApproveReview = (query: string) => {
-    setItems((prev) => prev.map((i) =>
-      i.query === query ? { ...i, status: 'matched' as const } : i
-    ));
+  const handleApproveReview = (id: string) => {
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, status: 'matched' as const } : i,
+      ),
+    );
   };
 
   const isProcessing = items.some((i) => i.status === 'searching');
-  const matchedSongs = items.filter((i) => i.status === 'matched' && i.match).map((i) => i.match!);
+  const matchedSongs = items
+    .filter((i) => i.status === 'matched' && i.match)
+    .map((i) => i.match!);
   const reviewCount = items.filter((i) => i.status === 'review').length;
   const totalCount = items.length;
 
@@ -127,7 +158,9 @@ export function StagingArea({
           אזור התאמה
           <span className="text-xs text-muted-foreground font-normal">
             ({matchedSongs.length}/{totalCount}
-            {reviewCount > 0 && <span className="text-yellow-400 mr-1"> · {reviewCount} לבדיקה</span>}
+            {reviewCount > 0 && (
+              <span className="text-yellow-400 mr-1"> · {reviewCount} לבדיקה</span>
+            )}
             )
           </span>
         </h3>
@@ -138,20 +171,26 @@ export function StagingArea({
         <AnimatePresence initial={false}>
           {items.map((item, idx) => (
             <motion.div
-              key={item.query + idx}
+              key={item.id}
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ delay: idx * 0.02, duration: 0.15 }}
               className={`flex items-center justify-between p-2.5 rounded-xl text-sm border transition-colors ${
-                item.status === 'matched'  ? 'bg-primary/5 border-primary/20' :
-                item.status === 'review'   ? 'bg-yellow-500/5 border-yellow-500/20' :
-                item.status === 'not-found'? 'bg-destructive/5 border-destructive/15' :
-                item.status === 'skipped'  ? 'bg-muted/20 border-transparent opacity-40' :
-                'bg-background/30 border-border/40'
+                item.status === 'matched'
+                  ? 'bg-primary/5 border-primary/20'
+                  : item.status === 'review'
+                    ? 'bg-yellow-500/5 border-yellow-500/20'
+                    : item.status === 'not-found'
+                      ? 'bg-destructive/5 border-destructive/15'
+                      : item.status === 'skipped'
+                        ? 'bg-muted/20 border-transparent opacity-40'
+                        : 'bg-background/30 border-border/40'
               }`}
             >
-              <span className="truncate flex-1 text-xs font-medium" title={item.query}>{item.query}</span>
+              <span className="truncate flex-1 text-xs font-medium" title={item.query}>
+                {item.query}
+              </span>
               <div className="flex items-center gap-2 flex-shrink-0 mr-2">
                 {item.status === 'pending' && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -167,27 +206,34 @@ export function StagingArea({
                   </span>
                 )}
                 {item.status === 'skipped' && (
-                  <span className="text-xs text-muted-foreground bg-muted/30 border border-border px-2 py-0.5 rounded-lg">דולג</span>
+                  <span className="text-xs text-muted-foreground bg-muted/30 border border-border px-2 py-0.5 rounded-lg">
+                    דולג
+                  </span>
                 )}
                 {item.status === 'review' && item.match && (
                   <>
-                    <span className="flex items-center gap-1 text-xs text-yellow-400 truncate max-w-[100px]" title={`${item.match.song_name} - ${item.match.artist}`}>
+                    <span
+                      className="flex items-center gap-1 text-xs text-yellow-400 truncate max-w-[100px]"
+                      title={`${item.match.song_name} - ${item.match.artist}`}
+                    >
                       <AlertTriangle className="h-3 w-3 flex-shrink-0" />
                       {item.match.song_name}
                     </span>
                     <motion.button
+                      type="button"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       className="text-[10px] text-yellow-400 border border-yellow-500/30 bg-yellow-500/10 px-1.5 py-0.5 rounded-md hover:bg-yellow-500/20 transition-colors"
-                      onClick={() => handleApproveReview(item.query)}
+                      onClick={() => handleApproveReview(item.id)}
                     >
                       אשר
                     </motion.button>
                     <motion.button
+                      type="button"
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       className="h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      onClick={() => handleSkip(item.query)}
+                      onClick={() => handleSkip(item.id)}
                     >
                       <X className="h-3 w-3" />
                     </motion.button>
@@ -195,15 +241,19 @@ export function StagingArea({
                 )}
                 {item.status === 'matched' && item.match && (
                   <>
-                    <span className="flex items-center gap-1 text-xs text-primary truncate max-w-[110px]" title={`${item.match.song_name} - ${item.match.artist}`}>
+                    <span
+                      className="flex items-center gap-1 text-xs text-primary truncate max-w-[110px]"
+                      title={`${item.match.song_name} - ${item.match.artist}`}
+                    >
                       <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
                       {item.match.song_name}
                     </span>
                     <motion.button
+                      type="button"
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       className="h-5 w-5 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      onClick={() => handleSkip(item.query)}
+                      onClick={() => handleSkip(item.id)}
                     >
                       <X className="h-3 w-3" />
                     </motion.button>
@@ -216,7 +266,9 @@ export function StagingArea({
       </div>
 
       <div className="flex gap-2 justify-end mt-1">
-        <Button variant="ghost" size="sm" onClick={onCancel} className="rounded-xl text-xs">ביטול</Button>
+        <Button variant="ghost" size="sm" onClick={onCancel} className="rounded-xl text-xs">
+          ביטול
+        </Button>
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
           <Button
             data-testid="approve-all-button"
