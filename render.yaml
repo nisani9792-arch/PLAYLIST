@@ -1,0 +1,11 @@
+# Sync with Render Blueprint or copy build/start into the dashboard.
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: workspace-api
+    runtime: node
+    buildCommand: corepack enable && corepack prepare pnpm@11.0.8 --activate && pnpm install --frozen-lockfile && pnpm run build
+    startCommand: pnpm start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
