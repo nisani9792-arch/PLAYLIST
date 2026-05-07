@@ -1,0 +1,93 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: gemini
+    description: Gemini AI operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /gemini/playlist:
+    post:
+      operationId: generatePlaylist
+      tags: [gemini]
+      summary: Generate a playlist using Gemini AI
+      description: Takes a Hebrew music prompt and returns a list of song names
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GeneratePlaylistBody"
+      responses:
+        "200":
+          description: Generated playlist song lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratePlaylistResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    GeneratePlaylistBody:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: The music prompt in Hebrew
+      required:
+        - prompt
+    GeneratePlaylistResponse:
+      type: object
+      properties:
+        lines:
+          type: array
+          items:
+            type: string
+          description: List of song names returned by Gemini
+      required:
+        - lines
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

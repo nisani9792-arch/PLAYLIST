@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Jusic Music Workstation"
+version = "1.0.0"
+id = "artifacts/jusic"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21378
+
+[services.development]
+run = "pnpm --filter @workspace/jusic run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/jusic", "run", "build" ]
+publicDir = "artifacts/jusic/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21378"
+BASE_PATH = "/"
