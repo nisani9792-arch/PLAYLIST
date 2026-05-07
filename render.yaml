@@ -1,5 +1,8 @@
 # Repo root must be the service root: this monorepo needs root package.json + pnpm-workspace.yaml.
 # Do NOT set Root Directory to "artifacts" (no package.json there) — only subtrees like artifacts/api-server have one.
+# Full features: set these in the Render Dashboard (Environment), not in git:
+#   MEILISEARCH_URL, MEILISEARCH_API_KEY, optional MEILISEARCH_INDEX — search & admin
+#   AI_INTEGRATIONS_GEMINI_BASE_URL, AI_INTEGRATIONS_GEMINI_API_KEY — /api/gemini/*
 # https://render.com/docs/blueprint-spec
 services:
   - type: web

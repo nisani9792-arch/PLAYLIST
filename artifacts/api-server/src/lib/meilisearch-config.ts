@@ -30,16 +30,12 @@ export function buildMeilisearchBearerHeaders(apiKey: string): Record<string, st
   };
 }
 
-/** Validates configuration at startup; throws in production if search cannot run. */
+/** Logs a warning when search env is missing; does not exit — /api/search returns 503 until configured. */
 export function validateMeilisearchAtStartup(): void {
   if (isMeilisearchConfigured()) return;
 
   const msg =
     "Meilisearch is not configured. Set MEILISEARCH_URL and MEILISEARCH_API_KEY (optional: MEILISEARCH_INDEX). /api/search will return 503 until configured.";
-
-  if (process.env.NODE_ENV === "production") {
-    throw new Error(msg);
-  }
 
   logger.warn(msg);
 }

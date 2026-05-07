@@ -4,13 +4,8 @@ import { validateMeilisearchAtStartup } from "./lib/meilisearch-config";
 
 validateMeilisearchAtStartup();
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
+/** Render and most hosts set PORT; default matches Render's expected listen port. */
+const rawPort = process.env.PORT ?? "10000";
 
 const port = Number(rawPort);
 
