@@ -1,9 +1,15 @@
 import { Router } from "express";
-import { ai } from "@workspace/integrations-gemini-ai";
+import { resolveGeminiConnection } from "../lib/system-settings-store";
+import { createGeminiClient } from "../lib/gemini-client-factory";
 
 const router = Router();
 
 const MAX_PROMPT_LEN = 4000;
+
+async function getGeminiClientOrThrow() {
+  const { baseUrl, apiKey } = await resolveGeminiConnection();
+  return createGeminiClient(baseUrl, apiKey);
+}
 
 function stripCodeFences(text: string): string {
   let t = text.trim();
@@ -80,6 +86,16 @@ router.post("/playlist/stream", async (req, res) => {
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
   };
 
+  let client;
+  try {
+    client = await getGeminiClientOrThrow();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Gemini is not configured";
+    sendEvent({ error: msg });
+    res.end();
+    return;
+  }
+
   const fullPrompt = `אתה מומחה מוזיקה ישראלית ויהודית. המשתמש ביקש פלייליסט: "${prompt}".
 
 הנחיות קפדניות:
@@ -90,7 +106,7 @@ router.post("/playlist/stream", async (req, res) => {
 - המערך songs מכיל בדיוק 12–20 מחרוזות, כל אחת "אמן - שם שיר"`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await client.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
       config: { maxOutputTokens: 2048 },
@@ -129,6 +145,15 @@ router.post("/playlist", async (req, res) => {
     return;
   }
 
+  let client;
+  try {
+    client = await getGeminiClientOrThrow();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Gemini is not configured";
+    res.status(503).json({ error: msg });
+    return;
+  }
+
   const fullPrompt = `אתה מומחה מוזיקה ישראלית ויהודית. המשתמש ביקש פלייליסט: "${prompt}".
 
 הנחיות קפדניות:
@@ -139,7 +164,7 @@ router.post("/playlist", async (req, res) => {
 - המערך songs מכיל בדיוק 12–20 מחרוזות, כל אחת "אמן - שם שיר"`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await client.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
       config: { maxOutputTokens: 2048 },
@@ -150,7 +175,7 @@ router.post("/playlist", async (req, res) => {
     res.json({ lines });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: `Gemini error: ${msg}` });
+    res.status(502).json({ error: `Gemini error: ${msg}` });
   }
 });
 
