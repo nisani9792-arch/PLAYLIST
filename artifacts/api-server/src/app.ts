@@ -89,8 +89,9 @@ if (fs.existsSync(resolvedStatic)) {
 
   // SPA catch-all: every non-API, non-file request gets index.html so that
   // client-side routing (Wouter) works correctly after a hard refresh.
+  // Express 5 (path-to-regexp v8) requires a named wildcard — bare "*" throws.
   const indexHtml = path.join(resolvedStatic, "index.html");
-  app.get("*", (_req: Request, res: Response) => {
+  app.get("/*splat", (_req: Request, res: Response) => {
     res.sendFile(indexHtml);
   });
 } else {
