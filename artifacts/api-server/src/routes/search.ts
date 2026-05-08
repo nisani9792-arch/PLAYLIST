@@ -152,12 +152,12 @@ router.post("/", async (req, res) => {
       const payload: Record<string, unknown> = { q: q.trim(), limit };
       if (filter?.length) payload.filter = filter;
 
-      const response = await fetch(`${baseUrl}/indexes/${index}/search`, {
+      const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
+
+    const response = await fetch(`${baseUrl}/indexes/${index}/search`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
+        headers: fetchHeaders,
         body: JSON.stringify(payload),
       });
 

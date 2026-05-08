@@ -13,9 +13,14 @@ export function getMeilisearchConfig(): MeilisearchRuntimeConfig {
   return { baseUrl, apiKey, index };
 }
 
+/**
+ * Returns true when a Meilisearch URL is set.
+ * The API key is intentionally optional — some self-hosted instances run
+ * without authentication (no master key configured).
+ */
 export function isMeilisearchConfigured(): boolean {
   const c = getMeilisearchConfig();
-  return Boolean(c.baseUrl && c.apiKey);
+  return Boolean(c.baseUrl);
 }
 
 /** Same as {@link getMeilisearchConfig} today; kept async for future DB-backed overrides. */
@@ -23,19 +28,20 @@ export async function getMeilisearchConfigResolved(): Promise<MeilisearchRuntime
   return getMeilisearchConfig();
 }
 
+/**
+ * Build fetch headers for a Meilisearch request.
+ * Authorization is omitted when apiKey is empty (unauthenticated instance).
+ */
 export function buildMeilisearchBearerHeaders(apiKey: string): Record<string, string> {
-  return {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+  return headers;
 }
 
-/** Logs a warning when search env is missing; does not exit — /api/search returns 503 until configured. */
+/** Logs a warning when MEILISEARCH_URL is missing; server starts regardless. */
 export function validateMeilisearchAtStartup(): void {
   if (isMeilisearchConfigured()) return;
-
-  const msg =
-    "Meilisearch is not configured. Set MEILISEARCH_URL and MEILISEARCH_API_KEY (optional: MEILISEARCH_INDEX). /api/search will return 503 until configured.";
-
-  logger.warn(msg);
+  logger.warn(
+    "Meilisearch is not configured. Set MEILISEARCH_URL (MEILISEARCH_API_KEY is optional). /api/search will return empty results until configured.",
+  );
 }

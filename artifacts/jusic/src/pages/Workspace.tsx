@@ -28,16 +28,16 @@ export default function Workspace() {
         }}
       >
         <div className="flex items-center gap-3 w-48 shrink-0">
-          <img src="/logo.png" alt="BUILD PLAY" className="h-9 w-auto object-contain" />
+          <img src="/logo.png" alt="JUSIC MANEGE PRO" className="h-9 w-auto object-contain" />
           <div className="flex flex-col leading-none">
             <span
               className="text-xl font-black text-primary tracking-widest"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
-              BUILD PLAY
+              JUSIC MANEGE
             </span>
-            <span className="text-muted-foreground text-[10px] font-medium tracking-widest">
-              עמדת עריכה
+            <span className="text-primary/60 text-[10px] font-bold tracking-[0.25em] uppercase">
+              PRO
             </span>
           </div>
         </div>
