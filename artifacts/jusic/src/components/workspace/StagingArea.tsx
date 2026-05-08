@@ -15,7 +15,9 @@ export interface StagingItem {
   confidence?: number;
 }
 
-const CONFIDENCE_THRESHOLD = 0.28;
+// Lowered from 0.28 → 0.15 so Hebrew partial-word matches pass auto-approve.
+// The "review" state still lets the user approve or skip borderline results.
+const CONFIDENCE_THRESHOLD = 0.15;
 const RANKING_BOOST = 0.12;
 
 function calcSimilarity(query: string, hit: MsHit): number {
@@ -84,7 +86,11 @@ export function StagingArea({
           ),
         );
         try {
-          const hits = await meilisearchSearch(item.query, 3, searchFilters);
+          // Use limit=5 to maximise the chance of getting a strong match,
+          // and drop songsOnly temporarily so partial-title queries that span
+          // types still surface candidates (confidence filter cleans noise).
+          const relaxedFilters = { ...searchFilters, songsOnly: false };
+          const hits = await meilisearchSearch(item.query, 5, relaxedFilters);
           return { id: item.id, hit: hits[0] ?? null };
         } catch {
           return { id: item.id, hit: null };

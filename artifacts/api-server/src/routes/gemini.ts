@@ -49,6 +49,73 @@ function linesFromModelText(text: string): string[] {
     );
 }
 
+/**
+ * POST /api/gemini/playlist/stream — SSE version of the playlist generator.
+ * Each suggested song is pushed as a separate Server-Sent Event so the UI
+ * can render lines progressively while Gemini is still generating.
+ * Event format:  data: {"line":"<song>"}\n\n
+ * Terminal event: data: {"done":true}\n\n
+ * Error event:    data: {"error":"<msg>"}\n\n
+ */
+router.post("/playlist/stream", async (req, res) => {
+  const { prompt } = req.body as { prompt?: string };
+
+  if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+    res.status(400).json({ error: "Missing prompt" });
+    return;
+  }
+
+  if (prompt.length > MAX_PROMPT_LEN) {
+    res.status(400).json({ error: "Prompt too long" });
+    return;
+  }
+
+  // Set SSE headers before writing anything
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering on Render
+
+  const sendEvent = (payload: Record<string, unknown>) => {
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  };
+
+  const fullPrompt = `אתה מומחה מוזיקה ישראלית ויהודית. המשתמש ביקש פלייליסט: "${prompt}".
+
+הנחיות קפדניות:
+- בחר 12–20 שירים בודדים (לא אלבומים, לא פודקאסטים, רק שירים)
+- שמות בעברית בלבד, שירים מוכרים במוזיקה הישראלית/יהודית
+- החזר אך ורק JSON תקין (ללא markdown, ללא טקסט מסביב) במבנה בדיוק:
+  {"songs":["אמן - שם שיר", "אמן - שם שיר", ...]}
+- המערך songs מכיל בדיוק 12–20 מחרוזות, כל אחת "אמן - שם שיר"`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+      config: { maxOutputTokens: 2048 },
+    });
+
+    const lines = linesFromModelText(response.text ?? "");
+
+    // Stream each line as a separate SSE event with a small delay so the
+    // frontend can render them progressively even though Gemini already
+    // returned the full list (true streaming not required by the client).
+    for (const line of lines) {
+      sendEvent({ line });
+      // Yield to the event loop so the client receives the event immediately
+      await new Promise((r) => setTimeout(r, 40));
+    }
+
+    sendEvent({ done: true });
+    res.end();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    sendEvent({ error: `Gemini error: ${msg}` });
+    res.end();
+  }
+});
+
 router.post("/playlist", async (req, res) => {
   const { prompt } = req.body as { prompt?: string };
 
