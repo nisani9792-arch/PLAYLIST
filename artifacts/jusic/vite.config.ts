@@ -19,7 +19,9 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
+    // Only inject the Replit runtime-error overlay in development (it adds a
+    // restrictive CSP <meta> tag that breaks production builds on non-Replit hosts).
+    ...(process.env.NODE_ENV !== "production" ? [runtimeErrorOverlay()] : []),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [

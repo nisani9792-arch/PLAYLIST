@@ -22,22 +22,33 @@ if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
 }
 
 // ── Security headers (CSP + sensible defaults via Helmet) ──────────────────
+// useDefaults: false gives us FULL control — no hidden Helmet directives that
+// could conflict with our explicit allowlist.
 app.use(
   helmet({
     contentSecurityPolicy: {
+      useDefaults: false,
       directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: buildScriptSrc(),
-        styleSrc: buildStyleSrc(),
-        fontSrc: buildFontSrc(),
-        imgSrc: buildImgSrc(),
-        connectSrc: buildConnectSrc(),
-        workerSrc: ["'self'", "blob:"],
-        objectSrc: ["'none'"],
-        upgradeInsecureRequests: [],
+        "default-src":        ["'self'"],
+        "script-src":         buildScriptSrc(),
+        // script-src-elem must be set explicitly; otherwise browsers fall back
+        // to default-src, which would block Google Translate injection scripts.
+        "script-src-elem":    buildScriptSrc(),
+        "style-src":          buildStyleSrc(),
+        // style-src-elem explicit so browsers do NOT fall back to default-src.
+        "style-src-elem":     buildStyleSrc(),
+        "font-src":           buildFontSrc(),
+        "img-src":            buildImgSrc(),
+        "connect-src":        buildConnectSrc(),
+        "worker-src":         ["'self'", "blob:"],
+        "object-src":         ["'none'"],
+        "base-uri":           ["'self'"],
+        "form-action":        ["'self'"],
+        "frame-ancestors":    ["'self'"],
+        "upgrade-insecure-requests": [],
       },
     },
-    // Render terminates TLS; let them manage HSTS
+    // Render terminates TLS; let them manage HSTS.
     strictTransportSecurity: false,
   }),
 );
@@ -87,11 +98,14 @@ if (fs.existsSync(resolvedStatic)) {
     }),
   );
 
-  // SPA catch-all: every non-API, non-file request gets index.html so that
-  // client-side routing (Wouter) works correctly after a hard refresh.
-  // Express 5 (path-to-regexp v8) requires a named wildcard — bare "*" throws.
+  // SPA catch-all: every non-API, non-file GET/HEAD request returns index.html
+  // so Wouter client-side routing works correctly on hard refresh.
+  //
+  // We use a regex instead of "/*splat" because Express 5 + path-to-regexp v8
+  // does NOT match the bare root "/" with the named wildcard "/*splat", which
+  // causes HEAD / (Render health-check) to return 404.
   const indexHtml = path.join(resolvedStatic, "index.html");
-  app.get("/*splat", (_req: Request, res: Response) => {
+  app.get(/(.*)/, (_req: Request, res: Response) => {
     res.sendFile(indexHtml);
   });
 } else {
