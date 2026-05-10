@@ -16,30 +16,50 @@ export const SETTINGS_KEYS = {
 } as const;
 
 export const PATCHABLE_SETTING_KEYS = new Set<string>(Object.values(SETTINGS_KEYS));
+const volatileSettings = new Map<string, string>();
 
 export async function fetchSettingsKeys(keys: string[]): Promise<Record<string, string>> {
   if (keys.length === 0) return {};
-  const rows = await db.select().from(systemSettings).where(inArray(systemSettings.key, keys));
-  const out: Record<string, string> = {};
-  for (const r of rows) out[r.key] = r.value;
-  return out;
+  try {
+    const rows = await db.select().from(systemSettings).where(inArray(systemSettings.key, keys));
+    const out: Record<string, string> = {};
+    for (const r of rows) out[r.key] = r.value;
+    return out;
+  } catch {
+    const out: Record<string, string> = {};
+    for (const key of keys) {
+      const v = volatileSettings.get(key);
+      if (typeof v === "string") out[key] = v;
+    }
+    return out;
+  }
 }
 
 export async function fetchAllSettings(): Promise<Record<string, string>> {
-  const rows = await db.select().from(systemSettings);
-  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  try {
+    const rows = await db.select().from(systemSettings);
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  } catch {
+    return Object.fromEntries(volatileSettings.entries());
+  }
 }
 
 export async function upsertSettings(entries: Record<string, string>): Promise<void> {
   const now = new Date();
-  for (const [key, value] of Object.entries(entries)) {
-    await db
-      .insert(systemSettings)
-      .values({ key, value, updatedAt: now })
-      .onConflictDoUpdate({
-        target: systemSettings.key,
-        set: { value, updatedAt: now },
-      });
+  try {
+    for (const [key, value] of Object.entries(entries)) {
+      await db
+        .insert(systemSettings)
+        .values({ key, value, updatedAt: now })
+        .onConflictDoUpdate({
+          target: systemSettings.key,
+          set: { value, updatedAt: now },
+        });
+    }
+  } catch {
+    for (const [key, value] of Object.entries(entries)) {
+      volatileSettings.set(key, value);
+    }
   }
 }
 
@@ -48,22 +68,24 @@ export async function getAiCustomInstructions(): Promise<string> {
   return row[SETTINGS_KEYS.AI_CUSTOM_INSTRUCTIONS]?.trim() ?? "";
 }
 
-export async function resolveGeminiConnection(): Promise<{ baseUrl: string; apiKey: string }> {
+export async function resolveGeminiConnection(): Promise<{ baseUrl?: string; apiKey: string }> {
   const o = await fetchSettingsKeys([SETTINGS_KEYS.GEMINI_BASE_URL, SETTINGS_KEYS.GEMINI_API_KEY]);
   const baseUrl = (
     o[SETTINGS_KEYS.GEMINI_BASE_URL]?.trim() ||
     process.env.AI_INTEGRATIONS_GEMINI_BASE_URL ||
+    process.env.GEMINI_BASE_URL ||
     ""
   ).trim();
   const apiKey = (
     o[SETTINGS_KEYS.GEMINI_API_KEY]?.trim() ||
     process.env.AI_INTEGRATIONS_GEMINI_API_KEY ||
+    process.env.GEMINI_API_KEY ||
     ""
   ).trim();
-  if (!baseUrl || !apiKey) {
+  if (!apiKey) {
     throw new Error(
-      "Gemini is not configured: set AI_INTEGRATIONS_GEMINI_BASE_URL and AI_INTEGRATIONS_GEMINI_API_KEY, or use admin overrides.",
+      "Gemini is not configured: set AI_INTEGRATIONS_GEMINI_API_KEY or GEMINI_API_KEY, or use admin overrides.",
     );
   }
-  return { baseUrl, apiKey };
+  return baseUrl ? { baseUrl, apiKey } : { apiKey };
 }

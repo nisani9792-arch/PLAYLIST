@@ -4,13 +4,30 @@ import * as schema from "./schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
+const DB_UNAVAILABLE_ERROR =
+  "DATABASE_URL is not set. DB-backed routes are unavailable in this runtime.";
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
+const missingPool = {
+  async connect() {
+    throw new Error(DB_UNAVAILABLE_ERROR);
+  },
+} as unknown as pg.Pool;
+
+const missingDb = new Proxy(
+  {},
+  {
+    get() {
+      throw new Error(DB_UNAVAILABLE_ERROR);
+    },
+  },
+) as ReturnType<typeof drizzle<typeof schema>>;
+
+export const pool = process.env.DATABASE_URL
+  ? new Pool({ connectionString: process.env.DATABASE_URL })
+  : missingPool;
+
+export const db = process.env.DATABASE_URL
+  ? drizzle(pool, { schema })
+  : missingDb;
 
 export * from "./schema";

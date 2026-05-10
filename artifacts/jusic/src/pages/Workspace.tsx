@@ -6,6 +6,7 @@ import { ASIComposerPanel } from '../components/workspace/ASIComposerPanel';
 import { ApiStatusIndicator } from '../components/workspace/ApiStatusIndicator';
 import { WorkspaceHelpPopover } from '../components/workspace/WorkspaceHelpPopover';
 import { LearningExportButton } from '../components/workspace/LearningExportButton';
+import { OfflinePlaylistMasterDialog } from '../components/workspace/OfflinePlaylistMasterDialog';
 
 export default function Workspace() {
   const playlist = usePlaylist();
@@ -51,6 +52,7 @@ export default function Workspace() {
         </div>
         <div className="flex items-center justify-end gap-1 shrink-0">
           <ApiStatusIndicator />
+          <OfflinePlaylistMasterDialog />
           <LearningExportButton />
           <WorkspaceHelpPopover />
         </div>
