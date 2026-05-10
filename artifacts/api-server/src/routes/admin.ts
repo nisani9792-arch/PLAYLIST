@@ -1,9 +1,11 @@
 import { Router } from "express";
+import { readFile } from "node:fs/promises";
 import { pool } from "@workspace/db";
 import {
   fetchAllSettings,
   PATCHABLE_SETTING_KEYS,
   resolveGeminiConnection,
+  SETTINGS_KEYS,
   upsertSettings,
 } from "../lib/system-settings-store";
 import { createGeminiClient } from "../lib/gemini-client-factory";
@@ -21,6 +23,7 @@ function envExists(name: string): boolean {
 
 router.get("/admin/diagnostics", async (_req, res) => {
   const checkedAt = new Date().toISOString();
+  const settings = await fetchAllSettings();
 
   const database = await (async () => {
     const started = Date.now();
@@ -120,6 +123,13 @@ router.get("/admin/diagnostics", async (_req, res) => {
     meilisearch,
     gemini,
     environment,
+    psh: {
+      importedAt: settings[SETTINGS_KEYS.AI_PSH_IMPORTED_AT] ?? null,
+      fileName: settings[SETTINGS_KEYS.AI_PSH_PDF_NAME] ?? null,
+      hasPdf:
+        typeof settings[SETTINGS_KEYS.AI_PSH_PDF_BASE64] === "string" &&
+        settings[SETTINGS_KEYS.AI_PSH_PDF_BASE64].length > 0,
+    },
   });
 });
 
@@ -165,6 +175,58 @@ router.patch("/admin/settings", async (req, res) => {
   } catch (err) {
     res.status(500).json({
       error: err instanceof Error ? err.message : "Failed to save settings",
+    });
+  }
+});
+
+router.post("/admin/psh/import", async (req, res) => {
+  const body = req.body as {
+    pdfBase64?: string;
+    fileName?: string;
+    filePath?: string;
+  };
+
+  let pdfBase64 = body.pdfBase64?.trim() ?? "";
+  const fileName = body.fileName?.trim() || "PSH.pdf";
+
+  if (!pdfBase64 && body.filePath?.trim()) {
+    try {
+      const buf = await readFile(body.filePath.trim());
+      pdfBase64 = buf.toString("base64");
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof Error ? err.message : "Failed reading PDF path",
+      });
+      return;
+    }
+  }
+
+  if (!pdfBase64) {
+    res.status(400).json({ error: "Provide pdfBase64 or filePath" });
+    return;
+  }
+
+  // Safety guard: keep payload under ~15MB base64 to avoid oversized settings rows.
+  if (pdfBase64.length > 20_000_000) {
+    res.status(413).json({ error: "PDF is too large" });
+    return;
+  }
+
+  try {
+    await upsertSettings({
+      [SETTINGS_KEYS.AI_PSH_PDF_BASE64]: pdfBase64,
+      [SETTINGS_KEYS.AI_PSH_PDF_NAME]: fileName,
+      [SETTINGS_KEYS.AI_PSH_IMPORTED_AT]: new Date().toISOString(),
+    });
+    res.json({
+      ok: true,
+      fileName,
+      bytesApprox: Math.floor((pdfBase64.length * 3) / 4),
+      importedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "Failed to save PSH PDF",
     });
   }
 });

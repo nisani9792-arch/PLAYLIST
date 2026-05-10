@@ -49,17 +49,21 @@ export function PlaylistView({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden" data-testid="playlist-container">
+    <div
+      className="flex-1 flex flex-col h-full overflow-hidden"
+      data-testid="playlist-container"
+      style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.64) 0%, rgba(255,255,255,0.4) 100%)' }}
+    >
       <div
         className="flex items-center justify-between px-5 py-3 border-b border-black/[0.06] flex-shrink-0"
-        style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(12px)' }}
+        style={{ background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(16px)' }}
       >
         <div className="flex items-center gap-3 flex-1 max-w-sm">
           <Input
             data-testid="playlist-name-input"
             value={playlistName}
             onChange={(e) => setPlaylistName(e.target.value)}
-            className="text-base font-bold bg-transparent border-transparent hover:border-black/10 focus:bg-white h-9 px-2 rounded-xl text-foreground"
+            className="text-base font-bold bg-transparent border-transparent hover:border-black/10 focus:bg-white h-9 px-2 rounded-xl text-foreground shadow-none"
           />
           <span
             className="text-muted-foreground text-xs whitespace-nowrap bg-primary/10 text-primary border border-primary/15 px-2.5 py-1 rounded-lg tabular-nums"
@@ -129,7 +133,7 @@ export function PlaylistView({
                     provided.innerRef(node);
                   }}
                   {...provided.droppableProps}
-                  className="h-full overflow-y-auto px-3 py-2 custom-scrollbar"
+                  className="h-full overflow-y-auto px-4 py-3 custom-scrollbar"
                 >
                   <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
                     {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -158,8 +162,8 @@ export function PlaylistView({
                               <motion.div
                                 className={`flex items-center group h-full rounded-xl border transition-colors ${
                                   snapshot.isDragging
-                                    ? 'bg-white border-primary/25 shadow-[0_4px_16px_rgba(0,0,0,0.1)] z-50'
-                                    : 'bg-white/60 border-transparent hover:bg-white hover:border-black/[0.06] hover:shadow-sm'
+                                    ? 'bg-white border-primary/25 shadow-[0_10px_24px_rgba(16,40,70,0.12)] z-50'
+                                    : 'bg-white/70 border-black/[0.05] hover:bg-white hover:border-black/[0.08] hover:shadow-[0_6px_18px_rgba(16,40,70,0.06)]'
                                 }`}
                                 transition={{ duration: 0.1 }}
                               >

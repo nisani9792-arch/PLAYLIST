@@ -15,48 +15,107 @@ export interface StagingItem {
   confidence?: number;
 }
 
-// Lowered from 0.28 → 0.15 so Hebrew partial-word matches pass auto-approve.
-// The "review" state still lets the user approve or skip borderline results.
-const CONFIDENCE_THRESHOLD = 0.15;
+const AUTO_MATCH_THRESHOLD = 0.72;
+const REVIEW_THRESHOLD = 0.5;
 const RANKING_BOOST = 0.12;
 
-function calcSimilarity(query: string, hit: MsHit): number {
-  const norm = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^\u0590-\u05FF\u200c-\u200fa-z0-9\s]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+function normalizeHebrew(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[\u0591-\u05c7]/g, '')
+    .replace(/[׳"`]/g, '')
+    .replace(/[^\u0590-\u05ffa-z0-9\s]/g, ' ')
+    .replace(/[ך]/g, 'כ')
+    .replace(/[ם]/g, 'מ')
+    .replace(/[ן]/g, 'נ')
+    .replace(/[ף]/g, 'פ')
+    .replace(/[ץ]/g, 'צ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-  const queryNorm = norm(query);
-  const hitNorm = norm(`${hit.song_name} ${hit.artist}`);
-
-  const qWords = queryNorm.split(' ').filter(Boolean);
-  const hWords = hitNorm.split(' ').filter(Boolean);
-  const hSet = new Set(hWords);
-
-  if (!qWords.length || !hWords.length) return 0;
-
-  let score = 0;
-  for (const w of qWords) {
-    if (w.length < 2) continue;
-    if (hSet.has(w)) {
-      score += 1;
-    } else {
-      for (const hw of hWords) {
-        if (hw.length >= 2 && (hw.includes(w) || w.includes(hw))) {
-          score += 0.5;
-          break;
-        }
-      }
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a) return b.length;
+  if (!b) return a.length;
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const dp: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
+  for (let i = 0; i < rows; i += 1) dp[i]![0] = i;
+  for (let j = 0; j < cols; j += 1) dp[0]![j] = j;
+  for (let i = 1; i < rows; i += 1) {
+    for (let j = 1; j < cols; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i]![j] = Math.min(
+        (dp[i - 1]![j] ?? 0) + 1,
+        (dp[i]![j - 1] ?? 0) + 1,
+        (dp[i - 1]![j - 1] ?? 0) + cost,
+      );
     }
   }
+  return dp[rows - 1]![cols - 1] ?? Math.max(a.length, b.length);
+}
 
-  let conf = score / Math.max(qWords.length, 1);
+function wordsSimilarity(query: string, candidate: string): number {
+  const qWords = normalizeHebrew(query).split(' ').filter((w) => w.length >= 2);
+  const cWords = normalizeHebrew(candidate).split(' ').filter((w) => w.length >= 2);
+  if (!qWords.length || !cWords.length) return 0;
+
+  let hits = 0;
+  for (const qw of qWords) {
+    let matched = false;
+    for (const cw of cWords) {
+      if (qw === cw) {
+        matched = true;
+        break;
+      }
+      if (qw.includes(cw) || cw.includes(qw)) {
+        matched = true;
+        break;
+      }
+      const dist = levenshtein(qw, cw);
+      if (dist <= 1 && Math.min(qw.length, cw.length) >= 4) {
+        matched = true;
+        break;
+      }
+    }
+    if (matched) hits += 1;
+  }
+  return hits / qWords.length;
+}
+
+function splitArtistSong(query: string): { artist: string; song: string; whole: string } {
+  const cleaned = query.replace(/^[\d.)\-\s]+/, '').trim();
+  const sep = cleaned.match(/\s[-–—:]\s/);
+  if (!sep) return { artist: '', song: cleaned, whole: cleaned };
+  const [left = '', right = ''] = cleaned.split(sep[0], 2);
+  if (!left.trim() || !right.trim()) return { artist: '', song: cleaned, whole: cleaned };
+  return { artist: left.trim(), song: right.trim(), whole: cleaned };
+}
+
+function calcHitConfidence(query: string, hit: MsHit): number {
+  const parsed = splitArtistSong(query);
+  const songScore = wordsSimilarity(parsed.song || parsed.whole, hit.song_name);
+  const artistScore = parsed.artist ? wordsSimilarity(parsed.artist, hit.artist) : 0;
+
+  let conf = parsed.artist ? songScore * 0.75 + artistScore * 0.25 : songScore;
   if (typeof hit._rankingScore === 'number' && hit._rankingScore > 0.75) {
     conf = Math.min(1, conf + RANKING_BOOST);
   }
   return conf;
+}
+
+function bestMatchForQuery(query: string, hits: MsHit[]): { hit: MsHit | null; confidence: number } {
+  let best: MsHit | null = null;
+  let confidence = 0;
+  for (const hit of hits) {
+    const c = calcHitConfidence(query, hit);
+    if (c > confidence) {
+      best = hit;
+      confidence = c;
+    }
+  }
+  return { hit: best, confidence };
 }
 
 export function StagingArea({
@@ -86,14 +145,11 @@ export function StagingArea({
           ),
         );
         try {
-          // Use limit=5 to maximise the chance of getting a strong match,
-          // and drop songsOnly temporarily so partial-title queries that span
-          // types still surface candidates (confidence filter cleans noise).
-          const relaxedFilters = { ...searchFilters, songsOnly: false };
-          const hits = await meilisearchSearch(item.query, 5, relaxedFilters);
-          return { id: item.id, hit: hits[0] ?? null };
+          const hits = await meilisearchSearch(item.query, 8, searchFilters);
+          const best = bestMatchForQuery(item.query, hits);
+          return { id: item.id, hit: best.hit, confidence: best.confidence };
         } catch {
-          return { id: item.id, hit: null };
+          return { id: item.id, hit: null, confidence: 0 };
         }
       });
 
@@ -105,8 +161,8 @@ export function StagingArea({
           if (!res) return p;
           if (!res.hit) return { ...p, status: 'not-found' as const, confidence: 0 };
 
-          const conf = calcSimilarity(p.query, res.hit);
-          if (conf >= CONFIDENCE_THRESHOLD) {
+          const conf = res.confidence ?? 0;
+          if (conf >= AUTO_MATCH_THRESHOLD) {
             return {
               ...p,
               status: 'matched' as const,
@@ -114,10 +170,17 @@ export function StagingArea({
               confidence: conf,
             };
           }
+          if (conf >= REVIEW_THRESHOLD) {
+            return {
+              ...p,
+              status: 'review' as const,
+              match: res.hit,
+              confidence: conf,
+            };
+          }
           return {
             ...p,
-            status: 'review' as const,
-            match: res.hit,
+            status: 'not-found' as const,
             confidence: conf,
           };
         }),

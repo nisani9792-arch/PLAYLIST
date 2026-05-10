@@ -1,36 +1,67 @@
 import { useState, useEffect, useRef } from 'react';
 import { MsHit } from '../lib/meilisearch';
 import { newClientId } from '../lib/ids';
-import { attachDraftFlushListeners } from '../lib/playlist-draft';
+import {
+  attachDraftFlushListeners,
+  deleteDraftFromHistory,
+  flushPlaylistDraft,
+  loadCurrentDraft,
+  loadDraftHistory,
+  saveDraftToHistory,
+  type PlaylistDraftSnapshot,
+} from '../lib/playlist-draft';
 import { recordSongsAdded, recordSessionStart } from '../lib/playlist-learning';
 
-const STORAGE_KEY = 'jusic_playlist_draft';
 const SAVE_DEBOUNCE_MS = 300;
 
 export function usePlaylist() {
   const [playlistName, setPlaylistName] = useState('פלייליסט חדש');
   const [songs, setSongs] = useState<MsHit[]>([]);
+  const [draftHistory, setDraftHistory] = useState<PlaylistDraftSnapshot[]>([]);
   const [ready, setReady] = useState(false);
   const dataRef = useRef({ name: 'פלייליסט חדש' as string, songs: [] as MsHit[] });
   dataRef.current = { name: playlistName, songs };
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as {
-          name?: string;
-          songs?: MsHit[];
-        };
-        if (parsed.name) setPlaylistName(parsed.name);
-        if (Array.isArray(parsed.songs)) setSongs(parsed.songs);
-      } catch {
-        console.error('Failed to parse playlist from storage');
-      }
-    }
+    const saved = loadCurrentDraft();
+    if (saved?.name) setPlaylistName(saved.name);
+    if (Array.isArray(saved?.songs)) setSongs(saved.songs);
+    setDraftHistory(loadDraftHistory());
     recordSessionStart();
     setReady(true);
   }, []);
+
+  const refreshDraftHistory = () => {
+    setDraftHistory(loadDraftHistory());
+  };
+
+  const rememberCurrentDraft = () => {
+    if (!songs.length) return;
+    saveDraftToHistory({ name: playlistName.trim() || 'פלייליסט ללא שם', songs });
+    refreshDraftHistory();
+  };
+
+  const loadDraft = (draftId: string) => {
+    const found = draftHistory.find((d) => d.id === draftId);
+    if (!found) return;
+    setPlaylistName(found.name || 'פלייליסט חדש');
+    setSongs(found.songs);
+  };
+
+  const deleteDraft = (draftId: string) => {
+    deleteDraftFromHistory(draftId);
+    refreshDraftHistory();
+  };
+
+  const clearPlaylist = () => {
+    if (songs.length) {
+      // Keep a quick checkpoint before clearing so users can restore.
+      saveDraftToHistory({ name: playlistName.trim() || 'פלייליסט ללא שם', songs });
+      refreshDraftHistory();
+    }
+    setSongs([]);
+    setPlaylistName('פלייליסט חדש');
+  };
 
   useEffect(() => {
     if (!ready) return;
@@ -42,10 +73,7 @@ export function usePlaylist() {
 
     const timer = window.setTimeout(() => {
       try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({ name: playlistName, songs, savedAt: Date.now() }),
-        );
+        flushPlaylistDraft(playlistName, songs);
       } catch (e) {
         const isQuota =
           e instanceof DOMException && e.name === 'QuotaExceededError';
@@ -86,19 +114,18 @@ export function usePlaylist() {
     });
   };
 
-  const clearPlaylist = () => {
-    setSongs([]);
-    setPlaylistName('פלייליסט חדש');
-  };
-
   return {
     playlistName,
     setPlaylistName,
     songs,
+    draftHistory,
     addSong,
     addSongs,
     removeSong,
     reorderSongs,
+    rememberCurrentDraft,
+    loadDraft,
+    deleteDraft,
     clearPlaylist,
   };
 }

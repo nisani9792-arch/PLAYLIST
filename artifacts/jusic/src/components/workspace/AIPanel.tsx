@@ -41,7 +41,13 @@ export function AIPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void }
             toast.error('לא התקבלו תוצאות');
           }
         },
-        onError: () => toast.error('שגיאה ביצירת פלייליסט'),
+        onError: (err) => {
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'שגיאה ביצירת פלייליסט. בדוק שה-Gemini מוגדר בשרת.';
+          toast.error(msg);
+        },
       },
     );
   };

@@ -1,14 +1,90 @@
 import { Router } from "express";
-import { resolveGeminiConnection } from "../lib/system-settings-store";
+import {
+  fetchSettingsKeys,
+  resolveGeminiConnection,
+  SETTINGS_KEYS,
+} from "../lib/system-settings-store";
 import { createGeminiClient } from "../lib/gemini-client-factory";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
 const MAX_PROMPT_LEN = 4000;
+const PLAYLIST_MODEL = "gemini-2.5-flash";
+const PARASHA_HINTS = [
+  "פרשה",
+  "פרשת",
+  "בראשית",
+  "נח",
+  "לך לך",
+  "וירא",
+  "חיי שרה",
+  "תולדות",
+  "ויצא",
+  "וישלח",
+  "וישב",
+  "מקץ",
+  "ויגש",
+  "ויחי",
+  "שמות",
+  "וארא",
+  "בא",
+  "בשלח",
+  "יתרו",
+  "משפטים",
+  "תרומה",
+  "תצוה",
+  "כי תשא",
+  "ויקהל",
+  "פקודי",
+  "ויקרא",
+  "צו",
+  "שמיני",
+  "תזריע",
+  "מצורע",
+  "אחרי מות",
+  "קדושים",
+  "אמור",
+  "בהר",
+  "בחוקותי",
+  "במדבר",
+  "נשא",
+  "בהעלותך",
+  "שלח",
+  "קורח",
+  "חקת",
+  "בלק",
+  "פנחס",
+  "מטות",
+  "מסעי",
+  "דברים",
+  "ואתחנן",
+  "עקב",
+  "ראה",
+  "שופטים",
+  "כי תצא",
+  "כי תבוא",
+  "נצבים",
+  "וילך",
+  "האזינו",
+  "וזאת הברכה",
+];
 
 async function getGeminiClientOrThrow() {
   const { baseUrl, apiKey } = await resolveGeminiConnection();
   return createGeminiClient(baseUrl, apiKey);
+}
+
+function formatGeminiError(err: unknown): { message: string; status?: number; name?: string } {
+  if (err instanceof Error) {
+    const anyErr = err as Error & { status?: number; name?: string };
+    return {
+      message: err.message || "Unknown error",
+      status: typeof anyErr.status === "number" ? anyErr.status : undefined,
+      name: anyErr.name,
+    };
+  }
+  return { message: String(err) };
 }
 
 function stripCodeFences(text: string): string {
@@ -55,6 +131,116 @@ function linesFromModelText(text: string): string[] {
     );
 }
 
+function promptLooksLikeSongList(prompt: string): boolean {
+  const lines = prompt
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length < 3) return false;
+
+  const lineLikeSongs = lines.filter((line) =>
+    /[-–—]|אמן|feat\.?|ft\.?/i.test(line),
+  ).length;
+  return lineLikeSongs >= Math.ceil(lines.length * 0.5);
+}
+
+function promptIsParashaRelated(prompt: string): boolean {
+  const lower = prompt.toLowerCase();
+  return PARASHA_HINTS.some((token) => lower.includes(token.toLowerCase()));
+}
+
+function buildCuratorPrompt(input: {
+  prompt: string;
+  customInstructions: string;
+  includePshPdf: boolean;
+}): string {
+  const modeList = promptLooksLikeSongList(input.prompt);
+
+  const listModeInstructions = modeList
+    ? `
+מצב בקשה: "פלייליסט מתוך רשימה".
+- חובה להיצמד לשירים שהמשתמש נתן בלבד.
+- מותר רק תיקוני איות קלים אם ברור שזה אותו שיר (למשל יעקב/יעקוב).
+- אסור להוסיף שירים חדשים שלא הופיעו ברשימה.`
+    : `
+מצב בקשה: "פלייליסט עצמאי".
+- צור רשימה איכותית ומדויקת לפי הוייב וההקשר.
+- שמור גיוון: גם מוכר וגם Tier-2, לא רק הלהיטים הכי שחוקים.`;
+
+  const pshInstructions = input.includePshPdf
+    ? `
+מצורף קובץ PDF בשם PSH.
+- אם הבקשה קשורה לפרשת שבוע: השתמש קודם כל בשירים מתוך הקובץ.
+- סמן שירים שנלקחו מהקובץ ע"י הוספת " (PSH)" בסוף המחרוזת.`
+    : "";
+
+  return `# System Role: Jusic AI Content Curator (Alpha Master)
+
+תפקיד: עורך תוכן ראשי והיסטוריון מוזיקלי לאפליקציית Jusic (מוזיקה חרדית).
+מטרה: תוכן מדויק, כשר למהדרין, מותאם הקשר, ללא הזיות.
+
+## חוקי ברזל
+1) גבולות גזרה:
+- מאושר: חסידי, מזרחי-חרדי, חזנות, ישיבתי, אינסטרומנטלי.
+- אסור: קול אישה, זמרים חילוניים, פופ דתי-לאומי, ותוכן שאינו הולם בן תורה.
+2) אמינות:
+- עדיף קצר ואמין על פני רשימה ארוכה עם טעות.
+- אסור להמציא שירים.
+3) אימות:
+- לפני החזרה, בצע בדיקה עצמית: שם שיר ושם מבצע סבירים ומוכרים.
+
+${listModeInstructions}
+${pshInstructions}
+
+${input.customInstructions ? `## הנחיות מערכת נוספות\n${input.customInstructions}\n` : ""}
+
+## פלט חובה
+החזר אך ורק JSON תקין, ללא markdown וללא טקסט מסביב, במבנה:
+{"songs":["אמן - שם שיר","אמן - שם שיר", "..."]}
+
+כללים:
+- 12 עד 20 שורות.
+- כל שורה בפורמט "אמן - שם שיר".
+- עברית בלבד ככל האפשר.
+
+בקשת המשתמש:
+"${input.prompt}"`;
+}
+
+async function buildGeminiContents(prompt: string): Promise<
+  Array<{
+    role: "user";
+    parts: Array<Record<string, unknown>>;
+  }>
+> {
+  const settings = await fetchSettingsKeys([
+    SETTINGS_KEYS.AI_CUSTOM_INSTRUCTIONS,
+    SETTINGS_KEYS.AI_PSH_PDF_BASE64,
+  ]);
+  const customInstructions = settings[SETTINGS_KEYS.AI_CUSTOM_INSTRUCTIONS]?.trim() ?? "";
+  const pshPdfBase64 = settings[SETTINGS_KEYS.AI_PSH_PDF_BASE64]?.trim() ?? "";
+  const usePsh = promptIsParashaRelated(prompt) && pshPdfBase64.length > 0;
+
+  const parts: Array<Record<string, unknown>> = [];
+  if (usePsh) {
+    parts.push({
+      inlineData: {
+        mimeType: "application/pdf",
+        data: pshPdfBase64,
+      },
+    });
+  }
+  parts.push({
+    text: buildCuratorPrompt({
+      prompt,
+      customInstructions,
+      includePshPdf: usePsh,
+    }),
+  });
+
+  return [{ role: "user", parts }];
+}
+
 /**
  * POST /api/gemini/playlist/stream — SSE version of the playlist generator.
  * Each suggested song is pushed as a separate Server-Sent Event so the UI
@@ -96,19 +282,11 @@ router.post("/playlist/stream", async (req, res) => {
     return;
   }
 
-  const fullPrompt = `אתה מומחה מוזיקה ישראלית ויהודית. המשתמש ביקש פלייליסט: "${prompt}".
-
-הנחיות קפדניות:
-- בחר 12–20 שירים בודדים (לא אלבומים, לא פודקאסטים, רק שירים)
-- שמות בעברית בלבד, שירים מוכרים במוזיקה הישראלית/יהודית
-- החזר אך ורק JSON תקין (ללא markdown, ללא טקסט מסביב) במבנה בדיוק:
-  {"songs":["אמן - שם שיר", "אמן - שם שיר", ...]}
-- המערך songs מכיל בדיוק 12–20 מחרוזות, כל אחת "אמן - שם שיר"`;
-
   try {
+    const contents = await buildGeminiContents(prompt);
     const response = await client.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+      model: PLAYLIST_MODEL,
+      contents,
       config: { maxOutputTokens: 2048 },
     });
 
@@ -126,8 +304,9 @@ router.post("/playlist/stream", async (req, res) => {
     sendEvent({ done: true });
     res.end();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    sendEvent({ error: `Gemini error: ${msg}` });
+    const info = formatGeminiError(err);
+    logger.error({ err: info }, "Gemini playlist stream failed");
+    sendEvent({ error: `Gemini error: ${info.message}`, status: info.status ?? null });
     res.end();
   }
 });
@@ -154,19 +333,11 @@ router.post("/playlist", async (req, res) => {
     return;
   }
 
-  const fullPrompt = `אתה מומחה מוזיקה ישראלית ויהודית. המשתמש ביקש פלייליסט: "${prompt}".
-
-הנחיות קפדניות:
-- בחר 12–20 שירים בודדים (לא אלבומים, לא פודקאסטים, רק שירים)
-- שמות בעברית בלבד, שירים מוכרים במוזיקה הישראלית/יהודית
-- החזר אך ורק JSON תקין (ללא markdown, ללא טקסט מסביב) במבנה בדיוק:
-  {"songs":["אמן - שם שיר", "אמן - שם שיר", ...]}
-- המערך songs מכיל בדיוק 12–20 מחרוזות, כל אחת "אמן - שם שיר"`;
-
   try {
+    const contents = await buildGeminiContents(prompt);
     const response = await client.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+      model: PLAYLIST_MODEL,
+      contents,
       config: { maxOutputTokens: 2048 },
     });
 
@@ -174,8 +345,12 @@ router.post("/playlist", async (req, res) => {
     const lines = linesFromModelText(text);
     res.json({ lines });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    res.status(502).json({ error: `Gemini error: ${msg}` });
+    const info = formatGeminiError(err);
+    logger.error({ err: info }, "Gemini playlist request failed");
+    res.status(502).json({
+      error: `Gemini error: ${info.message}`,
+      status: info.status ?? null,
+    });
   }
 });
 

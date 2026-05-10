@@ -4,6 +4,9 @@ import { systemSettings } from "@workspace/db/schema";
 
 export const SETTINGS_KEYS = {
   AI_CUSTOM_INSTRUCTIONS: "ai_custom_instructions",
+  AI_PSH_PDF_BASE64: "ai_psh_pdf_base64",
+  AI_PSH_PDF_NAME: "ai_psh_pdf_name",
+  AI_PSH_IMPORTED_AT: "ai_psh_imported_at",
   ACTIVE_API_URL: "active_api_url",
   GEMINI_BASE_URL: "gemini_base_url",
   GEMINI_API_KEY: "gemini_api_key",
