@@ -145,6 +145,9 @@ export function StagingArea({
           ),
         );
         try {
+          // #region agent log
+          fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId:`staging_${Date.now()}`,hypothesisId:'H9',location:'workspace/StagingArea.tsx:search-start',message:'Staging search started for line',data:{query:item.query,songsOnly:searchFilters.songsOnly,genre:searchFilters.genre??''},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
           const hits = await meilisearchSearch(item.query, 8, searchFilters);
           const best = bestMatchForQuery(item.query, hits);
           return { id: item.id, hit: best.hit, confidence: best.confidence };

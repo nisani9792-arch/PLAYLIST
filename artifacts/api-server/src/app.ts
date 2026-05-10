@@ -73,6 +73,14 @@ app.use(express.json({ limit: "512kb" }));
 app.use(express.urlencoded({ extended: true, limit: "512kb" }));
 
 // ── API routes ─────────────────────────────────────────────────────────────
+app.use((req, _res, next) => {
+  if (req.path === "/api/gemini/playlist") {
+    // #region agent log
+    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId:`api_${Date.now()}`,hypothesisId:'H6',location:'api-server/app.ts:gemini-route',message:'Request reached local api-server /api/gemini/playlist',data:{method:req.method,origin:req.headers.origin??'',host:req.headers.host??''},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }
+  next();
+});
 app.use("/api", router);
 
 // ── Static frontend (Vite build output) ───────────────────────────────────

@@ -1,4 +1,5 @@
 import { usePlaylist } from '../hooks/use-playlist';
+import { useEffect } from 'react';
 import { SearchBar } from '../components/workspace/SearchBar';
 import { PlaylistView } from '../components/workspace/PlaylistView';
 import { ASIComposerPanel } from '../components/workspace/ASIComposerPanel';
@@ -8,6 +9,11 @@ import { LearningExportButton } from '../components/workspace/LearningExportButt
 
 export default function Workspace() {
   const playlist = usePlaylist();
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId:`workspace_${Date.now()}`,hypothesisId:'H5',location:'pages/Workspace.tsx:mount',message:'Workspace mounted in running frontend bundle',data:{path:window.location.pathname},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }, []);
 
   return (
     <div

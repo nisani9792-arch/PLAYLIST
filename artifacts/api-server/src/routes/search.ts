@@ -87,6 +87,10 @@ router.post("/", async (req, res) => {
       const payload: Record<string, unknown> = { q: q.trim(), limit };
       if (filter?.length) payload.filter = filter;
       const data = await runMeiliSearch(baseUrl, index, apiKey, payload);
+      const first = Array.isArray(data.hits) ? (data.hits[0] as Record<string, unknown> | undefined) : undefined;
+      // #region agent log
+      fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId:`search_${Date.now()}`,hypothesisId:'H9',location:'routes/search.ts:search-response',message:'Search response metadata',data:{q:q.trim(),songsOnly:songsOnly!==false,genre:genre??'',hitsCount:Array.isArray(data.hits)?data.hits.length:0,firstHitType:String(first?.["type"]??''),firstHitUid:String(first?.["uid"]??first?.["id"]??'')},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       res.json(data);
       return;
     } catch (err) {
