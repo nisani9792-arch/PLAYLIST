@@ -8,6 +8,7 @@ const router = Router();
 
 const MAX_LIMIT = 100;
 const MAX_GENRE_LEN = 96;
+const MAX_RESOLVE_ITEMS = 400;
 
 function escapeFilterValue(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -29,94 +30,28 @@ function buildMeilisearchFilters(body: {
   return filters.length ? filters : undefined;
 }
 
-// ── PostgreSQL / Drizzle fallback ──────────────────────────────────────────
-// Lazily imported so the server starts cleanly when DATABASE_URL is absent.
-
-type DbModule = typeof import("@workspace/db");
-let dbCache: DbModule | null | undefined; // undefined = not yet tried; null = unavailable
-
-async function getDbModule(): Promise<DbModule | null> {
-  if (!process.env.DATABASE_URL) return null;
-  if (dbCache !== undefined) return dbCache;
-  try {
-    dbCache = await import("@workspace/db");
-  } catch {
-    dbCache = null;
-  }
-  return dbCache;
+function buildMeiliHeaders(apiKey: string): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+  return headers;
 }
 
-/**
- * Normalise a DB artist row into a Meilisearch-shaped hit so the frontend
- * (which calls the same /api/search endpoint) can render it without changes.
- * Field mapping mirrors what the frontend normalises from Meilisearch hits:
- *   uid → id,  name_he → song_name,  artists[] → artist,  genres[] → genre
- */
-function artistToHit(row: {
-  id: string;
-  name: string;
-  hebrewName: string | null;
-  genres: string[] | null;
-}): Record<string, unknown> {
-  return {
-    uid: row.id,
-    id: row.id,
-    name_he: row.hebrewName ?? row.name,
-    artists: [row.name],
-    genres: row.genres ?? [],
-    type: "ARTIST",
-  };
-}
-
-async function dbFallbackSearch(
-  q: string,
-  limit: number,
-  genre?: string,
-): Promise<Record<string, unknown>[] | null> {
-  const mod = await getDbModule();
-  if (!mod) return null;
-
-  const { db, artists } = mod;
-  const { ilike, or, arrayContained, sql } = await import("drizzle-orm");
-
-  const term = `%${q.trim()}%`;
-
-  let query = db
-    .select({
-      id: artists.id,
-      name: artists.name,
-      hebrewName: artists.hebrewName,
-      genres: artists.genres,
-    })
-    .from(artists)
-    .where(
-      or(
-        ilike(artists.name, term),
-        ilike(artists.hebrewName, term),
-      ),
-    )
-    .limit(limit);
-
-  // Genre filter: check if the genres array contains the requested genre
-  if (genre?.trim()) {
-    const g = genre.trim();
-    query = db
-      .select({
-        id: artists.id,
-        name: artists.name,
-        hebrewName: artists.hebrewName,
-        genres: artists.genres,
-      })
-      .from(artists)
-      .where(
-        sql`(${ilike(artists.name, term)} OR ${ilike(artists.hebrewName, term)})
-            AND ${artists.genres} @> ARRAY[${g}]::text[]`,
-      )
-      .limit(limit) as typeof query;
+async function runMeiliSearch(
+  baseUrl: string,
+  index: string,
+  apiKey: string,
+  payload: Record<string, unknown>,
+): Promise<{ hits?: unknown[] }> {
+  const response = await fetch(`${baseUrl}/indexes/${index}/search`, {
+    method: "POST",
+    headers: buildMeiliHeaders(apiKey),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Meilisearch error: ${response.status} ${text.slice(0, 180)}`);
   }
-
-  const rows = await query;
-  return rows.map(artistToHit);
+  return (await response.json()) as { hits?: unknown[] };
 }
 
 // ── Route handler ──────────────────────────────────────────────────────────
@@ -151,26 +86,7 @@ router.post("/", async (req, res) => {
     try {
       const payload: Record<string, unknown> = { q: q.trim(), limit };
       if (filter?.length) payload.filter = filter;
-
-      const fetchHeaders: Record<string, string> = { "Content-Type": "application/json" };
-    if (apiKey) fetchHeaders["Authorization"] = `Bearer ${apiKey}`;
-
-    const response = await fetch(`${baseUrl}/indexes/${index}/search`, {
-        method: "POST",
-        headers: fetchHeaders,
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const text = await response.text();
-        res.status(502).json({
-          error: `Meilisearch error: ${response.status}`,
-          detail: text,
-        });
-        return;
-      }
-
-      const data = (await response.json()) as { hits?: unknown[] };
+      const data = await runMeiliSearch(baseUrl, index, apiKey, payload);
       res.json(data);
       return;
     } catch (err) {
@@ -180,25 +96,74 @@ router.post("/", async (req, res) => {
     }
   }
 
-  // ── Fallback: PostgreSQL / Drizzle ─────────────────────────────────────
-  try {
-    const hits = await dbFallbackSearch(q, limit, genre);
-    if (hits !== null) {
-      res.json({ hits, _source: "db" });
-      return;
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    // DB failed — fall through to empty result rather than 503
-    res.json({ hits: [], _warning: `DB search error: ${msg}` });
-    return;
-  }
-
   // ── Nothing configured: return empty hits (not 503) ────────────────────
   res.json({
     hits: [],
-    _warning: "Search not configured. Set MEILISEARCH_URL/KEY or DATABASE_URL.",
+    _warning: "Search not configured. Set MEILISEARCH_URL/KEY.",
   });
+});
+
+router.post("/resolve", async (req, res) => {
+  const { songs } = req.body as {
+    songs?: Array<{ id?: string; song_name?: string; artist?: string; album?: string }>;
+  };
+
+  if (!Array.isArray(songs)) {
+    res.status(400).json({ error: "Expected { songs: [...] }" });
+    return;
+  }
+  if (songs.length > MAX_RESOLVE_ITEMS) {
+    res.status(400).json({ error: `Too many items (max ${MAX_RESOLVE_ITEMS})` });
+    return;
+  }
+  if (!isMeilisearchConfigured()) {
+    res.json({ hits: songs.map(() => null), _warning: "Search not configured. Set MEILISEARCH_URL/KEY." });
+    return;
+  }
+
+  const { baseUrl, apiKey, index } = getMeilisearchConfig();
+  const runId = `resolve_${Date.now()}`;
+
+  try {
+    const resolved = await Promise.all(
+      songs.map(async (song) => {
+        const rawId = String(song.id ?? "").trim();
+        const safeId = escapeFilterValue(rawId);
+
+        // 1) Strict lookup by uid (database/external id equivalent in index)
+        if (safeId) {
+          const byUid = await runMeiliSearch(baseUrl, index, apiKey, {
+            q: "",
+            limit: 1,
+            filter: ["type = SONG", `uid = "${safeId}"`],
+          });
+          const firstUid = Array.isArray(byUid.hits) ? byUid.hits[0] : undefined;
+          if (firstUid) return firstUid as Record<string, unknown>;
+        }
+
+        // 2) Fallback to text lookup, but still return canonical DB hit.
+        const fuzzyQ = `${song.artist ?? ""} ${song.song_name ?? ""}`.trim();
+        if (!fuzzyQ) return null;
+        const byText = await runMeiliSearch(baseUrl, index, apiKey, {
+          q: fuzzyQ,
+          limit: 1,
+          filter: ["type = SONG"],
+        });
+        const firstText = Array.isArray(byText.hits) ? byText.hits[0] : undefined;
+        return (firstText as Record<string, unknown> | undefined) ?? null;
+      }),
+    );
+    // #region agent log
+    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H4',location:'routes/search.ts:resolve-success',message:'Resolve endpoint completed',data:{inputCount:songs.length,resolvedCount:resolved.filter(Boolean).length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    res.json({ hits: resolved });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    // #region agent log
+    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H4',location:'routes/search.ts:resolve-fail',message:'Resolve endpoint failed',data:{error:msg},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    res.status(502).json({ error: `Resolve search proxy error: ${msg}` });
+  }
 });
 
 export default router;

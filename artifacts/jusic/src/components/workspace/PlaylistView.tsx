@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { MsHit } from '../../lib/meilisearch';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -8,6 +8,7 @@ import { Input } from '../ui/input';
 import { exportToOdooCSV } from '../../lib/export';
 import { recordPlaylistExport } from '../../lib/playlist-learning';
 import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 
 interface PlaylistViewProps {
   playlistName: string;
@@ -27,6 +28,7 @@ export function PlaylistView({
   clearPlaylist,
 }: PlaylistViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const rowVirtualizer = useVirtualizer({
     count: songs.length,
@@ -43,9 +45,18 @@ export function PlaylistView({
     reorderSongs(result.source.index, result.destination.index);
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     recordPlaylistExport(playlistName, songs);
-    exportToOdooCSV(playlistName, songs);
+    setIsExporting(true);
+    try {
+      await exportToOdooCSV(playlistName, songs);
+      toast.success('CSV לאודו נוצר עם שמות קנוניים ממסד הנתונים');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'שגיאה בייצוא לאודו';
+      toast.error(msg);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -89,10 +100,25 @@ export function PlaylistView({
               data-testid="export-csv-button"
               size="sm"
               onClick={handleExport}
-              disabled={!songs.length}
+              disabled={!songs.length || isExporting}
               className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-sm text-xs"
             >
-              <Download className="w-3.5 h-3.5 mr-1.5" /> ייצוא לאודו
+              {isExporting ? (
+                <>
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                    className="inline-flex"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                  </motion.span>
+                  מייצא...
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 mr-1.5" /> ייצוא לאודו
+                </>
+              )}
             </Button>
           </motion.div>
         </div>

@@ -73,3 +73,34 @@ export async function meilisearchSearch(
   const hits = (data.hits || []).map((h) => normalizeHit(h));
   return hits;
 }
+
+export async function resolveSongsForOdoo(songs: MsHit[]): Promise<Array<MsHit | null>> {
+  if (!songs.length) return [];
+
+  const res = await fetch('/api/search/resolve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      songs: songs.map((s) => ({
+        id: s.id,
+        song_name: s.song_name,
+        artist: s.artist,
+        album: s.album,
+      })),
+    }),
+  });
+
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const errBody = (await res.json()) as { error?: string };
+      detail = errBody.error ? String(errBody.error) : '';
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail || `Resolve error: ${res.status}`);
+  }
+
+  const data = (await res.json()) as { hits?: Array<Record<string, unknown> | null> };
+  return (data.hits || []).map((h) => (h ? normalizeHit(h) : null));
+}
