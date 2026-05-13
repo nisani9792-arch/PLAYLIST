@@ -70,14 +70,15 @@ export function OfflinePlaylistMasterDialog() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="rounded-xl text-xs">
+        <Button variant="outline" size="sm" className="rounded-full text-xs font-semibold border-border/60 bg-card/70 shadow-sm hover:shadow-md hover:border-primary/35">
           <WandSparkles className="w-3.5 h-3.5 mr-1.5" />
-          Offline Playlist Master
+          <span className="hidden sm:inline">Offline Playlist Master</span>
+          <span className="sm:hidden">Offline</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl" dir="rtl">
+      <DialogContent className="max-h-[92dvh] max-w-[min(48rem,calc(100vw-1rem))] overflow-y-auto p-4 sm:p-6 bp-glass-panel border-primary/18 shadow-2xl" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-right">JUSIC Playlist Generator</DialogTitle>
+          <DialogTitle className="text-right">BUILD PLAY Playlist Generator</DialogTitle>
           <DialogDescription className="text-right">
             העלה מאגר CSV/Excel, הזן שם פלייליסט ורשימת שירים. המערכת תסנן לשירים בלבד, תבצע התאמה עם סף 80 ותפיק CSV מוכן לאודו.
           </DialogDescription>

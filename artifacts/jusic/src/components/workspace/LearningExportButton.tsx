@@ -15,7 +15,7 @@ export function LearningExportButton() {
           type="button"
           variant="ghost"
           size="icon"
-          className="rounded-xl h-9 w-9 text-muted-foreground hover:text-foreground"
+          className="rounded-xl h-9 w-9 text-muted-foreground hover:text-primary hover:bg-primary/10 ring-1 ring-transparent hover:ring-primary/25 transition-all"
           aria-label="ייצוא נתונים מצטברים לאימון עתידי"
           onClick={() => downloadTrainingJson()}
         >

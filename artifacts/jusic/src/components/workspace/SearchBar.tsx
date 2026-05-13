@@ -73,14 +73,16 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
   };
 
   return (
-    <div className="relative w-full max-w-3xl mx-auto z-50 space-y-2" ref={containerRef}>
+    <div className="relative w-full md:max-w-3xl md:mx-auto z-50 space-y-2.5 sm:space-y-3" ref={containerRef}>
       <div
-        className="flex flex-wrap items-center gap-3 rounded-2xl border border-black/[0.06] bg-white/80 px-3 py-2 shadow-sm"
+        className="bp-glass-panel flex flex-wrap items-center gap-2 sm:gap-3 rounded-2xl sm:rounded-[1.35rem] px-2.5 sm:px-3.5 py-2.5 shadow-sm"
         data-testid="search-filters-bar"
       >
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Filter className="h-3.5 w-3.5 shrink-0" />
-          <span className="text-[11px] font-medium hidden sm:inline">לפני חיפוש</span>
+        <div className="flex items-center gap-2 text-primary/80">
+          <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-bl from-primary/15 to-primary/5 border border-primary/15 shrink-0">
+            <Filter className="h-3.5 w-3.5" />
+          </span>
+          <span className="text-[11px] font-semibold hidden sm:inline text-foreground/80">טרום־סינון</span>
         </div>
         <div className="flex items-center gap-2">
           <Switch
@@ -88,29 +90,29 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
             checked={filters.songsOnly}
             onCheckedChange={(v) => setSongsOnly(v)}
           />
-          <Label htmlFor="filter-songs-only" className="text-xs cursor-pointer font-normal">
+          <Label htmlFor="filter-songs-only" className="text-[11px] sm:text-xs cursor-pointer font-medium text-foreground/85">
             רק שירים
           </Label>
         </div>
-        <div className="flex-1 min-w-[8rem] max-w-xs">
+        <div className="flex-1 min-w-[9rem] sm:max-w-xs">
           <Input
             placeholder={'סינון ז׳אנר (מדויק, אופציונלי)'}
-            className="h-8 text-xs rounded-xl bg-white/90 border-black/10"
+            className="h-9 sm:h-8 text-base sm:text-xs rounded-xl border-border/70 bg-background/70 shadow-inner focus-visible:ring-2 focus-visible:ring-primary/25"
             value={genreInput}
             onChange={(e) => setGenre(e.target.value)}
           />
         </div>
-        <p className="text-[10px] text-muted-foreground hidden md:block max-w-[14rem] leading-tight">
+        <p className="text-[10px] text-muted-foreground hidden md:flex max-w-[14rem] leading-snug items-center gap-1.5 font-medium opacity-85">
           ייבוא מטקסט ו-AI משתמשים באותם פילטרים.
         </p>
       </div>
 
-      <div className="relative">
+      <div className="relative group">
         <Input
           data-testid="search-input"
           type="text"
-          placeholder="חיפוש שירים — שם שיר, אמן, תגית..."
-          className="h-12 rounded-2xl pr-12 pl-12 text-base bg-white border-black/10 focus-visible:ring-primary/30 focus-visible:border-primary/40 placeholder:text-muted-foreground/50 shadow-[0_2px_12px_rgba(0,0,0,0.07),0_0_0_1px_rgba(0,0,0,0.06)]"
+          placeholder="חיפוש שירים — שיר, אמן, אלבום, תגית…"
+          className="h-11 sm:h-12 rounded-[1rem] sm:rounded-[1.15rem] pr-12 pl-12 text-[0.9375rem] sm:text-base font-medium bp-glass-panel border-transparent shadow-md bp-soft-glow-primary focus-visible:ring-2 focus-visible:ring-primary/35 placeholder:text-muted-foreground/55"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -120,10 +122,10 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
             if (results.length > 0) setShowDropdown(true);
           }}
         />
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-primary/60">
+        <div className="absolute right-3.5 sm:right-4 top-1/2 -translate-y-1/2 text-primary rounded-lg bg-primary/10 p-1">
           <Search className="w-4 h-4" />
         </div>
-        <div className="absolute left-4 top-1/2 -translate-y-1/2">
+        <div className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2">
           {isSearching && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
         </div>
       </div>
@@ -136,13 +138,7 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="absolute top-full left-0 right-0 mt-2 border border-black/[0.07] rounded-2xl overflow-hidden max-h-[30rem] overflow-y-auto z-[60]"
-            style={{
-              background: 'rgba(255,255,255,0.95)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 1px 0 rgba(0,0,0,0.05)',
-            }}
+            className="absolute top-full left-0 right-0 mt-2.5 bp-glass-panel rounded-[1rem] overflow-hidden max-h-[min(24rem,55dvh)] sm:max-h-[28rem] overflow-y-auto z-[60] shadow-2xl custom-scrollbar ring-1 ring-primary/12"
           >
             {results.map((hit, i) => (
               <motion.div
@@ -150,11 +146,11 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
                 initial={{ opacity: 0, x: -4 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.025, duration: 0.12 }}
-                className="flex flex-col p-3 hover:bg-primary/[0.04] border-b border-black/[0.05] last:border-0 transition-colors"
+                className="flex flex-col p-2.5 sm:p-3.5 hover:bg-gradient-to-r hover:from-primary/[0.05] hover:to-transparent border-b border-border/40 last:border-0 transition-colors"
               >
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-2 sm:gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="bg-primary/10 p-2 rounded-xl text-primary flex-shrink-0 border border-primary/15">
+                    <div className="bg-gradient-to-br from-primary/15 to-emerald-500/10 p-2 rounded-xl text-primary shrink-0 border border-primary/20 shadow-sm">
                       <Music className="w-3.5 h-3.5" />
                     </div>
                     <div className="flex flex-col min-w-0">
@@ -182,7 +178,7 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button
                         size="sm"
-                        className="rounded-xl h-7 px-3 text-xs shadow-sm"
+                        className="rounded-xl h-9 sm:h-8 px-3.5 text-xs font-semibold shadow-md shadow-primary/15"
                         onClick={() => handleAdd(hit)}
                       >
                         <Plus className="w-3.5 h-3.5 mr-1" /> הוסף
@@ -200,7 +196,7 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleTagClick(tag)}
-                        className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-lg bg-muted text-muted-foreground border border-black/[0.07] hover:bg-primary/10 hover:text-primary hover:border-primary/25 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg bg-muted/80 text-muted-foreground border border-border/60 hover:border-primary/35 hover:bg-primary/8 hover:text-primary transition-colors cursor-pointer font-medium"
                       >
                         <Tag className="w-2.5 h-2.5" />
                         {tag}

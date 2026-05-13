@@ -18,7 +18,7 @@ export function ApiStatusIndicator() {
     <Tooltip>
       <TooltipTrigger asChild>
         <div
-          className="flex items-center gap-2 text-[11px] text-muted-foreground cursor-default select-none"
+          className="flex items-center gap-2 rounded-full border border-border/60 bg-card/85 px-2.5 py-1.5 text-[11px] text-muted-foreground cursor-default select-none shadow-sm backdrop-blur-sm"
           data-testid="api-status-indicator"
         >
           <span
@@ -29,7 +29,9 @@ export function ApiStatusIndicator() {
               !ok && !isPending && 'bg-red-500',
             )}
           />
-          <span className="hidden sm:inline font-medium tracking-wide">API</span>
+          <span className="hidden sm:inline font-bold tracking-[0.12em] text-[10px] uppercase text-muted-foreground/85">
+            API
+          </span>
         </div>
       </TooltipTrigger>
       <TooltipContent side="bottom" className="max-w-xs">

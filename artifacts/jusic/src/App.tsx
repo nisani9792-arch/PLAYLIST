@@ -13,7 +13,18 @@ function App() {
         <SearchFiltersProvider>
           <Workspace />
         </SearchFiltersProvider>
-        <Toaster theme="dark" dir="rtl" />
+        <Toaster
+          theme="dark"
+          dir="rtl"
+          toastOptions={{
+            classNames: {
+              toast:
+                "rounded-xl border border-white/15 bg-neutral-950/95 backdrop-blur-xl shadow-xl font-sans",
+              title: "font-semibold",
+              description: "text-muted-foreground",
+            },
+          }}
+        />
       </TooltipProvider>
     </QueryClientProvider>
   );

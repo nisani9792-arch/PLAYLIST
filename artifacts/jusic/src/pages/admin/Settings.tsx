@@ -177,7 +177,7 @@ export default function AdminSettingsPage() {
             "radial-gradient(ellipse at 15% 10%, rgba(14,165,233,0.08) 0%, transparent 45%), radial-gradient(ellipse at 85% 90%, rgba(99,102,241,0.06) 0%, transparent 40%), hsl(var(--background))",
         }}
       >
-        <header className="flex-shrink-0 border-b border-border/60 bg-card/40 backdrop-blur-xl px-6 py-4 flex items-center justify-between gap-4">
+        <header className="flex-shrink-0 bp-glass-strip border-b px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <Button variant="ghost" size="sm" asChild className="gap-2 shrink-0">
               <Link href="/">
@@ -187,13 +187,10 @@ export default function AdminSettingsPage() {
             </Button>
             <Separator orientation="vertical" className="h-8 hidden sm:block bg-border/60" />
             <div className="min-w-0">
-              <h1
-                className="text-lg font-bold tracking-tight truncate"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
+              <h1 className="font-display text-lg font-black tracking-tight truncate bg-gradient-to-l from-primary to-indigo-400 bg-clip-text text-transparent">
                 אבחון ותצורת מערכת
               </h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">Jusic Admin — בריאות שירותים, API והנחיות AI</p>
+              <p className="text-xs text-muted-foreground hidden sm:block">BUILD PLAY Admin — בריאות שירותים, API והנחיות AI</p>
             </div>
           </div>
           <Button

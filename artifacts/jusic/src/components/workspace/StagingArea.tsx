@@ -224,16 +224,17 @@ export function StagingArea({
   const totalCount = items.length;
 
   return (
-    <div className="flex flex-col gap-3 mt-4 bg-card/40 p-4 rounded-2xl border border-border/60 backdrop-blur-sm">
-      <div className="flex justify-between items-center">
-        <h3 className="font-semibold text-sm flex items-center gap-2">
-          אזור התאמה
-          <span className="text-xs text-muted-foreground font-normal">
-            ({matchedSongs.length}/{totalCount}
+    <div className="flex flex-col gap-4 mt-5 p-4 sm:p-5 rounded-[1.15rem] border border-primary/14 bg-gradient-to-b from-muted/40 to-transparent backdrop-blur-sm shadow-[inset_0_1px_0_hsl(var(--foreground)/0.04)]">
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h3 className="font-display font-bold text-sm flex flex-wrap items-center gap-x-2 gap-y-1 tracking-tight">
+          <span className="rounded-lg bg-primary/12 text-primary px-2 py-1 text-[11px] font-semibold border border-primary/20">
+            אזור התאמה
+          </span>
+          <span className="text-muted-foreground text-xs font-medium tabular-nums">
+            {matchedSongs.length}/{totalCount}
             {reviewCount > 0 && (
-              <span className="text-yellow-400 mr-1"> · {reviewCount} לבדיקה</span>
+              <span className="text-amber-500 mr-1 font-semibold"> · {reviewCount} לבדיקה</span>
             )}
-            )
           </span>
         </h3>
         {isProcessing && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
