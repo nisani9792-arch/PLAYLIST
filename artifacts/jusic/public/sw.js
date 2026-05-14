@@ -1,4 +1,4 @@
-const CACHE_NAME = "build-play-v1";
+const CACHE_NAME = "build-play-v2";
 const APP_SHELL = [
   "./",
   "./manifest.json",
@@ -7,6 +7,18 @@ const APP_SHELL = [
   "./icon-512.png",
   "./apple-touch-icon.png",
 ];
+const NETWORK_FIRST_ASSETS = [
+  "manifest.json",
+  "logo.png",
+  "icon-192.png",
+  "icon-512.png",
+  "apple-touch-icon.png",
+  "favicon.svg",
+];
+
+function isNetworkFirstAsset(pathname) {
+  return NETWORK_FIRST_ASSETS.some((asset) => pathname.endsWith(`/${asset}`));
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -22,7 +34,11 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME)
+            .map((key) => caches.delete(key)),
+        ),
       )
       .then(() => self.clients.claim()),
   );
@@ -44,7 +60,24 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put("./", copy));
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("./"))),
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match("./")),
+        ),
+    );
+    return;
+  }
+
+  if (isNetworkFirstAsset(url.pathname)) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request)),
     );
     return;
   }

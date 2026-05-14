@@ -31,7 +31,9 @@ function buildMeilisearchFilters(body: {
 }
 
 function buildMeiliHeaders(apiKey: string): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
   return headers;
 }
@@ -49,7 +51,9 @@ async function runMeiliSearch(
   });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Meilisearch error: ${response.status} ${text.slice(0, 180)}`);
+    throw new Error(
+      `Meilisearch error: ${response.status} ${text.slice(0, 180)}`,
+    );
   }
   return (await response.json()) as { hits?: unknown[] };
 }
@@ -84,13 +88,13 @@ router.post("/", async (req, res) => {
     const { baseUrl, apiKey, index } = getMeilisearchConfig();
 
     try {
-      const payload: Record<string, unknown> = { q: q.trim(), limit };
+      const payload: Record<string, unknown> = {
+        q: q.trim(),
+        limit,
+        showRankingScore: true,
+      };
       if (filter?.length) payload.filter = filter;
       const data = await runMeiliSearch(baseUrl, index, apiKey, payload);
-      const first = Array.isArray(data.hits) ? (data.hits[0] as Record<string, unknown> | undefined) : undefined;
-      // #region agent log
-      fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId:`search_${Date.now()}`,hypothesisId:'H9',location:'routes/search.ts:search-response',message:'Search response metadata',data:{q:q.trim(),songsOnly:songsOnly!==false,genre:genre??'',hitsCount:Array.isArray(data.hits)?data.hits.length:0,firstHitType:String(first?.["type"]??''),firstHitUid:String(first?.["uid"]??first?.["id"]??'')},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       res.json(data);
       return;
     } catch (err) {
@@ -109,7 +113,12 @@ router.post("/", async (req, res) => {
 
 router.post("/resolve", async (req, res) => {
   const { songs } = req.body as {
-    songs?: Array<{ id?: string; song_name?: string; artist?: string; album?: string }>;
+    songs?: Array<{
+      id?: string;
+      song_name?: string;
+      artist?: string;
+      album?: string;
+    }>;
   };
 
   if (!Array.isArray(songs)) {
@@ -117,16 +126,20 @@ router.post("/resolve", async (req, res) => {
     return;
   }
   if (songs.length > MAX_RESOLVE_ITEMS) {
-    res.status(400).json({ error: `Too many items (max ${MAX_RESOLVE_ITEMS})` });
+    res
+      .status(400)
+      .json({ error: `Too many items (max ${MAX_RESOLVE_ITEMS})` });
     return;
   }
   if (!isMeilisearchConfigured()) {
-    res.json({ hits: songs.map(() => null), _warning: "Search not configured. Set MEILISEARCH_URL/KEY." });
+    res.json({
+      hits: songs.map(() => null),
+      _warning: "Search not configured. Set MEILISEARCH_URL/KEY.",
+    });
     return;
   }
 
   const { baseUrl, apiKey, index } = getMeilisearchConfig();
-  const runId = `resolve_${Date.now()}`;
 
   try {
     const resolved = await Promise.all(
@@ -139,9 +152,12 @@ router.post("/resolve", async (req, res) => {
           const byUid = await runMeiliSearch(baseUrl, index, apiKey, {
             q: "",
             limit: 1,
+            showRankingScore: true,
             filter: ["type = SONG", `uid = "${safeId}"`],
           });
-          const firstUid = Array.isArray(byUid.hits) ? byUid.hits[0] : undefined;
+          const firstUid = Array.isArray(byUid.hits)
+            ? byUid.hits[0]
+            : undefined;
           if (firstUid) return firstUid as Record<string, unknown>;
         }
 
@@ -151,21 +167,18 @@ router.post("/resolve", async (req, res) => {
         const byText = await runMeiliSearch(baseUrl, index, apiKey, {
           q: fuzzyQ,
           limit: 1,
+          showRankingScore: true,
           filter: ["type = SONG"],
         });
-        const firstText = Array.isArray(byText.hits) ? byText.hits[0] : undefined;
+        const firstText = Array.isArray(byText.hits)
+          ? byText.hits[0]
+          : undefined;
         return (firstText as Record<string, unknown> | undefined) ?? null;
       }),
     );
-    // #region agent log
-    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H4',location:'routes/search.ts:resolve-success',message:'Resolve endpoint completed',data:{inputCount:songs.length,resolvedCount:resolved.filter(Boolean).length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     res.json({ hits: resolved });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
-    // #region agent log
-    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H4',location:'routes/search.ts:resolve-fail',message:'Resolve endpoint failed',data:{error:msg},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     res.status(502).json({ error: `Resolve search proxy error: ${msg}` });
   }
 });
