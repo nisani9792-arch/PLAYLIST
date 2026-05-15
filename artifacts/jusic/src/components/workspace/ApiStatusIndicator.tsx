@@ -6,9 +6,9 @@ export function ApiStatusIndicator() {
   const { data, isError, isPending } = useHealthCheck({
     query: {
       queryKey: getHealthCheckQueryKey(),
-      refetchInterval: 30_000,
+      refetchInterval: 90_000,
       retry: 1,
-      staleTime: 15_000,
+      staleTime: 60_000,
     },
   });
 

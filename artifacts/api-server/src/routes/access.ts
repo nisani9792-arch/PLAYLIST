@@ -1,20 +1,18 @@
 import { Router } from "express";
 import { getClientIp } from "../lib/client-ip";
-import { getOperatorByIp, registerOperator, touchOperator } from "../lib/access-store";
+import { getOperatorByIp, registerOperator } from "../lib/access-store";
 
 const router = Router();
 
 router.get("/status", async (req, res) => {
-  const ip = getClientIp(req);
-  const operatorName = await getOperatorByIp(ip);
+  const operatorName = await getOperatorByIp(getClientIp(req));
 
   if (operatorName) {
-    void touchOperator(ip);
-    res.json({ state: "ready", operatorName, ip });
+    res.json({ state: "ready", operatorName });
     return;
   }
 
-  res.json({ state: "locked", operatorName: null, ip });
+  res.json({ state: "locked", operatorName: null });
 });
 
 router.post("/register", async (req, res) => {
@@ -27,7 +25,7 @@ router.post("/register", async (req, res) => {
   }
 
   const name = await registerOperator(ip, operatorName);
-  res.json({ state: "ready", operatorName: name, ip });
+  res.json({ state: "ready", operatorName: name });
 });
 
 export default router;

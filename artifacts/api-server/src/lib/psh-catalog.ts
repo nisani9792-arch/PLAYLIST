@@ -284,13 +284,13 @@ export function getSongsForParasha(
   maxTotal = 30,
 ): ParashaSongLines {
   const target = normalizeParashaToken(parashaName);
-  const parashaRows = rows.filter(
-    (r) => r.section === "parasha" && normalizeParashaToken(r.parasha) === target,
-  );
-  const haftarahRows = rows.filter(
-    (r) =>
-      r.section === "haftarah" && normalizeParashaToken(r.parasha) === target,
-  );
+  const parashaRows: PshSongRow[] = [];
+  const haftarahRows: PshSongRow[] = [];
+  for (const r of rows) {
+    if (normalizeParashaToken(r.parasha) !== target) continue;
+    if (r.section === "haftarah") haftarahRows.push(r);
+    else if (r.section === "parasha") parashaRows.push(r);
+  }
 
   const parashaLines = parashaRows.map(toPlaylistLine);
   const haftarahLines = haftarahRows.map(toPlaylistLine);

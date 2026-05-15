@@ -99,40 +99,34 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
   };
 
   return (
-    <motion.div
+    <div
       className="relative w-full md:max-w-3xl md:mx-auto z-50 space-y-2.5 sm:space-y-3"
       ref={containerRef}
-      layout
     >
-      <motion.div
+      <div
         className="bp-glass-panel flex flex-wrap items-center gap-2 sm:gap-3 rounded-2xl sm:rounded-[1.35rem] px-2.5 sm:px-3.5 py-2.5 shadow-sm"
         data-testid="search-filters-bar"
-        layout
       >
-        <motion.div
-          className="flex items-center gap-2 text-primary/80"
-          animate={{ opacity: [0.85, 1, 0.85] }}
-          transition={{ duration: 3, repeat: Infinity }}
-        >
+        <div className="flex items-center gap-2 text-primary/80">
           <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-bl from-primary/15 to-primary/5 border border-primary/15 shrink-0">
             <Sparkles className="h-3.5 w-3.5" />
           </span>
           <span className="text-[11px] font-semibold hidden sm:inline text-foreground/80">
             חיפוש שירים בלבד
           </span>
-        </motion.div>
-        <motion.div className="flex-1 min-w-[9rem] sm:max-w-xs" layout>
+        </div>
+        <div className="flex-1 min-w-[9rem] sm:max-w-xs">
           <Input
             placeholder="סינון ז׳אנר (מדויק, אופציונלי)"
             className="h-9 sm:h-8 text-base sm:text-xs rounded-xl border-border/70 bg-background/70 shadow-inner focus-visible:ring-2 focus-visible:ring-primary/25"
             value={genreInput}
             onChange={(e) => setGenre(e.target.value)}
           />
-        </motion.div>
+        </div>
         <p className="text-[10px] text-muted-foreground hidden md:flex max-w-[14rem] leading-snug items-center gap-1.5 font-medium opacity-85">
           ייבוא מטקסט ו-AI משתמשים באותו סינון ז׳אנר.
         </p>
-      </motion.div>
+      </div>
 
       <div className="relative group">
         <Input
@@ -331,6 +325,6 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
         )}
       </AnimatePresence>
       </div>
-    </motion.div>
+    </div>
   );
 }

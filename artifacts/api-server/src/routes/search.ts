@@ -10,6 +10,27 @@ const router = Router();
 const MAX_LIMIT = 100;
 const MAX_GENRE_LEN = 96;
 const MAX_RESOLVE_ITEMS = 400;
+const RESOLVE_CONCURRENCY = 12;
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+
+  async function worker(): Promise<void> {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await fn(items[index]!);
+    }
+  }
+
+  const workers = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+  return results;
+}
 
 type MeiliHit = Record<string, unknown>;
 type MeiliSearchResponse = {
@@ -227,9 +248,9 @@ router.post("/", async (req, res) => {
       if (filter?.length) payload.filter = filter;
       const fallbackPayload = {
         ...omitFilter(payload),
-        limit: Math.min(MAX_LIMIT, Math.max(limit * 3, limit)),
+        limit: Math.min(MAX_LIMIT, Math.max(limit * 2, limit)),
       };
-      let data = await runMeiliSearchWithFilterFallback(
+      const data = await runMeiliSearchWithFilterFallback(
         baseUrl,
         index,
         apiKey,
@@ -238,31 +259,6 @@ router.post("/", async (req, res) => {
         limit,
         fallbackPayload,
       );
-
-      if (
-        (data.hits?.length ?? 0) === 0 &&
-        payload.filter &&
-        q.trim().length >= 2
-      ) {
-        const unfiltered = await runMeiliSearch(
-          baseUrl,
-          index,
-          apiKey,
-          fallbackPayload,
-        );
-        const localHits = applyLocalFilters(
-          unfiltered.hits,
-          { songsOnly, genre },
-          limit,
-        );
-        if (localHits.length) {
-          data = {
-            ...unfiltered,
-            hits: localHits,
-            _filterFallback: true,
-          };
-        }
-      }
 
       res.json(
         data._filterFallback
@@ -319,8 +315,10 @@ router.post("/resolve", async (req, res) => {
   const { baseUrl, apiKey, index } = getMeilisearchConfig();
 
   try {
-    const resolved = await Promise.all(
-      songs.map(async (song) => {
+    const resolved = await mapWithConcurrency(
+      songs,
+      RESOLVE_CONCURRENCY,
+      async (song) => {
         const rawId = String(song.id ?? "").trim();
         const safeId = escapeFilterValue(rawId);
 
@@ -364,7 +362,7 @@ router.post("/resolve", async (req, res) => {
           ? byText.hits[0]
           : undefined;
         return firstText ?? null;
-      }),
+      },
     );
     res.json({ hits: resolved });
   } catch (err) {

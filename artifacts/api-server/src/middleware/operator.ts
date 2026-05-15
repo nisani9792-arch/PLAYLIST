@@ -4,21 +4,18 @@ import { getClientIp } from "../lib/client-ip";
 
 export type RequestWithOperator = Request & { operatorName?: string };
 
-const HEADER = "x-buildplay-operator";
-
 export function attachOperator(
   req: RequestWithOperator,
   _res: Response,
   next: NextFunction,
 ): void {
-  const headerName = req.headers[HEADER];
-  const fromHeader =
-    typeof headerName === "string" ? headerName.trim().slice(0, 80) : "";
-
   void (async () => {
-    const ip = getClientIp(req);
-    const fromIp = await getOperatorByIp(ip);
-    req.operatorName = fromHeader || fromIp || undefined;
+    try {
+      const ip = getClientIp(req);
+      req.operatorName = (await getOperatorByIp(ip)) ?? undefined;
+    } catch {
+      req.operatorName = undefined;
+    }
     next();
   })();
 }

@@ -1,6 +1,5 @@
-import { motion } from 'framer-motion';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SearchFiltersProvider } from '@/contexts/SearchFiltersContext';
 import { LockScreen } from '@/components/LockScreen';
@@ -8,19 +7,40 @@ import { OperatorRegistration } from '@/components/OperatorRegistration';
 import { useAccessGate } from '@/hooks/useAccessGate';
 import { useUnlockGate } from '@/hooks/useUnlockGate';
 import Workspace from '@/pages/Workspace';
+import { useEffect } from 'react';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function AppShell() {
   const { status, afterUnlock, register } = useAccessGate();
   const locked = status.state === 'locked';
   useUnlockGate({ enabled: locked, onUnlock: afterUnlock });
 
+  useEffect(() => {
+    if (status.state === 'offline') {
+      toast.warning('אין חיבור לשרת — עובדים במצב מקומי עם השם השמור', {
+        id: 'offline-mode',
+        duration: 6000,
+      });
+    }
+  }, [status.state]);
+
   if (status.state === 'loading') {
     return (
-      <motion.div className="lock-screen flex items-center justify-center min-h-[100dvh]" aria-busy="true">
-        <p className="text-muted-foreground text-sm">טוען...</p>
-      </motion.div>
+      <div className="lock-screen flex items-center justify-center min-h-[100dvh]" aria-busy="true">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-9 w-9 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+          <p className="text-muted-foreground text-sm">טוען BUILD PLAY…</p>
+        </div>
+      </div>
     );
   }
 
@@ -32,9 +52,16 @@ function AppShell() {
     return <OperatorRegistration onComplete={register} />;
   }
 
+  const operatorName =
+    status.state === 'ready'
+      ? status.operatorName
+      : status.state === 'offline'
+        ? (status.operatorName ?? '')
+        : '';
+
   return (
     <SearchFiltersProvider>
-      <Workspace operatorName={status.operatorName} />
+      <Workspace operatorName={operatorName} offline={status.state === 'offline'} />
     </SearchFiltersProvider>
   );
 }

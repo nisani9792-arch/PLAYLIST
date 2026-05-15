@@ -11,9 +11,10 @@ import { APP_LOGO_URL } from "@/lib/brand";
 
 type WorkspaceProps = {
   operatorName: string;
+  offline?: boolean;
 };
 
-export default function Workspace({ operatorName }: WorkspaceProps) {
+export default function Workspace({ operatorName, offline = false }: WorkspaceProps) {
   const playlist = usePlaylist();
   return (
     <div className="app-shell-bg flex flex-col h-[100dvh] w-full overflow-hidden text-foreground selection:bg-primary/20 selection:text-foreground">
@@ -35,8 +36,12 @@ export default function Workspace({ operatorName }: WorkspaceProps) {
             <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/90">
               עמדת פלייליסט חיה
             </span>
-            <span className="text-[10px] text-primary/90 truncate max-w-[12rem]" title={operatorName}>
+            <span
+              className="text-[10px] text-primary/90 truncate max-w-[14rem] sm:max-w-[18rem]"
+              title={operatorName}
+            >
               גורם מטפל: {operatorName}
+              {offline ? ' · מצב לא מקוון' : ''}
             </span>
           </div>
         </div>

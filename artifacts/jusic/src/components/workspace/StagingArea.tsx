@@ -118,13 +118,11 @@ function splitArtistSong(query: string): {
   return { left: left.trim(), right: right.trim(), whole: cleaned };
 }
 
-function uniqueSearchVariants(query: string): string[] {
+function uniqueSearchVariants(query: string, maxVariants = 2): string[] {
   const parsed = splitArtistSong(query);
   const variants = [
     parsed.whole,
-    parsed.right,
-    parsed.left && parsed.right ? `${parsed.left} ${parsed.right}` : "",
-    parsed.left && parsed.right ? `${parsed.right} ${parsed.left}` : "",
+    parsed.left && parsed.right ? `${parsed.left} ${parsed.right}` : parsed.right,
   ];
 
   const seen = new Set<string>();
@@ -136,7 +134,8 @@ function uniqueSearchVariants(query: string): string[] {
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
-    });
+    })
+    .slice(0, maxVariants);
 }
 
 function candidateConfidence(
@@ -251,12 +250,15 @@ async function findBestMatch(
   }
 
   const primaryBest = bestMatchForQuery(query, Array.from(allHits.values()));
-  if (primaryBest.confidence >= AUTO_MATCH_THRESHOLD) {
+  if (
+    primaryBest.confidence >= AUTO_MATCH_THRESHOLD ||
+    fallbackVariants.length === 0
+  ) {
     return primaryBest;
   }
 
   const settledSearches = await Promise.allSettled(
-    fallbackVariants.map((variant) => cachedSearch(variant, filters, cache)),
+    fallbackVariants.slice(0, 1).map((variant) => cachedSearch(variant, filters, cache)),
   );
   for (const result of settledSearches) {
     if (result.status !== "fulfilled") continue;
@@ -287,8 +289,8 @@ export function StagingArea({
     if (!pendingItems.length) return;
     const searchCache = new Map<string, Promise<MsHit[]>>();
 
-    for (let i = 0; i < pendingItems.length; i += 5) {
-      const batch = pendingItems.slice(i, i + 5);
+    for (let i = 0; i < pendingItems.length; i += 8) {
+      const batch = pendingItems.slice(i, i + 8);
 
       const promises = batch.map(async (item) => {
         setItems((prev) =>

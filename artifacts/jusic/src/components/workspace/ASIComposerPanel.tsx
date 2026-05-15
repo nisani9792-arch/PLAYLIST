@@ -146,7 +146,7 @@ export function ASIComposerPanel({
   return (
     <aside
       className={`relative flex flex-col shrink-0 rounded-none sm:rounded-[1.25rem] md:mr-2 overflow-hidden md:overflow-visible border-0 sm:border border-border/55 bp-glass-panel shadow-lg transition-all duration-300 ${
-        isOpen ? 'h-[44dvh] min-h-[18.5rem] w-full md:h-full md:min-h-0 md:w-[380px] lg:w-[400px]' : 'h-14 w-full md:h-full md:w-14'
+        isOpen ? 'h-[38dvh] min-h-[16rem] w-full md:h-full md:min-h-0 md:w-[380px] lg:w-[400px]' : 'h-14 w-full md:h-full md:w-14'
       }`}
     >
       <div

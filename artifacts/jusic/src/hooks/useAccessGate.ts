@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   fetchAccessStatus,
+  getOperatorName,
   registerOperatorOnServer,
   type AccessStatus,
 } from '@/lib/operator';
@@ -13,7 +14,12 @@ export function useAccessGate() {
       const next = await fetchAccessStatus();
       setStatus(next);
     } catch {
-      setStatus({ state: 'locked', operatorName: null });
+      const cached = getOperatorName();
+      if (cached) {
+        setStatus({ state: 'offline', operatorName: cached });
+      } else {
+        setStatus({ state: 'locked', operatorName: null });
+      }
     }
   }, []);
 
@@ -22,9 +28,10 @@ export function useAccessGate() {
   }, [refresh]);
 
   const afterUnlock = useCallback(() => {
-    setStatus((prev) =>
-      prev.state === 'ready' ? prev : { state: 'register', operatorName: null },
-    );
+    setStatus((prev) => {
+      if (prev.state === 'ready' || prev.state === 'offline') return prev;
+      return { state: 'register', operatorName: null };
+    });
   }, []);
 
   const register = useCallback(async (operatorName: string) => {

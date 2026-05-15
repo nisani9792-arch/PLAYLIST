@@ -1,7 +1,5 @@
 import type { SearchFilterOptions } from './search-filters';
 import { SONGS_ONLY_FILTERS } from './search-filters';
-import { operatorHeaders } from './operator';
-
 export interface MsHit {
   id: string;
   song_name: string;
@@ -21,6 +19,19 @@ export type SearchResponse = {
   warning?: string;
 };
 
+function stableHitId(hit: Record<string, unknown>): string {
+  const uid = String(hit.uid ?? hit.id ?? "").trim();
+  if (uid) return uid;
+  const name = String(hit.song_name ?? hit.name_he ?? hit.name ?? hit.title ?? "");
+  const artist = String(hit.artist ?? hit.artist_name ?? "");
+  const key = `${artist}|${name}`.toLocaleLowerCase();
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  }
+  return `local-${Math.abs(hash)}`;
+}
+
 function normalizeHit(hit: Record<string, unknown>): MsHit {
   const artists = Array.isArray(hit.artists)
     ? hit.artists.join(', ')
@@ -33,7 +44,7 @@ function normalizeHit(hit: Record<string, unknown>): MsHit {
     typeof hit._rankingScore === 'number' ? hit._rankingScore : undefined;
 
   return {
-    id: String(hit.uid ?? hit.id ?? Math.random()),
+    id: stableHitId(hit),
     song_name: String(
       hit.name_he || hit.name_en || hit.song_name || hit.name || hit.title || 'Unknown',
     ),
@@ -55,7 +66,7 @@ export async function meilisearchSearch(
 
   const res = await fetch('/api/search', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...operatorHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       q: query,
       limit,
@@ -93,7 +104,7 @@ export async function resolveSongsForOdoo(songs: MsHit[]): Promise<Array<MsHit |
 
   const res = await fetch('/api/search/resolve', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...operatorHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       songs: songs.map((s) => ({
         id: s.id,

@@ -15,15 +15,15 @@ export function setOperatorName(name: string): void {
 }
 
 export function operatorHeaders(): HeadersInit {
-  const name = getOperatorName();
-  return name ? { 'X-BuildPlay-Operator': name } : {};
+  return {};
 }
 
 export type AccessStatus =
   | { state: 'loading' }
   | { state: 'locked'; operatorName: null }
   | { state: 'register'; operatorName: null }
-  | { state: 'ready'; operatorName: string };
+  | { state: 'ready'; operatorName: string }
+  | { state: 'offline'; operatorName: string | null };
 
 export async function fetchAccessStatus(): Promise<AccessStatus> {
   const res = await fetch('/api/access/status', { credentials: 'same-origin' });
@@ -43,7 +43,7 @@ export async function registerOperatorOnServer(operatorName: string): Promise<st
   const res = await fetch('/api/access/register', {
     method: 'POST',
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...operatorHeaders() },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ operatorName }),
   });
   if (!res.ok) {

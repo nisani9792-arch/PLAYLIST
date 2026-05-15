@@ -1,33 +1,10 @@
 import { operatorHeaders } from './operator';
 
-const PARASHA_TOKENS = [
-  'פרשה',
-  'פרשת',
-  'פטרה',
-  'הפטרה',
-  'בראשית',
-  'נח',
-  'לך לך',
-  'וירא',
-  'שמות',
-  'וארא',
-  'בא',
-  'בשלח',
-  'יתרו',
-  'משפטים',
-  'תרומה',
-  'תצוה',
-  'ויקרא',
-  'במדבר',
-  'דברים',
-  'וילך',
-  'האזינו',
-];
+/** Same intent as server — פרשה / הפטרה in prompt → use PSH catalog, not Gemini. */
+const PARASHA_INTENT_RE = /פרש|פטרה|הפטרה|parash/i;
 
 export function promptLooksLikeParasha(prompt: string): boolean {
-  const p = prompt.trim();
-  if (!p) return false;
-  return PARASHA_TOKENS.some((t) => p.includes(t));
+  return PARASHA_INTENT_RE.test(prompt.trim());
 }
 
 export type ParashaResolveResponse = {

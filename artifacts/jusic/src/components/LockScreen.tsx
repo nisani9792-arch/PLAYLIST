@@ -13,19 +13,25 @@ type LockScreenProps = {
 
 export function LockScreen({ onUnlock }: LockScreenProps) {
   const [password, setPassword] = useState('');
+  const [wrongCode, setWrongCode] = useState(false);
   const logoUrl = APP_LOGO_URL;
   const { available: biometricAvailable, busy: biometricBusy, unlock: unlockWithBiometric } =
     useBiometricUnlock(onUnlock);
 
   const tryJusicCode = (value: string) => {
     if (value.trim().toUpperCase() === JUSIC_CODE) {
+      setWrongCode(false);
       onUnlock();
+      return true;
     }
+    return false;
   };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    tryJusicCode(password);
+    if (!tryJusicCode(password) && password.trim().length > 0) {
+      setWrongCode(true);
+    }
   };
 
   return (
@@ -68,11 +74,18 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
             onChange={(event) => {
               const next = event.target.value;
               setPassword(next);
+              setWrongCode(false);
               tryJusicCode(next);
             }}
             placeholder="••••••••••••••••••••"
             aria-label="סיסמא"
+            aria-invalid={wrongCode}
           />
+          {wrongCode && (
+            <p className="text-xs text-destructive text-center mt-2" role="alert">
+              קוד שגוי
+            </p>
+          )}
         </form>
 
         {biometricAvailable && (
