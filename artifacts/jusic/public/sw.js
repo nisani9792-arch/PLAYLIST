@@ -1,13 +1,5 @@
-const CACHE_NAME = "build-play-v6";
-const APP_SHELL = [
-  "./",
-  "./manifest.json",
-  "./logo.png",
-  "./icon-192.png",
-  "./icon-512.png",
-  "./apple-touch-icon.png",
-  "./favicon-32.png",
-];
+const CACHE_NAME = "build-play-v7";
+const APP_SHELL = ["./"];
 const NETWORK_FIRST_ASSETS = [
   "manifest.json",
   "logo.png",
@@ -18,7 +10,7 @@ const NETWORK_FIRST_ASSETS = [
 ];
 
 function isNetworkFirstAsset(pathname) {
-  return NETWORK_FIRST_ASSETS.some((asset) => pathname.endsWith(`/${asset}`));
+  return NETWORK_FIRST_ASSETS.some((asset) => pathname.includes(asset));
 }
 
 self.addEventListener("install", (event) => {
@@ -70,7 +62,7 @@ self.addEventListener("fetch", (event) => {
 
   if (isNetworkFirstAsset(url.pathname)) {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: "no-store" })
         .then((response) => {
           if (response.ok) {
             const copy = response.clone();

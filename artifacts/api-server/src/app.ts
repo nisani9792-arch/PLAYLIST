@@ -86,15 +86,39 @@ const resolvedStatic =
   process.env.STATIC_DIR?.trim() ||
   path.resolve(__dirname, "../../jusic/dist/public");
 
+/** PWA / shell files must not be cached for 1y — stale manifest kept "JUSIC" on install. */
+const PWA_SHELL_FILES = new Set([
+  "index.html",
+  "manifest.json",
+  "sw.js",
+  "logo.png",
+  "icon-192.png",
+  "icon-512.png",
+  "apple-touch-icon.png",
+  "favicon-32.png",
+  "opengraph.jpg",
+]);
+
+function setPwaCacheHeaders(res: Response, filePath: string): void {
+  const base = path.basename(filePath);
+  if (PWA_SHELL_FILES.has(base)) {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
+}
+
 if (fs.existsSync(resolvedStatic)) {
   logger.info({ dir: resolvedStatic }, "Serving static frontend");
 
   app.use(
     express.static(resolvedStatic, {
-      maxAge: "1y",    // hashed assets are immutable
+      maxAge: "1y",
       etag: true,
-      // index.html is intentionally NOT served here; the catch-all below does it
       index: false,
+      setHeaders(res, filePath) {
+        setPwaCacheHeaders(res, filePath);
+      },
     }),
   );
 
@@ -106,6 +130,7 @@ if (fs.existsSync(resolvedStatic)) {
   // causes HEAD / (Render health-check) to return 404.
   const indexHtml = path.join(resolvedStatic, "index.html");
   app.get(/(.*)/, (_req: Request, res: Response) => {
+    setPwaCacheHeaders(res, "index.html");
     res.sendFile(indexHtml);
   });
 } else {
