@@ -246,13 +246,9 @@ async function generatePlaylistWithFallback(
   prompt: string,
 ) {
   const contents = await buildGeminiContents(prompt);
-  const runId = `models_${Date.now()}`;
   let lastErr: unknown;
   for (const model of PLAYLIST_MODELS) {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H2',location:'routes/gemini.ts:model-attempt',message:'Attempting model',data:{model},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       return await client.models.generateContent({
         model,
         contents,
@@ -261,9 +257,6 @@ async function generatePlaylistWithFallback(
     } catch (err) {
       lastErr = err;
       const info = formatGeminiError(err);
-      // #region agent log
-      fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H2',location:'routes/gemini.ts:model-fail',message:'Model attempt failed',data:{model,error:info.message,status:info.status??null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       logger.warn(
         { model, err: info },
         "Gemini playlist generation failed, trying fallback model",
@@ -340,7 +333,6 @@ router.post("/playlist/stream", async (req, res) => {
 
 router.post("/playlist", async (req, res) => {
   const { prompt } = req.body as { prompt?: string };
-  const runId = `playlist_${Date.now()}`;
 
   if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
     res.status(400).json({ error: "Missing prompt" });
@@ -355,36 +347,21 @@ router.post("/playlist", async (req, res) => {
   let client;
   try {
     client = await getGeminiClientOrThrow();
-    // #region agent log
-    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H1',location:'routes/gemini.ts:playlist-client-ok',message:'Gemini client resolved',data:{promptLen:prompt.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Gemini is not configured";
-    // #region agent log
-    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H1',location:'routes/gemini.ts:playlist-client-fail',message:'Gemini client resolve failed',data:{error:msg},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     res.status(503).json({ error: msg });
     return;
   }
 
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H2',location:'routes/gemini.ts:playlist-before-generate',message:'Start Gemini generation',data:{promptLen:prompt.length,hasParashaHint:promptIsParashaRelated(prompt)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const response = await generatePlaylistWithFallback(client, prompt);
 
     const text = response.text ?? "";
     const lines = linesFromModelText(text);
-    // #region agent log
-    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H2',location:'routes/gemini.ts:playlist-success',message:'Gemini generation success',data:{linesCount:lines.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     res.json({ lines });
   } catch (err) {
     const info = formatGeminiError(err);
     logger.error({ err: info }, "Gemini playlist request failed");
-    // #region agent log
-    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H2',location:'routes/gemini.ts:playlist-fail',message:'Gemini generation failed',data:{error:info.message,status:info.status??null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     res.status(502).json({
       error: `Gemini error: ${info.message}`,
       status: info.status ?? null,
