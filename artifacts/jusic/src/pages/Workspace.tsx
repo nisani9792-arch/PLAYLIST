@@ -7,11 +7,10 @@ import { WorkspaceHelpPopover } from "../components/workspace/WorkspaceHelpPopov
 import { LearningExportButton } from "../components/workspace/LearningExportButton";
 import { OfflinePlaylistMasterDialog } from "../components/workspace/OfflinePlaylistMasterDialog";
 import { InstallAppButton } from "../components/workspace/InstallAppButton";
+import { APP_LOGO_URL } from "@/lib/brand";
 
 export default function Workspace() {
   const playlist = usePlaylist();
-  const logoUrl = `${import.meta.env.BASE_URL}logo.png`;
-
   return (
     <div className="app-shell-bg flex flex-col h-[100dvh] w-full overflow-hidden text-foreground selection:bg-primary/20 selection:text-foreground">
       <header className="bp-glass-strip flex-shrink-0 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 lg:px-7 py-2.5 sm:py-3.5 z-40 pt-[max(env(safe-area-inset-top,0px),0.625rem)] sm:pt-3.5">
@@ -19,7 +18,7 @@ export default function Workspace() {
           <span className="relative rounded-[1rem] bp-gradient-border p-[2px] shadow-[0_12px_32px_-8px_rgba(6,182,212,0.45)]">
             <span className="block rounded-[0.9375rem] bg-card/90 p-[2px]">
               <img
-                src={logoUrl}
+                src={APP_LOGO_URL}
                 alt="BUILD PLAY"
                 className="h-9 w-9 sm:h-[2.6rem] sm:w-[2.6rem] rounded-[0.8rem] object-cover"
               />

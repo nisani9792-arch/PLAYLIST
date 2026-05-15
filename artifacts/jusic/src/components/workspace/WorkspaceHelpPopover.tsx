@@ -30,11 +30,10 @@ export function WorkspaceHelpPopover() {
             </p>
           </div>
           <div>
-            <p className="font-semibold text-foreground mb-1.5">פילטרים לפני חיפוש</p>
+            <p className="font-semibold text-foreground mb-1.5">חיפוש במאגר</p>
             <p className="text-[13px] text-muted-foreground leading-relaxed">
-              <strong className="text-foreground">רק שירים</strong> מופעל כברירת מחדל (מתאים גם לייבוא מטקסט ול-AI).
-              ניתן להוסיף <strong className="text-foreground">ז&apos;אנר</strong> מדויק כפי שהוא מופיע במאגר — אם אין תוצאות,
-              נסה בלי ז&apos;אנר או בדוק את שם השדה במאנדקס Meilisearch (<code className="text-xs bg-muted px-1 rounded">genres</code>).
+              החיפוש מחזיר <strong className="text-foreground">שירים בלבד</strong> תמיד.
+              ניתן להוסיף <strong className="text-foreground">ז&apos;אנר</strong> מדויק — אם אין תוצאות, נסה בלי ז&apos;אנר.
             </p>
           </div>
           <div>

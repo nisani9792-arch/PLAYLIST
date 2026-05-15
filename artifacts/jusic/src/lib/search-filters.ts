@@ -1,43 +1,36 @@
 /** Options sent to POST /api/search — kept in sync with api-server routes/search.ts */
 export type SearchFilterOptions = {
-  /** When true (default), applies Meilisearch filter type = SONG */
-  songsOnly: boolean;
+  /** Always true — only songs are searchable in BUILD PLAY */
+  songsOnly: true;
   /** Optional exact genre filter if your index exposes `genres` */
   genre?: string;
 };
 
-export const DEFAULT_SEARCH_FILTERS: SearchFilterOptions = {
+export const SONGS_ONLY_FILTERS: SearchFilterOptions = {
   songsOnly: true,
   genre: undefined,
 };
 
-const STORAGE_KEY = 'jusic_search_filters';
+const STORAGE_KEY = 'buildplay_search_genre';
 
-export function loadStoredSearchFilters(): SearchFilterOptions {
+export function loadStoredGenre(): string {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_SEARCH_FILTERS };
-    const parsed = JSON.parse(raw) as Partial<SearchFilterOptions>;
-    const g = typeof parsed.genre === 'string' ? parsed.genre.trim() : '';
-    return {
-      songsOnly: parsed.songsOnly !== false,
-      genre: g || undefined,
-    };
+    return typeof raw === 'string' ? raw.trim() : '';
   } catch {
-    return { ...DEFAULT_SEARCH_FILTERS };
+    return '';
   }
 }
 
-export function persistSearchFilters(filters: SearchFilterOptions): void {
+export function persistGenre(genre: string): void {
   try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        songsOnly: filters.songsOnly,
-        genre: filters.genre?.trim() || '',
-      }),
-    );
+    localStorage.setItem(STORAGE_KEY, genre.trim());
   } catch {
     /* ignore */
   }
+}
+
+export function toSearchFilters(genreInput: string): SearchFilterOptions {
+  const genre = genreInput.trim() || undefined;
+  return genre ? { songsOnly: true, genre } : SONGS_ONLY_FILTERS;
 }

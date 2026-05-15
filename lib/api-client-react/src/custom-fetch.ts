@@ -359,11 +359,6 @@ export async function customFetch<T = unknown>(
   }
 
   const requestInfo = { method, url: resolveUrl(input) };
-  if (requestInfo.url.includes("/api/gemini/playlist")) {
-    // #region agent log
-    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId:`client_${Date.now()}`,hypothesisId:'H8',location:'api-client/custom-fetch.ts:gemini-request',message:'Client is sending gemini playlist request',data:{url:requestInfo.url,method:requestInfo.method,baseUrlConfigured:Boolean(_baseUrl)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  }
 
   const response = await fetch(input, { ...init, method, headers });
 

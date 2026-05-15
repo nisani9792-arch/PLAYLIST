@@ -3,6 +3,7 @@ import {
   getMeilisearchConfig,
   isMeilisearchConfigured,
 } from "../lib/meilisearch-config";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -10,18 +11,58 @@ const MAX_LIMIT = 100;
 const MAX_GENRE_LEN = 96;
 const MAX_RESOLVE_ITEMS = 400;
 
+type MeiliHit = Record<string, unknown>;
+type MeiliSearchResponse = {
+  hits?: MeiliHit[];
+  [key: string]: unknown;
+};
+
+class MeiliSearchError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(`Meilisearch error: ${status} ${body.slice(0, 180)}`);
+    this.name = "MeiliSearchError";
+  }
+}
+
 function escapeFilterValue(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function parseEnvFilterList(): string[] | undefined {
+  const raw = process.env.MEILISEARCH_SEARCH_FILTERS?.trim();
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  } catch {
+    return undefined;
+  }
+}
+
+function songTypeFilterClause(): string {
+  const custom = process.env.MEILISEARCH_SONG_FILTER?.trim();
+  if (custom) return custom;
+  return 'type = "SONG"';
 }
 
 function buildMeilisearchFilters(body: {
   songsOnly?: boolean;
   genre?: string;
 }): string[] | undefined {
-  const filters: string[] = [];
-  if (body.songsOnly !== false) {
-    filters.push("type = SONG");
+  const envFilters = parseEnvFilterList();
+  const filters: string[] = envFilters ? [...envFilters] : [];
+
+  if (body.songsOnly !== false && !envFilters?.length) {
+    filters.push(songTypeFilterClause());
   }
+
   const rawGenre = body.genre?.trim();
   if (rawGenre) {
     const cut = rawGenre.slice(0, MAX_GENRE_LEN);
@@ -43,7 +84,7 @@ async function runMeiliSearch(
   index: string,
   apiKey: string,
   payload: Record<string, unknown>,
-): Promise<{ hits?: unknown[] }> {
+): Promise<MeiliSearchResponse> {
   const response = await fetch(`${baseUrl}/indexes/${index}/search`, {
     method: "POST",
     headers: buildMeiliHeaders(apiKey),
@@ -51,11 +92,102 @@ async function runMeiliSearch(
   });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(
-      `Meilisearch error: ${response.status} ${text.slice(0, 180)}`,
-    );
+    throw new MeiliSearchError(response.status, text);
   }
-  return (await response.json()) as { hits?: unknown[] };
+  return (await response.json()) as MeiliSearchResponse;
+}
+
+function isRecoverableFilterError(err: unknown): err is MeiliSearchError {
+  if (!(err instanceof MeiliSearchError)) return false;
+  if (err.status !== 400 && err.status !== 422) return false;
+  return /filter|filterable|invalid_search_filter|invalid_filter/i.test(
+    `${err.message}\n${err.body}`,
+  );
+}
+
+function omitFilter(payload: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...payload };
+  delete rest.filter;
+  return rest;
+}
+
+function stringValues(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return typeof value === "string" && value.trim() ? [value.trim()] : [];
+}
+
+function hitLooksLikeSong(hit: MeiliHit): boolean {
+  const types = stringValues(hit.type).map((v) => v.toUpperCase());
+  if (types.length) return types.includes("SONG");
+
+  // Older indexes may not expose `type`, but still return song-shaped records.
+  return Boolean(
+    hit.song_name || hit.name_he || hit.name_en || hit.title || hit.name,
+  );
+}
+
+function hitMatchesGenre(hit: MeiliHit, genre: string | undefined): boolean {
+  const target = genre?.trim().toLocaleLowerCase();
+  if (!target) return true;
+
+  const genres = [
+    ...stringValues(hit.genres),
+    ...stringValues(hit.genre),
+  ].map((v) => v.toLocaleLowerCase());
+
+  // If the index does not expose genre fields, keep the hit instead of making
+  // the fallback search look broken.
+  if (!genres.length) return true;
+  return genres.includes(target);
+}
+
+function applyLocalFilters(
+  hits: MeiliHit[] | undefined,
+  filters: { songsOnly?: boolean; genre?: string },
+  limit: number,
+): MeiliHit[] {
+  return (hits ?? [])
+    .filter((hit) => filters.songsOnly === false || hitLooksLikeSong(hit))
+    .filter((hit) => hitMatchesGenre(hit, filters.genre))
+    .slice(0, limit);
+}
+
+async function runMeiliSearchWithFilterFallback(
+  baseUrl: string,
+  index: string,
+  apiKey: string,
+  payload: Record<string, unknown>,
+  filters: { songsOnly?: boolean; genre?: string },
+  limit: number,
+  fallbackPayload: Record<string, unknown> = omitFilter(payload),
+): Promise<MeiliSearchResponse & { _filterFallback?: true }> {
+  try {
+    return await runMeiliSearch(baseUrl, index, apiKey, payload);
+  } catch (err) {
+    if (!payload.filter || !isRecoverableFilterError(err)) throw err;
+
+    logger.warn(
+      { err: { status: err.status, message: err.message } },
+      "Meilisearch filter failed; retrying without server-side filters",
+    );
+
+    const fallbackData = await runMeiliSearch(
+      baseUrl,
+      index,
+      apiKey,
+      fallbackPayload,
+    );
+    return {
+      ...fallbackData,
+      hits: applyLocalFilters(fallbackData.hits, filters, limit),
+      _filterFallback: true,
+    };
+  }
 }
 
 // ── Route handler ──────────────────────────────────────────────────────────
@@ -91,11 +223,56 @@ router.post("/", async (req, res) => {
       const payload: Record<string, unknown> = {
         q: q.trim(),
         limit,
-        showRankingScore: true,
       };
       if (filter?.length) payload.filter = filter;
-      const data = await runMeiliSearch(baseUrl, index, apiKey, payload);
-      res.json(data);
+      const fallbackPayload = {
+        ...omitFilter(payload),
+        limit: Math.min(MAX_LIMIT, Math.max(limit * 3, limit)),
+      };
+      let data = await runMeiliSearchWithFilterFallback(
+        baseUrl,
+        index,
+        apiKey,
+        payload,
+        { songsOnly, genre },
+        limit,
+        fallbackPayload,
+      );
+
+      if (
+        (data.hits?.length ?? 0) === 0 &&
+        payload.filter &&
+        q.trim().length >= 2
+      ) {
+        const unfiltered = await runMeiliSearch(
+          baseUrl,
+          index,
+          apiKey,
+          fallbackPayload,
+        );
+        const localHits = applyLocalFilters(
+          unfiltered.hits,
+          { songsOnly, genre },
+          limit,
+        );
+        if (localHits.length) {
+          data = {
+            ...unfiltered,
+            hits: localHits,
+            _filterFallback: true,
+          };
+        }
+      }
+
+      res.json(
+        data._filterFallback
+          ? {
+              ...data,
+              _warning:
+                "חיפוש עם פילטר מלא נכשל או לא החזיר תוצאות — הוצגו תוצאות מסוננות מקומית.",
+            }
+          : data,
+      );
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
@@ -149,31 +326,44 @@ router.post("/resolve", async (req, res) => {
 
         // 1) Strict lookup by uid (database/external id equivalent in index)
         if (safeId) {
-          const byUid = await runMeiliSearch(baseUrl, index, apiKey, {
-            q: "",
-            limit: 1,
-            showRankingScore: true,
-            filter: ["type = SONG", `uid = "${safeId}"`],
-          });
-          const firstUid = Array.isArray(byUid.hits)
-            ? byUid.hits[0]
-            : undefined;
-          if (firstUid) return firstUid as Record<string, unknown>;
+          try {
+            const byUid = await runMeiliSearch(baseUrl, index, apiKey, {
+              q: "",
+              limit: 1,
+              filter: ['type = "SONG"', `uid = "${safeId}"`],
+            });
+            const firstUid = Array.isArray(byUid.hits)
+              ? byUid.hits[0]
+              : undefined;
+            if (firstUid) return firstUid;
+          } catch (err) {
+            if (!isRecoverableFilterError(err)) throw err;
+            logger.warn(
+              { err: { status: err.status, message: err.message } },
+              "Meilisearch uid filter failed; falling back to text resolution",
+            );
+          }
         }
 
         // 2) Fallback to text lookup, but still return canonical DB hit.
         const fuzzyQ = `${song.artist ?? ""} ${song.song_name ?? ""}`.trim();
         if (!fuzzyQ) return null;
-        const byText = await runMeiliSearch(baseUrl, index, apiKey, {
-          q: fuzzyQ,
-          limit: 1,
-          showRankingScore: true,
-          filter: ["type = SONG"],
-        });
+        const byText = await runMeiliSearchWithFilterFallback(
+          baseUrl,
+          index,
+          apiKey,
+          {
+            q: fuzzyQ,
+            limit: 5,
+            filter: ['type = "SONG"'],
+          },
+          { songsOnly: true },
+          1,
+        );
         const firstText = Array.isArray(byText.hits)
           ? byText.hits[0]
           : undefined;
-        return (firstText as Record<string, unknown> | undefined) ?? null;
+        return firstText ?? null;
       }),
     );
     res.json({ hits: resolved });

@@ -18,15 +18,7 @@ function parseSongIds(rawId: string): { dbId: string; externalId: string } {
 }
 
 export async function exportToOdooCSV(playlistName: string, songs: MsHit[]) {
-  const runId = `odoo_export_${Date.now()}`;
-  // #region agent log
-  fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H4',location:'lib/export.ts:export-start',message:'Odoo export started',data:{songsCount:songs.length},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   const canonical = await resolveSongsForOdoo(songs);
-  const missingCanonicalCount = canonical.filter((x) => !x).length;
-  // #region agent log
-  fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId,hypothesisId:'H4',location:'lib/export.ts:export-canonical-result',message:'Canonical resolution completed',data:{songsCount:songs.length,missingCanonicalCount},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   const BOM = '\uFEFF';
   const headers = [
     'שם הפלייליסט',

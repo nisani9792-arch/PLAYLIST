@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { MsHit, meilisearchSearch } from "../../lib/meilisearch";
 import type { SearchFilterOptions } from "../../lib/search-filters";
-import { DEFAULT_SEARCH_FILTERS } from "../../lib/search-filters";
+import { SONGS_ONLY_FILTERS } from "../../lib/search-filters";
 import { Button } from "../ui/button";
 import {
   Loader2,
@@ -225,10 +225,12 @@ function cachedSearch(
   filters: SearchFilterOptions,
   cache: Map<string, Promise<MsHit[]>>,
 ): Promise<MsHit[]> {
-  const cacheKey = `${normalizeHebrew(variant)}|${filters.songsOnly}|${filters.genre ?? ""}`;
+  const cacheKey = `${normalizeHebrew(variant)}|${filters.genre ?? ""}`;
   let searchPromise = cache.get(cacheKey);
   if (!searchPromise) {
-    searchPromise = meilisearchSearch(variant, STAGING_SEARCH_LIMIT, filters);
+    searchPromise = meilisearchSearch(variant, STAGING_SEARCH_LIMIT, filters).then(
+      (r) => r.hits,
+    );
     cache.set(cacheKey, searchPromise);
   }
   return searchPromise;
@@ -272,7 +274,7 @@ export function StagingArea({
   setItems,
   onApproveAll,
   onCancel,
-  searchFilters = DEFAULT_SEARCH_FILTERS,
+  searchFilters = SONGS_ONLY_FILTERS,
 }: {
   items: StagingItem[];
   setItems: React.Dispatch<React.SetStateAction<StagingItem[]>>;

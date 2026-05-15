@@ -8,15 +8,14 @@ import {
 } from 'react';
 import type { SearchFilterOptions } from '@/lib/search-filters';
 import {
-  loadStoredSearchFilters,
-  persistSearchFilters,
+  loadStoredGenre,
+  persistGenre,
+  toSearchFilters,
 } from '@/lib/search-filters';
 
 type SearchFiltersContextValue = {
   filters: SearchFilterOptions;
-  /** Raw genre text in the input (before trim in `filters.genre`) */
   genreInput: string;
-  setSongsOnly: (v: boolean) => void;
   setGenre: (v: string) => void;
 };
 
@@ -25,30 +24,17 @@ const SearchFiltersContext = createContext<SearchFiltersContextValue | null>(
 );
 
 export function SearchFiltersProvider({ children }: { children: React.ReactNode }) {
-  const [songsOnly, setSongsOnlyState] = useState(true);
   const [genre, setGenreState] = useState('');
 
   useEffect(() => {
-    const s = loadStoredSearchFilters();
-    setSongsOnlyState(s.songsOnly);
-    setGenreState(s.genre ?? '');
+    setGenreState(loadStoredGenre());
   }, []);
 
-  const filters = useMemo(
-    (): SearchFilterOptions => ({
-      songsOnly,
-      genre: genre.trim() || undefined,
-    }),
-    [songsOnly, genre],
-  );
+  const filters = useMemo(() => toSearchFilters(genre), [genre]);
 
   useEffect(() => {
-    persistSearchFilters(filters);
-  }, [filters]);
-
-  const setSongsOnly = useCallback((v: boolean) => {
-    setSongsOnlyState(v);
-  }, []);
+    persistGenre(genre);
+  }, [genre]);
 
   const setGenre = useCallback((v: string) => {
     setGenreState(v);
@@ -58,10 +44,9 @@ export function SearchFiltersProvider({ children }: { children: React.ReactNode 
     () => ({
       filters,
       genreInput: genre,
-      setSongsOnly,
       setGenre,
     }),
-    [filters, genre, setSongsOnly, setGenre],
+    [filters, genre, setGenre],
   );
 
   return (

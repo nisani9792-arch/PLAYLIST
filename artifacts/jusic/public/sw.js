@@ -1,4 +1,4 @@
-const CACHE_NAME = "build-play-v2";
+const CACHE_NAME = "build-play-v3";
 const APP_SHELL = [
   "./",
   "./manifest.json",
@@ -6,14 +6,15 @@ const APP_SHELL = [
   "./icon-192.png",
   "./icon-512.png",
   "./apple-touch-icon.png",
+  "./favicon-32.png",
 ];
 const NETWORK_FIRST_ASSETS = [
   "manifest.json",
   "logo.png",
+  "favicon-32.png",
   "icon-192.png",
   "icon-512.png",
   "apple-touch-icon.png",
-  "favicon.svg",
 ];
 
 function isNetworkFirstAsset(pathname) {

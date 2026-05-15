@@ -1,5 +1,5 @@
 import type { SearchFilterOptions } from './search-filters';
-import { DEFAULT_SEARCH_FILTERS } from './search-filters';
+import { SONGS_ONLY_FILTERS } from './search-filters';
 
 export interface MsHit {
   id: string;
@@ -14,6 +14,11 @@ export interface MsHit {
   /** Meilisearch ranking score when returned by the API. */
   _rankingScore?: number;
 }
+
+export type SearchResponse = {
+  hits: MsHit[];
+  warning?: string;
+};
 
 function normalizeHit(hit: Record<string, unknown>): MsHit {
   const artists = Array.isArray(hit.artists)
@@ -43,9 +48,9 @@ function normalizeHit(hit: Record<string, unknown>): MsHit {
 export async function meilisearchSearch(
   query: string,
   limit = 20,
-  filters: SearchFilterOptions = DEFAULT_SEARCH_FILTERS,
-): Promise<MsHit[]> {
-  if (!query.trim()) return [];
+  filters: SearchFilterOptions = SONGS_ONLY_FILTERS,
+): Promise<SearchResponse> {
+  if (!query.trim()) return { hits: [] };
 
   const res = await fetch('/api/search', {
     method: 'POST',
@@ -53,7 +58,7 @@ export async function meilisearchSearch(
     body: JSON.stringify({
       q: query,
       limit,
-      songsOnly: filters.songsOnly,
+      songsOnly: true,
       genre: filters.genre,
     }),
   });
@@ -69,9 +74,17 @@ export async function meilisearchSearch(
     throw new Error(detail || `Search error: ${res.status}`);
   }
 
-  const data = (await res.json()) as { hits?: Record<string, unknown>[] };
+  const data = (await res.json()) as {
+    hits?: Record<string, unknown>[];
+    _warning?: string;
+  };
   const hits = (data.hits || []).map((h) => normalizeHit(h));
-  return hits;
+  const warning =
+    typeof data._warning === 'string' && data._warning.trim()
+      ? data._warning.trim()
+      : undefined;
+
+  return { hits, warning };
 }
 
 export async function resolveSongsForOdoo(songs: MsHit[]): Promise<Array<MsHit | null>> {

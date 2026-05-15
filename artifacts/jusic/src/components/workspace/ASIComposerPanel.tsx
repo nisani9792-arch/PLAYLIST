@@ -94,9 +94,6 @@ export function ASIComposerPanel({
   const handleASICompose = () => {
     const input = composerInput.trim();
     if (!input) return;
-    // #region agent log
-    fetch('http://127.0.0.1:7720/ingest/a3b66527-1e2c-496d-8748-962b4e82cf3c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'0e4088'},body:JSON.stringify({sessionId:'0e4088',runId:`asi_${Date.now()}`,hypothesisId:'H3',location:'workspace/ASIComposerPanel.tsx:handleASICompose',message:'ASI compose triggered',data:{inputLooksLikeList,listLinesCount,inputLength:input.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (inputLooksLikeList) {
       handleMatchFromList(listLines);
       return;
