@@ -23,6 +23,7 @@
     "helmet": "^8.1.0",
     "lru-cache": "^11.2.4",
     "node-cron": "^4.2.1",
+    "pdf-parse": "^2.4.5",
     "pino": "^9",
     "pino-http": "^10"
   },

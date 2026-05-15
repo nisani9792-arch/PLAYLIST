@@ -10,6 +10,7 @@ import { useSearchFilters } from '@/contexts/SearchFiltersContext';
 import type { MsHit } from '../../lib/meilisearch';
 import { newClientId } from '../../lib/ids';
 import type { PlaylistDraftSnapshot } from '../../lib/playlist-draft';
+import { promptLooksLikeParasha, resolveParashaFromPdf } from '../../lib/parasha';
 
 function formatDraftTime(ts: number): string {
   try {
@@ -40,6 +41,7 @@ export function ASIComposerPanel({
   const [composerInput, setComposerInput] = useState('');
   const [stagingBatchId, setStagingBatchId] = useState(0);
   const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
+  const [parashaBusy, setParashaBusy] = useState(false);
   const generatePlaylist = useGeneratePlaylist();
 
   const stagingBusy = stagingItems.some((i) => i.status === 'searching' || i.status === 'pending');
@@ -91,11 +93,44 @@ export function ASIComposerPanel({
     );
   };
 
+  const handleParashaFromPdf = async (prompt: string) => {
+    setParashaBusy(true);
+    try {
+      const data = await resolveParashaFromPdf(prompt);
+      if (!data.lines.length) {
+        toast.error(`לא נמצאו שירים לפרשת ${data.parasha} בקובץ PSH`);
+        return;
+      }
+      setStagingBatchId((b) => b + 1);
+      setStagingItems(
+        data.lines.map((line) => ({
+          id: newClientId(),
+          query: line,
+          status: 'pending' as const,
+        })),
+      );
+      toast.success(
+        `פרשת ${data.parasha}: ${data.parashaOnlyCount} שירי פרשה` +
+          (data.haftarahCount ? ` + ${data.haftarahCount} הפטרה` : '') +
+          ` — ${data.pdfSongCount} שורות לחיפוש במאגר`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'שגיאה בחיפוש פרשה ב-PSH';
+      toast.error(msg);
+    } finally {
+      setParashaBusy(false);
+    }
+  };
+
   const handleASICompose = () => {
     const input = composerInput.trim();
     if (!input) return;
     if (inputLooksLikeList) {
       handleMatchFromList(listLines);
+      return;
+    }
+    if (promptLooksLikeParasha(input)) {
+      void handleParashaFromPdf(input);
       return;
     }
     handleGenerateFromAI(input);
@@ -178,7 +213,7 @@ export function ASIComposerPanel({
               <div className="space-y-3.5">
                 <Textarea
                   data-testid="asi-composer-input"
-                  placeholder="הדבק רשימת שירים (שורה לכל שיר) או כתוב בקשה חופשית — למשל: שירי שבת שמחים, ניגונים עדינים..."
+                  placeholder="הדבק רשימה, כתוב נושא (22–30 שירים), או פרשה — למשל: פרשת שמות"
                   className="resize-none h-28 sm:h-44 rounded-[1rem] border-border/65 bg-background/75 text-[13px] leading-relaxed shadow-inner focus-visible:ring-2 focus-visible:ring-primary/30"
                   value={composerInput}
                   onChange={(e) => setComposerInput(e.target.value)}
@@ -186,22 +221,33 @@ export function ASIComposerPanel({
                 <div className="text-[11px] font-medium px-3 py-2 rounded-xl bg-muted/65 border border-border/55 text-muted-foreground">
                   {inputLooksLikeList
                     ? `זוהתה רשימה (${listLinesCount} שורות) — מתבצעת התאמה מדויקת`
-                    : 'זוהתה בקשת נושא — הפלייליסט ייווצר אוטומטית'}
+                    : promptLooksLikeParasha(composerInput)
+                      ? 'זוהתה פרשת שבוע — שירים יילקחו מקובץ PSH ויותאמו במאגר'
+                      : 'זוהתה בקשת נושא — הפלייליסט ייווצר (22–30 שירים)'}
                 </div>
                 <Button
                   data-testid="asi-compose-button"
                   className="w-full rounded-xl h-11 shadow-lg shadow-primary/20 font-semibold"
                   onClick={handleASICompose}
-                  disabled={generatePlaylist.isPending || !composerInput.trim() || stagingBusy}
+                  disabled={
+                    generatePlaylist.isPending ||
+                    parashaBusy ||
+                    !composerInput.trim() ||
+                    stagingBusy
+                  }
                 >
-                  {generatePlaylist.isPending ? (
+                  {generatePlaylist.isPending || parashaBusy ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ASI מייצר...
                     </>
                   ) : (
                     <>
                       <Sparkles className="mr-2 h-4 w-4" />
-                      {inputLooksLikeList ? `ASI התאם רשימה (${listLinesCount})` : 'ASI צור פלייליסט'}
+                      {inputLooksLikeList
+                        ? `ASI התאם רשימה (${listLinesCount})`
+                        : promptLooksLikeParasha(composerInput)
+                          ? 'חפש פרשה ב-PSH'
+                          : 'ASI צור פלייליסט (22–30)'}
                     </>
                   )}
                 </Button>

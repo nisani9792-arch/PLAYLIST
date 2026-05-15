@@ -218,11 +218,15 @@ router.post("/admin/psh/import", async (req, res) => {
       [SETTINGS_KEYS.AI_PSH_PDF_NAME]: fileName,
       [SETTINGS_KEYS.AI_PSH_IMPORTED_AT]: new Date().toISOString(),
     });
+    const { reloadPshCatalog } = await import("../lib/psh-pdf-store");
+    const catalogSongs = await reloadPshCatalog();
+
     res.json({
       ok: true,
       fileName,
       bytesApprox: Math.floor((pdfBase64.length * 3) / 4),
       importedAt: new Date().toISOString(),
+      catalogSongs,
     });
   } catch (err) {
     res.status(500).json({

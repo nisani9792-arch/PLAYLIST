@@ -199,7 +199,7 @@ ${input.customInstructions ? `## הנחיות מערכת נוספות\n${input.c
 {"songs":["אמן - שם שיר","אמן - שם שיר", "..."]}
 
 כללים:
-- 12 עד 20 שורות.
+- 22 עד 30 שורות (לא פחות מ-22 אלא אם מצב רשימה קיימת).
 - כל שורה בפורמט "אמן - שם שיר".
 - עברית בלבד ככל האפשר.
 
@@ -252,7 +252,7 @@ async function generatePlaylistWithFallback(
       return await client.models.generateContent({
         model,
         contents,
-        config: { maxOutputTokens: 2048 },
+        config: { maxOutputTokens: 8192 },
       });
     } catch (err) {
       lastErr = err;

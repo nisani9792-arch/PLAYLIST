@@ -41,7 +41,7 @@ export function WorkspaceHelpPopover() {
             <ul className="text-[13px] text-muted-foreground space-y-1 list-disc pr-4">
               <li>פס הפילטרים + חיפוש — הוספת שירים בודדים</li>
               <li>ייבוא מרשימה — אותם פילטרים נשמרים להתאמת השורות</li>
-              <li>AI מוזיקלי — אותם פילטרים בהתאמת השירים</li>
+              <li>AI מוזיקלי — נושא חופשי (22–30 שירים) או פרשת שבוע (מקובץ PSH + התאמה במאגר)</li>
               <li>מרכז — הפלייליסט (גרירה, הסרה, ייצוא לאודו)</li>
             </ul>
           </div>
