@@ -5,6 +5,8 @@ import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
 import { APP_LOGO_URL } from '@/lib/brand';
 import './LockScreen.css';
 
+const JUSIC_CODE = 'JUSIC';
+
 type LockScreenProps = {
   onUnlock: () => void;
 };
@@ -15,8 +17,15 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
   const { available: biometricAvailable, busy: biometricBusy, unlock: unlockWithBiometric } =
     useBiometricUnlock(onUnlock);
 
+  const tryJusicCode = (value: string) => {
+    if (value.trim().toUpperCase() === JUSIC_CODE) {
+      onUnlock();
+    }
+  };
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    tryJusicCode(password);
   };
 
   return (
@@ -56,7 +65,11 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
             autoComplete="off"
             maxLength={20}
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setPassword(next);
+              tryJusicCode(next);
+            }}
             placeholder="••••••••••••••••••••"
             aria-label="סיסמא"
           />

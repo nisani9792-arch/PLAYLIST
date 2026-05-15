@@ -118,6 +118,12 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
     `,
     },
   });
+
+  const { execSync } = await import("node:child_process");
+  execSync("pnpm exec tsx ./scripts/build-psh-catalog.ts", {
+    cwd: artifactDir,
+    stdio: "inherit",
+  });
 }
 
 buildAll().catch((err) => {

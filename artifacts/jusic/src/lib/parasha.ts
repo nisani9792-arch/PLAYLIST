@@ -1,3 +1,5 @@
+import { operatorHeaders } from './operator';
+
 const PARASHA_TOKENS = [
   'פרשה',
   'פרשת',
@@ -45,7 +47,7 @@ export async function resolveParashaFromPdf(
 ): Promise<ParashaResolveResponse> {
   const res = await fetch('/api/parasha/resolve', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...operatorHeaders() },
     body: JSON.stringify({ prompt, maxSongs: 30 }),
   });
 

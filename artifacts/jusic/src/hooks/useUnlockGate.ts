@@ -1,21 +1,22 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 
-const STORAGE_KEY = 'buildplay-unlocked';
 const RESET_MS = 1600;
 const REQUIRED_PRESSES = 3;
+const JUSIC_CODE = 'JUSIC';
 
-export const useUnlockGate = () => {
-  const [unlocked, setUnlocked] = useState(
-    () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(STORAGE_KEY) === '1',
-  );
+type UseUnlockGateOptions = {
+  enabled: boolean;
+  onUnlock: () => void;
+};
 
+/** Space×3 unlock — no session storage; parent handles IP registration. */
+export const useUnlockGate = ({ enabled, onUnlock }: UseUnlockGateOptions) => {
   const unlock = useCallback(() => {
-    sessionStorage.setItem(STORAGE_KEY, '1');
-    setUnlocked(true);
-  }, []);
+    onUnlock();
+  }, [onUnlock]);
 
   useEffect(() => {
-    if (unlocked) return;
+    if (!enabled) return;
 
     let resetTimer: ReturnType<typeof setTimeout> | undefined;
     let pressCount = 0;
@@ -42,7 +43,7 @@ export const useUnlockGate = () => {
       window.removeEventListener('keydown', onKeyDown);
       clearTimeout(resetTimer);
     };
-  }, [unlocked, unlock]);
+  }, [enabled, unlock]);
 
-  return { unlocked, unlock };
+  return { unlock, jusicCode: JUSIC_CODE };
 };

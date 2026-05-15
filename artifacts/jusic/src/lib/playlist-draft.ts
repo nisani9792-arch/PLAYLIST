@@ -1,4 +1,5 @@
 import type { MsHit } from './meilisearch';
+import { getOperatorName } from './operator';
 
 const CURRENT_STORAGE_KEY = 'jusic_playlist_draft';
 const HISTORY_STORAGE_KEY = 'jusic_playlist_draft_history_v1';
@@ -9,6 +10,7 @@ export type PlaylistDraftSnapshot = {
   name: string;
   songs: MsHit[];
   savedAt: number;
+  operatorName?: string;
 };
 
 export function loadCurrentDraft(): { name?: string; songs?: MsHit[]; savedAt?: number } | null {
@@ -52,6 +54,7 @@ export function saveDraftToHistory(draft: Omit<PlaylistDraftSnapshot, 'id' | 'sa
     name: draft.name,
     songs: draft.songs,
     savedAt: Date.now(),
+    operatorName: getOperatorName() ?? draft.operatorName,
   };
   const prev = loadDraftHistory();
   const withoutSameName = prev.filter((d) => d.name !== nextDraft.name);
@@ -68,7 +71,12 @@ export function flushPlaylistDraft(playlistName: string, songs: MsHit[]): void {
   try {
     localStorage.setItem(
       CURRENT_STORAGE_KEY,
-      JSON.stringify({ name: playlistName, songs, savedAt: Date.now() }),
+      JSON.stringify({
+        name: playlistName,
+        songs,
+        savedAt: Date.now(),
+        operatorName: getOperatorName() ?? undefined,
+      }),
     );
   } catch (e) {
     console.error('flushPlaylistDraft failed', e);

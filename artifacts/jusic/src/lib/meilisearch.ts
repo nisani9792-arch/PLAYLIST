@@ -1,5 +1,6 @@
 import type { SearchFilterOptions } from './search-filters';
 import { SONGS_ONLY_FILTERS } from './search-filters';
+import { operatorHeaders } from './operator';
 
 export interface MsHit {
   id: string;
@@ -54,7 +55,7 @@ export async function meilisearchSearch(
 
   const res = await fetch('/api/search', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...operatorHeaders() },
     body: JSON.stringify({
       q: query,
       limit,
@@ -92,7 +93,7 @@ export async function resolveSongsForOdoo(songs: MsHit[]): Promise<Array<MsHit |
 
   const res = await fetch('/api/search/resolve', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...operatorHeaders() },
     body: JSON.stringify({
       songs: songs.map((s) => ({
         id: s.id,

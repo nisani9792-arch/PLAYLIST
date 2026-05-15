@@ -9,7 +9,11 @@ import { OfflinePlaylistMasterDialog } from "../components/workspace/OfflinePlay
 import { InstallAppButton } from "../components/workspace/InstallAppButton";
 import { APP_LOGO_URL } from "@/lib/brand";
 
-export default function Workspace() {
+type WorkspaceProps = {
+  operatorName: string;
+};
+
+export default function Workspace({ operatorName }: WorkspaceProps) {
   const playlist = usePlaylist();
   return (
     <div className="app-shell-bg flex flex-col h-[100dvh] w-full overflow-hidden text-foreground selection:bg-primary/20 selection:text-foreground">
@@ -30,6 +34,9 @@ export default function Workspace() {
             </span>
             <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/90">
               עמדת פלייליסט חיה
+            </span>
+            <span className="text-[10px] text-primary/90 truncate max-w-[12rem]" title={operatorName}>
+              גורם מטפל: {operatorName}
             </span>
           </div>
         </div>

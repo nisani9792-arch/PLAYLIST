@@ -1,32 +1,37 @@
 import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { logger } from "./logger";
 import {
   getPshCatalogRows,
   parsePshPdfBuffer,
   setPshCatalogRows,
+  type PshSongRow,
 } from "./psh-catalog";
+import { resolvePshCatalogJsonPath, resolvePshPdfPath } from "./psh-paths";
 import { fetchSettingsKeys, SETTINGS_KEYS } from "./system-settings-store";
 
-/** dist/index.mjs → artifact root; src/lib/*.ts → artifact root (dev). */
-const apiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const defaultPdfPath = path.join(apiRoot, "data", "PSH.pdf");
-
-async function loadPdfBuffer(): Promise<Buffer | null> {
-  const envPath = process.env.PSH_PDF_PATH?.trim();
-  if (envPath) {
-    try {
-      return await readFile(envPath);
-    } catch (err) {
-      logger.warn({ err, envPath }, "PSH_PDF_PATH read failed");
-    }
-  }
+async function loadCatalogJson(): Promise<PshSongRow[] | null> {
+  const jsonPath = await resolvePshCatalogJsonPath();
+  if (!jsonPath) return null;
 
   try {
-    return await readFile(defaultPdfPath);
-  } catch {
-    /* try DB */
+    const raw = await readFile(jsonPath, "utf8");
+    const parsed = JSON.parse(raw) as PshSongRow[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed;
+  } catch (err) {
+    logger.warn({ err, jsonPath }, "psh-catalog.json read failed");
+    return null;
+  }
+}
+
+async function loadPdfBuffer(): Promise<Buffer | null> {
+  const pdfPath = await resolvePshPdfPath();
+  if (pdfPath) {
+    try {
+      return await readFile(pdfPath);
+    } catch (err) {
+      logger.warn({ err, pdfPath }, "PSH.pdf read failed");
+    }
   }
 
   const settings = await fetchSettingsKeys([SETTINGS_KEYS.AI_PSH_PDF_BASE64]);
@@ -41,10 +46,17 @@ async function loadPdfBuffer(): Promise<Buffer | null> {
 export async function ensurePshCatalogLoaded(): Promise<boolean> {
   if (getPshCatalogRows().length > 0) return true;
 
+  const fromJson = await loadCatalogJson();
+  if (fromJson?.length) {
+    setPshCatalogRows(fromJson);
+    logger.info({ songs: fromJson.length, source: "psh-catalog.json" }, "PSH parasha catalog loaded");
+    return true;
+  }
+
   const buffer = await loadPdfBuffer();
   if (!buffer) {
     logger.warn(
-      "PSH.pdf not loaded — set PSH_PDF_PATH, bundle data/PSH.pdf, or import via admin",
+      "PSH catalog not loaded — bundle data/psh-catalog.json, data/PSH.pdf, PSH_PDF_PATH, or admin import",
     );
     return false;
   }
@@ -52,10 +64,7 @@ export async function ensurePshCatalogLoaded(): Promise<boolean> {
   try {
     const rows = await parsePshPdfBuffer(buffer);
     setPshCatalogRows(rows);
-    logger.info(
-      { songs: rows.length, path: process.env.PSH_PDF_PATH ?? defaultPdfPath },
-      "PSH parasha catalog loaded",
-    );
+    logger.info({ songs: rows.length, source: "PSH.pdf" }, "PSH parasha catalog loaded");
     return rows.length > 0;
   } catch (err) {
     logger.error({ err }, "Failed to parse PSH.pdf");

@@ -1,6 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { db, auditLogs } from "@workspace/db";
 import { logger } from "../lib/logger";
+import type { RequestWithOperator } from "./operator";
 
 type ActionType = "CREATE" | "UPDATE" | "DELETE" | "RESTORE";
 
@@ -18,7 +19,7 @@ function resolveActionType(method: string, url: string): ActionType | null {
  * Non-blocking: failures are logged but never propagate to the response.
  */
 export function createAuditMiddleware(entityType: string) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (req: RequestWithOperator, res: Response, next: NextFunction): void => {
     const actionType = resolveActionType(req.method, req.url);
 
     if (!actionType) {
@@ -42,7 +43,8 @@ export function createAuditMiddleware(entityType: string) {
           actionType,
           entityType,
           entityId,
-          userId: null, // populated once auth layer is added in Step 4
+          userId: null,
+          operatorName: req.operatorName ?? null,
           changes: (req.body ?? null) as Record<string, unknown> | null,
         })
         .catch((err: unknown) => {

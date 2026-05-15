@@ -8,6 +8,13 @@
       "when": 1778182878166,
       "tag": "0000_soft_delete_and_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778858000000,
+      "tag": "0002_access_operators",
+      "breakpoints": true
     }
   ]
 }
