@@ -6,7 +6,7 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const repoRoot = path.resolve(import.meta.dirname, "../..");
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
 const env = loadEnv(mode, repoRoot, "");
 const rawPort = env.PORT ?? process.env.PORT ?? "5173";
 
