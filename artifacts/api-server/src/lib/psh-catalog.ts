@@ -1,4 +1,3 @@
-import { PDFParse } from "pdf-parse";
 import { normalizeParashaToken, PSH_PARASHA_NAMES } from "./psh-parasha-names";
 
 export type PshSongRow = {
@@ -95,9 +94,12 @@ export function parsePshPdfText(text: string): PshSongRow[] {
 }
 
 export async function parsePshPdfBuffer(buffer: Buffer): Promise<PshSongRow[]> {
-  const parser = new PDFParse({ data: buffer });
-  const { text } = await parser.getText();
-  return parsePshPdfText(text);
+  // pdf-parse@1.x — loaded at runtime only (not bundled; avoids pdf.js DOMMatrix on Node)
+  const pdfParse = (await import("pdf-parse")).default as (
+    data: Buffer,
+  ) => Promise<{ text: string }>;
+  const data = await pdfParse(buffer);
+  return parsePshPdfText(data.text);
 }
 
 export function setPshCatalogRows(rows: PshSongRow[]): void {

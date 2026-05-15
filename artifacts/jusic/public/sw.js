@@ -1,4 +1,4 @@
-const CACHE_NAME = "build-play-v5";
+const CACHE_NAME = "build-play-v6";
 const APP_SHELL = [
   "./",
   "./manifest.json",

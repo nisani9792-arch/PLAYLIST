@@ -1,10 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { validateMeilisearchAtStartup } from "./lib/meilisearch-config";
-import { ensurePshCatalogLoaded } from "./lib/psh-pdf-store";
-
 validateMeilisearchAtStartup();
-void ensurePshCatalogLoaded();
 
 /** Render and most hosts set PORT; default matches Render's expected listen port. */
 const rawPort = process.env.PORT ?? "10000";
