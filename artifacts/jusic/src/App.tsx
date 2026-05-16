@@ -22,7 +22,7 @@ const queryClient = new QueryClient({
 function AppShell() {
   const { status, afterUnlock, register } = useAccessGate();
   const locked = status.state === 'locked';
-  useUnlockGate({ enabled: locked, onUnlock: afterUnlock });
+  useUnlockGate({ enabled: locked, onUnlock: () => void afterUnlock() });
 
   useEffect(() => {
     if (status.state === 'offline') {
@@ -45,7 +45,12 @@ function AppShell() {
   }
 
   if (status.state === 'locked') {
-    return <LockScreen onUnlock={afterUnlock} />;
+    return (
+      <LockScreen
+        onUnlock={() => void afterUnlock()}
+        knownOperatorName={status.operatorName}
+      />
+    );
   }
 
   if (status.state === 'register') {

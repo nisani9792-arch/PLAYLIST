@@ -73,15 +73,15 @@ export function PlaylistView({
             <Music className="h-3.5 w-3.5 text-primary" />
             <span>פלייליסט פעיל</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex flex-col xs:flex-row xs:items-center gap-2 sm:gap-3">
             <Input
               data-testid="playlist-name-input"
               value={playlistName}
               onChange={(e) => setPlaylistName(e.target.value)}
-              className="flex-1 min-w-0 font-display text-[1rem] sm:text-lg font-bold bg-background/65 border-border/60 hover:border-primary/25 focus-visible:ring-2 focus-visible:ring-primary/25 h-10 sm:h-11 px-3 rounded-xl text-foreground shadow-inner"
+              className="w-full min-w-0 font-display text-[1rem] sm:text-lg font-bold bg-background border-border/60 hover:border-primary/25 focus-visible:ring-2 focus-visible:ring-primary/25 h-10 sm:h-11 px-3 rounded-xl text-foreground shadow-inner"
             />
             <span
-              className="font-display shrink-0 text-muted-foreground text-xs whitespace-nowrap bg-gradient-to-l from-primary/12 to-transparent text-primary border border-primary/25 px-3 py-2 rounded-xl tabular-nums font-semibold shadow-sm"
+              className="font-display self-start sm:self-auto shrink-0 text-primary text-xs whitespace-nowrap bg-primary/10 border border-primary/25 px-3 py-1.5 rounded-xl tabular-nums font-semibold"
             >
               {songs.length} שירים
             </span>
@@ -200,7 +200,7 @@ export function PlaylistView({
                                 className={`flex items-center group h-[calc(100%-10px)] my-[5px] rounded-[0.875rem] border transition-all duration-200 ${
                                   snapshot.isDragging
                                     ? 'bg-card border-primary/40 shadow-2xl shadow-primary/25 z-50 ring-2 ring-primary/25 scale-[1.01]'
-                                    : 'bg-card/75 border-border/55 hover:bg-card hover:border-primary/28 hover:shadow-[0_10px_28px_-6px_rgba(6,182,212,0.18)] backdrop-blur-sm'
+                                    : 'bg-card border-border/55 hover:border-primary/28 hover:shadow-[0_10px_28px_-6px_rgba(6,182,212,0.18)]'
                                 }`}
                                 transition={{ duration: 0.1 }}
                               >

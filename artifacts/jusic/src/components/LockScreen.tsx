@@ -9,9 +9,10 @@ const JUSIC_CODE = 'JUSIC';
 
 type LockScreenProps = {
   onUnlock: () => void;
+  knownOperatorName?: string | null;
 };
 
-export function LockScreen({ onUnlock }: LockScreenProps) {
+export function LockScreen({ onUnlock, knownOperatorName }: LockScreenProps) {
   const [password, setPassword] = useState('');
   const [wrongCode, setWrongCode] = useState(false);
   const logoUrl = APP_LOGO_URL;
@@ -62,6 +63,11 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
         </motion.div>
 
         <p className="lock-prompt">אנא הכנס סיסמא</p>
+        {knownOperatorName && (
+          <p className="text-xs text-emerald-400/90 text-center -mt-2 mb-1">
+            שלום {knownOperatorName} — הזן סיסמה או טביעת אצבע לכניסה
+          </p>
+        )}
 
         <form className="lock-form" onSubmit={handleSubmit}>
           <input

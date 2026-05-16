@@ -145,19 +145,11 @@ export function ASIComposerPanel({
 
   return (
     <aside
-      className={`relative flex flex-col shrink-0 rounded-none sm:rounded-[1.25rem] md:mr-2 overflow-hidden md:overflow-visible border-0 sm:border border-border/55 bp-glass-panel shadow-lg transition-all duration-300 ${
-        isOpen ? 'h-[38dvh] min-h-[16rem] w-full md:h-full md:min-h-0 md:w-[380px] lg:w-[400px]' : 'h-14 w-full md:h-full md:w-14'
+      className={`relative flex flex-col shrink-0 rounded-none sm:rounded-[1.25rem] md:mr-2 overflow-hidden border-0 sm:border border-border/55 bg-card shadow-lg transition-all duration-300 ${
+        isOpen ? 'h-[34dvh] min-h-[14rem] max-h-[42dvh] w-full md:h-full md:max-h-none md:min-h-0 md:w-[380px] lg:w-[400px]' : 'h-12 w-full md:h-full md:w-14'
       }`}
     >
-      <div
-        className="flex flex-col h-full overflow-hidden rounded-[inherit]"
-        style={{
-          background:
-            'linear-gradient(155deg, hsl(var(--card) / 0.82) 0%, hsl(var(--muted) / 0.42) 100%)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-        }}
-      >
+      <div className="flex flex-col h-full overflow-hidden rounded-[inherit] bg-card">
         <motion.button
           type="button"
           whileHover={{ scale: 1.08 }}

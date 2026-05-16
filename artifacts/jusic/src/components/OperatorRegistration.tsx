@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { APP_LOGO_URL } from '@/lib/brand';
+import { getOperatorName } from '@/lib/operator';
 import './LockScreen.css';
 
 type OperatorRegistrationProps = {
@@ -10,7 +11,7 @@ type OperatorRegistrationProps = {
 };
 
 export function OperatorRegistration({ onComplete }: OperatorRegistrationProps) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => getOperatorName() ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

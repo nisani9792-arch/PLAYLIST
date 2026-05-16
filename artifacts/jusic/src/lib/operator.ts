@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'buildplay_operator_name';
+const TRUSTED_DEVICE_KEY = 'buildplay_trusted_device';
 
 let activeOperator: string | null =
   typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
@@ -14,16 +15,40 @@ export function setOperatorName(name: string): void {
   }
 }
 
+/** Device completed unlock + registration at least once on this browser. */
+export function isDeviceTrusted(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  return localStorage.getItem(TRUSTED_DEVICE_KEY) === '1';
+}
+
+export function markDeviceTrusted(): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(TRUSTED_DEVICE_KEY, '1');
+  }
+}
+
 export function operatorHeaders(): HeadersInit {
   return {};
 }
 
 export type AccessStatus =
   | { state: 'loading' }
-  | { state: 'locked'; operatorName: null }
+  | { state: 'locked'; operatorName: string | null }
   | { state: 'register'; operatorName: null }
   | { state: 'ready'; operatorName: string }
   | { state: 'offline'; operatorName: string | null };
+
+/** Sync saved name with server for this IP; fall back to offline workspace. */
+export async function enterWithSavedOperator(cachedName: string): Promise<AccessStatus> {
+  try {
+    const name = await registerOperatorOnServer(cachedName);
+    markDeviceTrusted();
+    return { state: 'ready', operatorName: name };
+  } catch {
+    markDeviceTrusted();
+    return { state: 'offline', operatorName: cachedName };
+  }
+}
 
 export async function fetchAccessStatus(): Promise<AccessStatus> {
   const res = await fetch('/api/access/status', { credentials: 'same-origin' });
