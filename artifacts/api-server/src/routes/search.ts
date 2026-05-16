@@ -3,6 +3,11 @@ import {
   getMeilisearchConfig,
   isMeilisearchConfigured,
 } from "../lib/meilisearch-config";
+import {
+  buildSearchCacheKey,
+  getSearchCache,
+  setSearchCache,
+} from "../lib/search-cache";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -239,6 +244,12 @@ router.post("/", async (req, res) => {
   if (isMeilisearchConfigured()) {
     const filter = buildMeilisearchFilters({ songsOnly, genre });
     const { baseUrl, apiKey, index } = getMeilisearchConfig();
+    const cacheKey = buildSearchCacheKey(q, limit, index, { songsOnly, genre });
+    const cached = getSearchCache(cacheKey);
+    if (cached) {
+      res.json({ hits: cached.hits });
+      return;
+    }
 
     try {
       const payload: Record<string, unknown> = {
@@ -260,15 +271,15 @@ router.post("/", async (req, res) => {
         fallbackPayload,
       );
 
-      res.json(
-        data._filterFallback
-          ? {
-              ...data,
-              _warning:
-                "חיפוש עם פילטר מלא נכשל או לא החזיר תוצאות — הוצגו תוצאות מסוננות מקומית.",
-            }
-          : data,
-      );
+      const responseBody = data._filterFallback
+        ? {
+            ...data,
+            _warning:
+              "חיפוש עם פילטר מלא נכשל או לא החזיר תוצאות — הוצגו תוצאות מסוננות מקומית.",
+          }
+        : data;
+      setSearchCache(cacheKey, { hits: responseBody.hits ?? [] });
+      res.json(responseBody);
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";

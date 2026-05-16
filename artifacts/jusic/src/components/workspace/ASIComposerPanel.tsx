@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useGeneratePlaylist } from '@workspace/api-client-react';
 import { Sparkles, Loader2, History, BookmarkPlus, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,7 +38,10 @@ export function ASIComposerPanel({
   onDeleteDraft: (draftId: string) => void;
 }) {
   const { filters } = useSearchFilters();
-  const [isOpen, setIsOpen] = useState(true);
+  const isMobile = useIsMobile();
+  const [isOpen, setIsOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
+  );
   const [composerInput, setComposerInput] = useState('');
   const [stagingBatchId, setStagingBatchId] = useState(0);
   const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
@@ -146,7 +150,11 @@ export function ASIComposerPanel({
   return (
     <aside
       className={`relative flex flex-col shrink-0 rounded-none sm:rounded-[1.25rem] md:mr-2 overflow-hidden border-0 sm:border border-border/55 bg-card shadow-lg transition-all duration-300 ${
-        isOpen ? 'h-[34dvh] min-h-[14rem] max-h-[42dvh] w-full md:h-full md:max-h-none md:min-h-0 md:w-[380px] lg:w-[400px]' : 'h-12 w-full md:h-full md:w-14'
+        isOpen
+          ? isMobile
+            ? 'h-[28dvh] min-h-[11rem] max-h-[36dvh] w-full'
+            : 'h-full w-[380px] lg:w-[400px]'
+          : 'h-11 w-full md:h-full md:w-14'
       }`}
     >
       <div className="flex flex-col h-full overflow-hidden rounded-[inherit] bg-card">

@@ -15,8 +15,15 @@ const cache = new LRUCache<string, CachedSearchResult>({
   ttl: TTL_MS,
 });
 
-export function buildSearchCacheKey(q: string, limit: number, index: string): string {
-  return `${index}::${q.trim().toLowerCase()}::${limit}`;
+export function buildSearchCacheKey(
+  q: string,
+  limit: number,
+  index: string,
+  filters?: { songsOnly?: boolean; genre?: string },
+): string {
+  const genre = filters?.genre?.trim().toLowerCase() ?? "";
+  const songsOnly = filters?.songsOnly !== false ? "1" : "0";
+  return `${index}::${q.trim().toLowerCase()}::${limit}::s${songsOnly}::g${genre}`;
 }
 
 export function getSearchCache(key: string): CachedSearchResult | undefined {

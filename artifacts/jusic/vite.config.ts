@@ -39,7 +39,6 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             "vendor-motion": ["framer-motion"],
-            "vendor-charts": ["recharts"],
             "vendor-radix": [
               "@radix-ui/react-accordion",
               "@radix-ui/react-alert-dialog",
