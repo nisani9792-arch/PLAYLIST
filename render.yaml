@@ -1,8 +1,14 @@
-# Repo root must be the service root: this monorepo needs root package.json + pnpm-workspace.yaml.
-# Do NOT set Root Directory to "artifacts" (no package.json there) — only subtrees like artifacts/api-server have one.
-# Full features: set these in the Render Dashboard (Environment), not in git:
-#   MEILISEARCH_URL, MEILISEARCH_API_KEY, optional MEILISEARCH_INDEX — search & admin
-#   AI_INTEGRATIONS_GEMINI_BASE_URL, AI_INTEGRATIONS_GEMINI_API_KEY — /api/gemini/*
+# BUILD PLAY — production on Render + PostgreSQL on Neon.
+# Root Directory must be "." (repo root). Do not point Render at artifacts/ alone.
+#
+# Required secrets in Render Dashboard → Environment:
+#   DATABASE_URL          — Neon pooled connection string (?sslmode=require)
+#   MEILISEARCH_URL       — search host
+#   MEILISEARCH_API_KEY   — search key
+#   AI_INTEGRATIONS_GEMINI_BASE_URL — e.g. https://generativelanguage.googleapis.com
+#   AI_INTEGRATIONS_GEMINI_API_KEY
+#
+# Optional: MEILISEARCH_INDEX, CORS_ORIGINS, TRUST_PROXY=1
 # https://render.com/docs/blueprint-spec
 services:
   - type: web
@@ -11,6 +17,11 @@ services:
     rootDir: "."
     buildCommand: bash scripts/render-build.sh
     startCommand: pnpm start
+    healthCheckPath: /api/healthz
     envVars:
       - key: NODE_VERSION
         value: "24.14.1"
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"

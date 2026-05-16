@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
-# Render runs this from the service root (repo root unless Root Directory is set).
-# For this pnpm workspace, Root Directory in Render must be empty / "." — not `artifacts`.
+# Render production build: install, typecheck+build, optional Drizzle push to Neon.
 set -euo pipefail
 
-echo "=== Render build debug ==="
+echo "=== Render build (BUILD PLAY) ==="
 echo "PWD=$(pwd)"
-ls -la
 
 if [[ ! -f package.json ]]; then
-  echo "FATAL: package.json missing here. This usually means Render 'Root Directory' is set to a folder"
-  echo "that is not the repo root (e.g. 'artifacts' has no package.json). Clear Root Directory or set it to '.'."
-  echo "--- package.json under CWD (max depth 4) ---"
-  find . -maxdepth 4 -name package.json -print || true
+  echo "FATAL: package.json missing. Set Render Root Directory to '.' (repo root)."
   exit 1
 fi
 
@@ -22,3 +17,12 @@ fi
 
 pnpm install --frozen-lockfile
 pnpm run build
+
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  echo "=== Drizzle push → Neon ==="
+  pnpm --filter @workspace/db run push
+else
+  echo "WARN: DATABASE_URL unset during build — skipping schema push (set it in Render env)."
+fi
+
+echo "=== Build complete ==="

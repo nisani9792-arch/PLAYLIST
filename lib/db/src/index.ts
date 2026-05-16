@@ -22,8 +22,17 @@ const missingDb = new Proxy(
   },
 ) as ReturnType<typeof drizzle<typeof schema>>;
 
+function poolOptions(url: string): pg.PoolConfig {
+  const config: pg.PoolConfig = { connectionString: url };
+  // Neon (and most managed Postgres) require TLS in production.
+  if (/neon\.tech|sslmode=require/i.test(url)) {
+    config.ssl = { rejectUnauthorized: false };
+  }
+  return config;
+}
+
 export const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL })
+  ? new Pool(poolOptions(process.env.DATABASE_URL))
   : missingPool;
 
 export const db = process.env.DATABASE_URL
