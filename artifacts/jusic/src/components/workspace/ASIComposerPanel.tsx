@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
+import { dedupePlaylistLines, sanitizePlaylistLine } from '@workspace/playlist-validation';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { setActiveParashaExportContext } from '@/lib/parasha-export-context';
+import type { StagingParashaContext } from '@/lib/staging-context';
 import { useGeneratePlaylist } from '@workspace/api-client-react';
 import { Sparkles, Loader2, History, BookmarkPlus, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -46,11 +49,12 @@ export function ASIComposerPanel({
   const [stagingBatchId, setStagingBatchId] = useState(0);
   const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
   const [parashaBusy, setParashaBusy] = useState(false);
+  const [parashaContext, setParashaContext] = useState<StagingParashaContext | null>(null);
   const generatePlaylist = useGeneratePlaylist();
 
   const stagingBusy = stagingItems.some((i) => i.status === 'searching' || i.status === 'pending');
   const listLines = useMemo(
-    () => composerInput.split('\n').map((l) => l.trim()).filter(Boolean),
+    () => dedupePlaylistLines(composerInput.split('\n')),
     [composerInput],
   );
   const listLinesCount = listLines.length;
@@ -86,12 +90,15 @@ export function ASIComposerPanel({
   };
 
   const handleMatchFromList = (lines: string[]) => {
-    if (!lines.length) return;
+    const clean = dedupePlaylistLines(lines);
+    if (!clean.length) return;
+    setParashaContext(null);
+    setActiveParashaExportContext(null, null);
     setStagingBatchId((b) => b + 1);
     setStagingItems(
-      lines.map((line) => ({
+      clean.map((line) => ({
         id: newClientId(),
-        query: line,
+        query: sanitizePlaylistLine(line),
         status: 'pending' as const,
       })),
     );
@@ -105,14 +112,35 @@ export function ASIComposerPanel({
         toast.error(`לא נמצאו שירים לפרשת ${data.parasha} בקובץ PSH`);
         return;
       }
-      setStagingBatchId((b) => b + 1);
-      setStagingItems(
-        data.lines.map((line) => ({
+      const catalogRows = data.catalogRows ?? data.songs ?? [];
+      const ctx: StagingParashaContext = {
+        targetParasha: data.parasha,
+        catalogRows,
+      };
+      setParashaContext(ctx);
+      setActiveParashaExportContext(data.parasha, catalogRows);
+
+      const sourceRows = data.songs?.length
+        ? data.songs
+        : data.lines.map((line) => ({ line, title: '', artist: '', album: '', year: '', composer: '', parasha: data.parasha, section: 'parasha' as const }));
+      const seen = new Set<string>();
+      const stagingItemsNext: StagingItem[] = [];
+      for (const row of sourceRows) {
+        const line = row.line ?? `${row.artist} - ${row.title}`;
+        const clean = sanitizePlaylistLine(line);
+        const key = clean.toLocaleLowerCase();
+        if (!clean || seen.has(key)) continue;
+        seen.add(key);
+        stagingItemsNext.push({
           id: newClientId(),
-          query: line,
-          status: 'pending' as const,
-        })),
-      );
+          query: clean,
+          status: 'pending',
+          pshRow: row.title ? row : undefined,
+        });
+      }
+
+      setStagingBatchId((b) => b + 1);
+      setStagingItems(stagingItemsNext);
       toast.success(
         `פרשת ${data.parasha}: ${data.parashaOnlyCount} שירי פרשה` +
           (data.haftarahCount ? ` + ${data.haftarahCount} הפטרה` : '') +
@@ -152,9 +180,9 @@ export function ASIComposerPanel({
       className={`relative flex flex-col shrink-0 rounded-none sm:rounded-[1.25rem] md:mr-2 overflow-hidden border-0 sm:border border-border/55 bg-card shadow-lg transition-all duration-300 ${
         isOpen
           ? isMobile
-            ? 'h-[28dvh] min-h-[11rem] max-h-[36dvh] w-full'
+            ? 'h-[32dvh] min-h-[12rem] max-h-[40dvh] w-full'
             : 'h-full w-[380px] lg:w-[400px]'
-          : 'h-11 w-full md:h-full md:w-14'
+          : 'h-12 w-full md:h-full md:w-14'
       }`}
     >
       <div className="flex flex-col h-full overflow-hidden rounded-[inherit] bg-card">
@@ -214,7 +242,7 @@ export function ASIComposerPanel({
                 <Textarea
                   data-testid="asi-composer-input"
                   placeholder="הדבק רשימה, כתוב נושא (22–30 שירים), או פרשה — למשל: פרשת שמות"
-                  className="resize-none h-28 sm:h-44 rounded-[1rem] border-border/65 bg-background/75 text-[13px] leading-relaxed shadow-inner focus-visible:ring-2 focus-visible:ring-primary/30"
+                  className="resize-none h-24 sm:h-40 rounded-[1rem] border-border/65 bg-background/75 text-base sm:text-[13px] leading-relaxed shadow-inner focus-visible:ring-2 focus-visible:ring-primary/30"
                   value={composerInput}
                   onChange={(e) => setComposerInput(e.target.value)}
                 />
@@ -308,8 +336,12 @@ export function ASIComposerPanel({
                   items={stagingItems}
                   setItems={setStagingItems}
                   onApproveAll={handleApprove}
-                  onCancel={() => setStagingItems([])}
+                  onCancel={() => {
+                    setStagingItems([]);
+                    setParashaContext(null);
+                  }}
                   searchFilters={filters}
+                  parashaContext={parashaContext}
                 />
               )}
             </motion.div>

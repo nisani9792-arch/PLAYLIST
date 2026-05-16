@@ -1,4 +1,5 @@
 import { operatorHeaders } from './operator';
+import type { PshSongRow } from '@workspace/playlist-validation';
 
 /** Same intent as server — פרשה / הפטרה in prompt → use PSH catalog, not Gemini. */
 const PARASHA_INTENT_RE = /פרש|פטרה|הפטרה|parash/i;
@@ -10,6 +11,8 @@ export function promptLooksLikeParasha(prompt: string): boolean {
 export type ParashaResolveResponse = {
   parasha: string;
   lines: string[];
+  songs?: Array<PshSongRow & { line: string }>;
+  catalogRows?: PshSongRow[];
   parashaLines: string[];
   haftarahLines: string[];
   pdfSongCount: number;

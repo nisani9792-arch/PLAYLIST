@@ -65,7 +65,7 @@ export default function Workspace({ operatorName, offline = false }: WorkspacePr
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 p-0 md:p-2 md:gap-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)] relative z-10">
+      <main className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 gap-0 md:gap-2 p-0 md:p-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)] relative z-10 touch-manipulation">
         <ASIComposerPanel
           onAddSongs={playlist.addSongs}
           draftHistory={playlist.draftHistory}

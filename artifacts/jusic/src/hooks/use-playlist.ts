@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { canonicalSongKey } from '@workspace/playlist-validation';
 import { MsHit } from '../lib/meilisearch';
 import { newClientId } from '../lib/ids';
 import {
@@ -13,6 +14,18 @@ import {
 import { recordSongsAdded, recordSessionStart } from '../lib/playlist-learning';
 
 const SAVE_DEBOUNCE_MS = 300;
+
+function dedupeIncoming(songs: MsHit[], existing: MsHit[]): MsHit[] {
+  const seen = new Set(existing.map((s) => canonicalSongKey(s)));
+  const out: MsHit[] = [];
+  for (const song of songs) {
+    const key = canonicalSongKey(song);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(song);
+  }
+  return out;
+}
 
 export function usePlaylist() {
   const [playlistName, setPlaylistName] = useState('פלייליסט חדש');
@@ -55,7 +68,6 @@ export function usePlaylist() {
 
   const clearPlaylist = () => {
     if (songs.length) {
-      // Keep a quick checkpoint before clearing so users can restore.
       saveDraftToHistory({ name: playlistName.trim() || 'פלייליסט ללא שם', songs });
       refreshDraftHistory();
     }
@@ -89,16 +101,25 @@ export function usePlaylist() {
   }, [ready, playlistName, songs]);
 
   const addSong = (song: MsHit) => {
-    recordSongsAdded([song]);
-    setSongs((prev) => [...prev, { ...song, _id: newClientId() }]);
+    setSongs((prev) => {
+      if (prev.some((s) => canonicalSongKey(s) === canonicalSongKey(song))) {
+        return prev;
+      }
+      recordSongsAdded([song]);
+      return [...prev, { ...song, _id: newClientId() }];
+    });
   };
 
   const addSongs = (newSongs: MsHit[]) => {
-    if (newSongs.length) recordSongsAdded(newSongs);
-    setSongs((prev) => [
-      ...prev,
-      ...newSongs.map((s) => ({ ...s, _id: newClientId() })),
-    ]);
+    setSongs((prev) => {
+      const unique = dedupeIncoming(newSongs, prev);
+      if (unique.length) recordSongsAdded(unique);
+      if (!unique.length) return prev;
+      return [
+        ...prev,
+        ...unique.map((s) => ({ ...s, _id: newClientId() })),
+      ];
+    });
   };
 
   const removeSong = (index: number) => {

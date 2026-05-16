@@ -90,6 +90,9 @@ importers:
       '@workspace/integrations-gemini-ai':
         specifier: workspace:*
         version: link:../../lib/integrations-gemini-ai
+      '@workspace/playlist-validation':
+        specifier: workspace:*
+        version: link:../../lib/playlist-validation
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -278,6 +281,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/playlist-validation':
+        specifier: workspace:*
+        version: link:../../lib/playlist-validation
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -586,6 +592,15 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.3.5
+
+  lib/playlist-validation:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.3.5
+      tsx:
+        specifier: 'catalog:'
+        version: 4.21.0
 
   scripts:
     devDependencies:

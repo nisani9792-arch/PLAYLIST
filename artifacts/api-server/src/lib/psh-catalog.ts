@@ -1,3 +1,4 @@
+import { repairPshCatalog } from "@workspace/playlist-validation";
 import { normalizeParashaToken, PSH_PARASHA_NAMES } from "./psh-parasha-names";
 
 export type PshSongRow = {
@@ -254,7 +255,7 @@ export function parsePshPdfText(text: string): PshSongRow[] {
     if (spaced) rows.push(spaced);
   }
 
-  return rows;
+  return repairPshCatalog(rows);
 }
 
 export async function parsePshPdfBuffer(buffer: Buffer): Promise<PshSongRow[]> {
@@ -267,7 +268,7 @@ export async function parsePshPdfBuffer(buffer: Buffer): Promise<PshSongRow[]> {
 }
 
 export function setPshCatalogRows(rows: PshSongRow[]): void {
-  cachedRows = rows;
+  cachedRows = repairPshCatalog(rows);
 }
 
 export function getPshCatalogRows(): PshSongRow[] {

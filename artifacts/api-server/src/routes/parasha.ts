@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { getSongsForParasha, getPshCatalogRows } from "../lib/psh-catalog";
+import { getSongsForParasha, getPshCatalogRows, toPlaylistLine } from "../lib/psh-catalog";
+import { normalizeParashaToken } from "../lib/psh-parasha-names";
 import { ensurePshCatalogLoaded } from "../lib/psh-pdf-store";
 import {
   promptLooksParashaRelated,
@@ -38,14 +39,51 @@ router.post("/resolve", async (req, res) => {
   }
 
   const limit = Math.min(Math.max(1, Math.floor(Number(maxSongs)) || 30), 40);
-  const bundle = getSongsForParasha(parasha, getPshCatalogRows(), limit);
+  const catalogRows = getPshCatalogRows();
+  const bundle = getSongsForParasha(parasha, catalogRows, limit);
+  const target = bundle.parasha;
+  const songs = catalogRows.filter((r) => r.parasha === target);
+  const parashaSongs = songs.filter((r) => r.section === "parasha");
+  const haftarahSongs = songs.filter((r) => r.section === "haftarah");
+  const pickLines = (sectionRows: typeof songs) => {
+    const seen = new Set<string>();
+    const out: typeof songs = [];
+    for (const row of sectionRows) {
+      const line = `${row.artist} - ${row.title}`;
+      const key = line.toLocaleLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(row);
+      if (out.length >= limit) break;
+    }
+    return out;
+  };
+  const orderedSongs = [
+    ...pickLines(parashaSongs),
+    ...pickLines(haftarahSongs),
+  ].slice(0, limit);
+
+  const catalogForParasha = catalogRows.filter(
+    (r) => normalizeParashaToken(r.parasha) === normalizeParashaToken(target),
+  );
 
   res.json({
     parasha: bundle.parasha,
-    lines: bundle.allLines,
+    lines: orderedSongs.map((r) => toPlaylistLine(r)),
+    songs: orderedSongs.map((r) => ({
+      parasha: r.parasha,
+      title: r.title,
+      artist: r.artist,
+      album: r.album,
+      year: r.year,
+      composer: r.composer,
+      section: r.section,
+      line: toPlaylistLine(r),
+    })),
+    catalogRows: catalogForParasha,
     parashaLines: bundle.parashaLines,
     haftarahLines: bundle.haftarahLines,
-    pdfSongCount: bundle.allLines.length,
+    pdfSongCount: orderedSongs.length,
     parashaOnlyCount: bundle.parashaLines.length,
     haftarahCount: bundle.haftarahLines.length,
     source: "psh-pdf",
