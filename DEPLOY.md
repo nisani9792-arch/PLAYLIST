@@ -38,13 +38,13 @@ Production runs as a single **Render Web Service** (`workspace-api`) that serves
 
 1. Create a project and database in Neon.
 2. Copy the **pooled** connection string into Render as `DATABASE_URL`.
-3. On each deploy, `scripts/render-build.sh` runs `pnpm --filter @workspace/db run push` when `DATABASE_URL` is available (applies Drizzle schema).
+3. On each deploy, `scripts/render-build.sh` runs `pnpm --filter @workspace/db run migrate` when `DATABASE_URL` is available (applies versioned SQL migrations — no interactive prompts).
 
-Local schema push:
+Local schema migrate:
 
 ```bash
 export DATABASE_URL="postgresql://..."
-pnpm --filter @workspace/db run push
+pnpm --filter @workspace/db run migrate
 ```
 
 ## Local development

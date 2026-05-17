@@ -12,6 +12,13 @@
     {
       "idx": 1,
       "version": "7",
+      "when": 1778600000000,
+      "tag": "0001_system_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
       "when": 1778858000000,
       "tag": "0002_access_operators",
       "breakpoints": true

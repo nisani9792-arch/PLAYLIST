@@ -19,10 +19,10 @@ pnpm install --frozen-lockfile
 pnpm run build
 
 if [[ -n "${DATABASE_URL:-}" ]]; then
-  echo "=== Drizzle push → Neon ==="
-  pnpm --filter @workspace/db run push
+  echo "=== Drizzle migrate → Neon ==="
+  pnpm --filter @workspace/db run migrate
 else
-  echo "WARN: DATABASE_URL unset during build — skipping schema push (set it in Render env)."
+  echo "WARN: DATABASE_URL unset during build — skipping schema migrate (set it in Render env)."
 fi
 
 echo "=== Build complete ==="
