@@ -286,6 +286,7 @@ export function StagingArea({
   onCancel,
   searchFilters = SONGS_ONLY_FILTERS,
   parashaContext = null,
+  mobileLayout = false,
 }: {
   items: StagingItem[];
   setItems: React.Dispatch<React.SetStateAction<StagingItem[]>>;
@@ -293,6 +294,7 @@ export function StagingArea({
   onCancel: () => void;
   searchFilters?: SearchFilterOptions;
   parashaContext?: ParashaValidationContext | null;
+  mobileLayout?: boolean;
 }) {
   const processBatch = async (pendingItems: StagingItem[]) => {
     if (!pendingItems.length) return;
@@ -420,8 +422,14 @@ export function StagingArea({
   const totalCount = items.length;
 
   return (
-    <div className="flex flex-col gap-4 mt-5 p-4 sm:p-5 rounded-[1.15rem] border border-primary/14 bg-gradient-to-b from-muted/40 to-transparent backdrop-blur-sm shadow-[inset_0_1px_0_hsl(var(--foreground)/0.04)]">
-      <div className="flex flex-wrap justify-between items-center gap-2">
+    <div
+      className={`flex flex-col min-h-0 ${
+        mobileLayout
+          ? 'h-full gap-3 p-3 rounded-[1rem] border border-primary/14 bg-muted/30'
+          : 'gap-4 mt-5 p-4 sm:p-5 rounded-[1.15rem] border border-primary/14 bg-gradient-to-b from-muted/40 to-transparent backdrop-blur-sm shadow-[inset_0_1px_0_hsl(var(--foreground)/0.04)]'
+      }`}
+    >
+      <div className="flex flex-wrap justify-between items-center gap-2 shrink-0">
         <h3 className="font-display font-bold text-sm flex flex-wrap items-center gap-x-2 gap-y-1 tracking-tight">
           <span className="rounded-lg bg-primary/12 text-primary px-2 py-1 text-[11px] font-semibold border border-primary/20">
             אזור התאמה
@@ -447,11 +455,15 @@ export function StagingArea({
         )}
       </div>
 
-      <div className="flex flex-col gap-2 max-h-[min(16rem,38dvh)] sm:max-h-64 overflow-y-auto custom-scrollbar">
+      <div
+        className={`flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar ${
+          mobileLayout ? '' : 'max-h-[min(16rem,38dvh)] sm:max-h-64'
+        }`}
+      >
           {items.map((item) => (
             <div
               key={item.id}
-              className={`flex items-start justify-between gap-2 p-3 min-h-[3rem] rounded-xl text-sm border transition-colors ${
+              className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 p-3 min-h-[3rem] rounded-xl text-sm border transition-colors ${
                 item.status === "matched"
                   ? "bg-primary/5 border-primary/20"
                   : item.status === "review"
@@ -465,8 +477,8 @@ export function StagingArea({
                         : "bg-background/30 border-border/40"
               }`}
             >
-              <span className="flex-1 min-w-0 text-xs font-medium leading-snug">
-                <span className="block truncate" title={item.query}>
+              <span className="w-full sm:flex-1 min-w-0 text-xs font-medium leading-snug">
+                <span className="block break-words" title={item.query}>
                   {item.query}
                 </span>
                 {item.blockReason && (
@@ -475,7 +487,7 @@ export function StagingArea({
                   </span>
                 )}
               </span>
-              <div className="flex items-center gap-2 flex-shrink-0 mr-2">
+              <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:flex-shrink-0 sm:mr-2">
                 {item.status === "pending" && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" /> ממתין
@@ -502,7 +514,7 @@ export function StagingArea({
                 {item.status === "review" && item.match && (
                   <>
                     <span
-                      className="flex items-center gap-1 text-xs text-yellow-400 truncate max-w-[100px]"
+                      className="flex items-center gap-1 text-xs text-yellow-600 truncate max-w-full sm:max-w-[140px]"
                       title={`${item.match.song_name} - ${item.match.artist}`}
                     >
                       <AlertTriangle className="h-3 w-3 flex-shrink-0" />
@@ -527,7 +539,7 @@ export function StagingArea({
                 {item.status === "matched" && item.match && (
                   <>
                     <span
-                      className="flex items-center gap-1 text-xs text-primary truncate max-w-[110px]"
+                      className="flex items-center gap-1 text-xs text-primary truncate max-w-full sm:max-w-[140px]"
                       title={`${item.match.song_name} - ${item.match.artist}`}
                     >
                       <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
@@ -547,12 +559,18 @@ export function StagingArea({
           ))}
       </div>
 
-      <div className="flex gap-2 justify-end mt-1">
+      <div
+        className={`flex gap-2 justify-stretch sm:justify-end shrink-0 ${
+          mobileLayout
+            ? 'sticky bottom-0 pt-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)] bg-gradient-to-t from-card via-card/95 to-transparent'
+            : 'mt-1'
+        }`}
+      >
         <Button
           variant="ghost"
           size="sm"
           onClick={onCancel}
-          className="rounded-xl text-xs"
+          className={`rounded-xl text-xs ${mobileLayout ? 'flex-1 min-h-[2.75rem]' : ''}`}
         >
           ביטול
         </Button>
@@ -561,7 +579,7 @@ export function StagingArea({
           size="sm"
           disabled={isProcessing || !matchedSongs.length}
           onClick={() => onApproveAll(matchedSongs)}
-          className="rounded-xl shadow-sm min-h-[2.5rem] px-4"
+          className={`rounded-xl shadow-sm min-h-[2.5rem] px-4 ${mobileLayout ? 'flex-[2] min-h-[2.75rem]' : ''}`}
         >
           אשר הכל ({matchedSongs.length})
         </Button>

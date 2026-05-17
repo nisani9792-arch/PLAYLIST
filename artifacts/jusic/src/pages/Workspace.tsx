@@ -1,5 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { usePlaylist } from "../hooks/use-playlist";
+import { useIsMobile } from "../hooks/use-mobile";
 import { SearchBar } from "../components/workspace/SearchBar";
 import { PlaylistView } from "../components/workspace/PlaylistView";
 import { ASIComposerPanel } from "../components/workspace/ASIComposerPanel";
@@ -8,6 +9,10 @@ import { WorkspaceHelpPopover } from "../components/workspace/WorkspaceHelpPopov
 import { LearningExportButton } from "../components/workspace/LearningExportButton";
 import { InstallAppButton } from "../components/workspace/InstallAppButton";
 import { APP_LOGO_URL } from "@/lib/brand";
+import { cn } from "@/lib/utils";
+import { ListMusic, Sparkles } from "lucide-react";
+
+type MobileWorkspaceTab = "playlist" | "composer";
 
 const OfflinePlaylistMasterDialog = lazy(() =>
   import("../components/workspace/OfflinePlaylistMasterDialog").then((m) => ({
@@ -22,6 +27,9 @@ type WorkspaceProps = {
 
 export default function Workspace({ operatorName, offline = false }: WorkspaceProps) {
   const playlist = usePlaylist();
+  const isMobile = useIsMobile();
+  const [mobileTab, setMobileTab] = useState<MobileWorkspaceTab>("playlist");
+
   return (
     <div className="app-shell-bg flex flex-col h-[100dvh] w-full overflow-hidden text-foreground selection:bg-primary/20 selection:text-foreground">
       <header className="bp-glass-strip flex-shrink-0 flex flex-col z-40 overflow-visible pt-[max(env(safe-area-inset-top,0px),0.625rem)] sm:pt-3.5 bg-card/95">
@@ -65,22 +73,80 @@ export default function Workspace({ operatorName, offline = false }: WorkspacePr
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 gap-0 md:gap-2 p-0 md:p-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)] relative z-10 touch-manipulation">
-        <ASIComposerPanel
-          onAddSongs={playlist.addSongs}
-          draftHistory={playlist.draftHistory}
-          onRememberDraft={playlist.rememberCurrentDraft}
-          onLoadDraft={playlist.loadDraft}
-          onDeleteDraft={playlist.deleteDraft}
-        />
-        <PlaylistView
-          playlistName={playlist.playlistName}
-          setPlaylistName={playlist.setPlaylistName}
-          songs={playlist.songs}
-          removeSong={playlist.removeSong}
-          reorderSongs={playlist.reorderSongs}
-          clearPlaylist={playlist.clearPlaylist}
-        />
+      <main className="flex-1 flex flex-col overflow-hidden min-h-0 relative z-10 touch-manipulation">
+        {isMobile ? (
+          <div
+            className="flex shrink-0 gap-1 px-3 py-2 border-b border-border/50 bg-card/90"
+            role="tablist"
+            aria-label="אזורי עבודה"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileTab === "playlist"}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 min-h-[2.75rem] rounded-xl text-sm font-semibold transition-colors",
+                mobileTab === "playlist"
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                  : "bg-muted/60 text-muted-foreground",
+              )}
+              onClick={() => setMobileTab("playlist")}
+            >
+              <ListMusic className="w-4 h-4 shrink-0" />
+              פלייליסט
+              {playlist.songs.length > 0 ? (
+                <span
+                  className={cn(
+                    "tabular-nums text-[11px] px-1.5 py-0.5 rounded-md",
+                    mobileTab === "playlist"
+                      ? "bg-primary-foreground/20"
+                      : "bg-background/80",
+                  )}
+                >
+                  {playlist.songs.length}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobileTab === "composer"}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 min-h-[2.75rem] rounded-xl text-sm font-semibold transition-colors",
+                mobileTab === "composer"
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
+                  : "bg-muted/60 text-muted-foreground",
+              )}
+              onClick={() => setMobileTab("composer")}
+            >
+              <Sparkles className="w-4 h-4 shrink-0" />
+              התאמה / AI
+            </button>
+          </div>
+        ) : null}
+
+        <div
+          className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 gap-0 md:gap-2 p-0 md:p-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)]"
+        >
+          <ASIComposerPanel
+            onAddSongs={playlist.addSongs}
+            draftHistory={playlist.draftHistory}
+            onRememberDraft={playlist.rememberCurrentDraft}
+            onLoadDraft={playlist.loadDraft}
+            onDeleteDraft={playlist.deleteDraft}
+            mobileFullScreen={isMobile}
+            mobileVisible={!isMobile || mobileTab === "composer"}
+          />
+          <PlaylistView
+            playlistName={playlist.playlistName}
+            setPlaylistName={playlist.setPlaylistName}
+            songs={playlist.songs}
+            removeSong={playlist.removeSong}
+            reorderSongs={playlist.reorderSongs}
+            clearPlaylist={playlist.clearPlaylist}
+            className={isMobile && mobileTab !== "playlist" ? "hidden" : undefined}
+          />
+        </div>
       </main>
     </div>
   );

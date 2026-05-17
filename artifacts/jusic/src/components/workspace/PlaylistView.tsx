@@ -6,6 +6,7 @@ import { GripVertical, X, Download, Trash2, Search, Music } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { exportToOdooCSV } from '../../lib/export';
+import { cn } from '@/lib/utils';
 import { recordPlaylistExport } from '../../lib/playlist-learning';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -17,6 +18,7 @@ interface PlaylistViewProps {
   removeSong: (index: number) => void;
   reorderSongs: (startIndex: number, endIndex: number) => void;
   clearPlaylist: () => void;
+  className?: string;
 }
 
 export function PlaylistView({
@@ -26,6 +28,7 @@ export function PlaylistView({
   removeSong,
   reorderSongs,
   clearPlaylist,
+  className,
 }: PlaylistViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -61,7 +64,10 @@ export function PlaylistView({
 
   return (
     <div
-      className="relative flex-1 flex flex-col min-h-0 overflow-hidden md:rounded-[1.25rem] md:ml-2 border-0 md:border border-border/50 bp-glass-panel shadow-lg"
+      className={cn(
+        'relative flex-1 flex flex-col min-h-0 overflow-hidden md:rounded-[1.25rem] md:ml-2 border-0 md:border border-border/50 bp-glass-panel shadow-lg',
+        className,
+      )}
       data-testid="playlist-container"
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-l from-primary/55 via-transparent to-primary/55 opacity-75" aria-hidden />

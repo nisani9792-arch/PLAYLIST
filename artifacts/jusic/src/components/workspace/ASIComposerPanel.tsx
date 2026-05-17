@@ -33,15 +33,20 @@ export function ASIComposerPanel({
   onRememberDraft,
   onLoadDraft,
   onDeleteDraft,
+  mobileFullScreen = false,
+  mobileVisible = true,
 }: {
   onAddSongs: (songs: MsHit[]) => void;
   draftHistory: PlaylistDraftSnapshot[];
   onRememberDraft: () => void;
   onLoadDraft: (draftId: string) => void;
   onDeleteDraft: (draftId: string) => void;
+  mobileFullScreen?: boolean;
+  mobileVisible?: boolean;
 }) {
   const { filters } = useSearchFilters();
   const isMobile = useIsMobile();
+  const useMobileTabs = mobileFullScreen && isMobile;
   const [isOpen, setIsOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
   );
@@ -177,54 +182,70 @@ export function ASIComposerPanel({
     toast.success(`נוספו ${songs.length} שירים`);
   };
 
+  const panelOpen = useMobileTabs ? true : isOpen;
+
+  if (useMobileTabs && !mobileVisible) {
+    return null;
+  }
+
   return (
     <aside
       className={`relative flex flex-col shrink-0 rounded-none sm:rounded-[1.25rem] md:mr-2 overflow-hidden border-0 sm:border border-border/55 bg-card shadow-lg transition-all duration-300 ${
-        isOpen
-          ? isMobile
-            ? 'h-[32dvh] min-h-[12rem] max-h-[40dvh] w-full'
+        panelOpen
+          ? useMobileTabs
+            ? 'flex-1 min-h-0 w-full h-full'
             : 'h-full w-[380px] lg:w-[400px]'
           : 'h-12 w-full md:h-full md:w-14'
       }`}
     >
       <div className="flex flex-col h-full overflow-hidden rounded-[inherit] bg-card">
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.92 }}
-          onClick={() => setIsOpen((v) => !v)}
-          className="absolute left-3 top-4 md:top-1/2 md:-translate-y-1/2 md:-left-[0.875rem] z-20 bp-glass-panel border-primary/22 rounded-xl p-1.5 shadow-md hover:shadow-lg hover:border-primary/40 hover:text-primary transition-all"
-          title={isOpen ? 'סגור ASI' : 'פתח ASI'}
-        >
-          {isOpen ? (
-            <PanelRightClose className="w-3.5 h-3.5" />
-          ) : (
-            <PanelRightOpen className="w-3.5 h-3.5" />
-          )}
-        </motion.button>
+        {!useMobileTabs ? (
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => setIsOpen((v) => !v)}
+            className="absolute left-3 top-4 md:top-1/2 md:-translate-y-1/2 md:-left-[0.875rem] z-20 bp-glass-panel border-primary/22 rounded-xl p-1.5 shadow-md hover:shadow-lg hover:border-primary/40 hover:text-primary transition-all"
+            title={isOpen ? 'סגור ASI' : 'פתח ASI'}
+          >
+            {isOpen ? (
+              <PanelRightClose className="w-3.5 h-3.5" />
+            ) : (
+              <PanelRightOpen className="w-3.5 h-3.5" />
+            )}
+          </motion.button>
+        ) : null}
 
         <AnimatePresence mode="wait">
-          {isOpen ? (
+          {panelOpen ? (
             <motion.div
               key="open"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.16 }}
-              className="h-full p-3 sm:p-5 overflow-y-auto custom-scrollbar mt-12 md:mt-0 pt-4 md:pt-5"
+              className={
+                useMobileTabs
+                  ? `flex flex-col min-h-0 h-full p-3 ${
+                      stagingItems.length > 0 ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'
+                    }`
+                  : 'h-full p-3 sm:p-5 overflow-y-auto custom-scrollbar mt-12 md:mt-0 pt-4 md:pt-5'
+              }
             >
-              <div className="mb-5 pb-4 border-b border-border/45">
+              <div
+                className={`shrink-0 border-b border-border/45 ${useMobileTabs ? 'mb-3 pb-3' : 'mb-5 pb-4'}`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex gap-3 min-w-0">
-                    <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-emerald-500 to-primary text-primary-foreground shadow-lg shadow-primary/35 ring-4 ring-primary/12">
+                  <div className="flex gap-3 min-w-0 flex-1">
+                    <span className="relative flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-emerald-500 to-primary text-primary-foreground shadow-lg shadow-primary/35 ring-4 ring-primary/12">
                       <Sparkles className="w-[1.125rem] h-[1.125rem]" strokeWidth={2.5} />
                     </span>
-                    <div>
-                      <h2 className="font-display text-base font-bold tracking-tight text-foreground">
+                    <div className="min-w-0">
+                      <h2 className="font-display text-sm sm:text-base font-bold tracking-tight text-foreground">
                         BUILD PLAY Intelligence
                       </h2>
-                      <p className="text-[12px] text-muted-foreground leading-snug mt-0.5 max-w-[16rem]">
-                        רשימה אחת גמישה — התאמה חכמה או יצירה מנושא
+                      <p className="text-[11px] sm:text-[12px] text-muted-foreground leading-snug mt-0.5">
+                        רשימה, פרשה או נושא — התאמה חכמה במאגר
                       </p>
                     </div>
                   </div>
@@ -240,11 +261,15 @@ export function ASIComposerPanel({
                 </div>
               </div>
 
-              <div className="space-y-3.5">
+              <div
+                className={`shrink-0 space-y-3 ${useMobileTabs && stagingItems.length > 0 ? 'hidden' : ''}`}
+              >
                 <Textarea
                   data-testid="asi-composer-input"
                   placeholder="הדבק רשימה, כתוב נושא (22–30 שירים), או פרשה — למשל: פרשת שמות"
-                  className="resize-none h-24 sm:h-40 rounded-[1rem] border-border/65 bg-background/75 text-base sm:text-[13px] leading-relaxed shadow-inner focus-visible:ring-2 focus-visible:ring-primary/30"
+                  className={`resize-none rounded-[1rem] border-border/65 bg-background/75 text-base sm:text-[13px] leading-relaxed shadow-inner focus-visible:ring-2 focus-visible:ring-primary/30 ${
+                    useMobileTabs ? 'h-20' : 'h-24 sm:h-40'
+                  }`}
                   value={composerInput}
                   onChange={(e) => setComposerInput(e.target.value)}
                 />
@@ -283,7 +308,15 @@ export function ASIComposerPanel({
                 </Button>
               </div>
 
-              <div className="mt-5 pt-4 border-t border-border/35">
+              <div
+                className={`border-t border-border/35 ${
+                  useMobileTabs && stagingItems.length > 0
+                    ? 'hidden'
+                    : useMobileTabs
+                      ? 'mt-3 pt-3'
+                      : 'mt-5 pt-4'
+                }`}
+              >
                 <div className="flex items-center gap-2 text-xs font-bold mb-3 text-foreground uppercase tracking-[0.1em]">
                   <History className="w-3.5 h-3.5 text-primary" />
                   טיוטות שמורות
@@ -332,7 +365,25 @@ export function ASIComposerPanel({
                 </div>
               </div>
 
-              {stagingItems.length > 0 && (
+              {stagingItems.length > 0 && useMobileTabs ? (
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden mt-3">
+                  <StagingArea
+                    key={stagingBatchId}
+                    items={stagingItems}
+                    setItems={setStagingItems}
+                    onApproveAll={handleApprove}
+                    onCancel={() => {
+                      setStagingItems([]);
+                      setParashaContext(null);
+                    }}
+                    searchFilters={filters}
+                    parashaContext={parashaContext}
+                    mobileLayout
+                  />
+                </div>
+              ) : null}
+
+              {stagingItems.length > 0 && !useMobileTabs ? (
                 <StagingArea
                   key={stagingBatchId}
                   items={stagingItems}
@@ -345,7 +396,7 @@ export function ASIComposerPanel({
                   searchFilters={filters}
                   parashaContext={parashaContext}
                 />
-              )}
+              ) : null}
             </motion.div>
           ) : (
             <motion.div

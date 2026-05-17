@@ -112,13 +112,13 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
     >
       {isMobile && openPanel && (
         <div
-          className="fixed inset-0 z-[60] bg-background/75"
+          className="fixed inset-0 z-[90] bg-background/80 backdrop-blur-[2px]"
           aria-hidden
           onClick={() => setShowDropdown(false)}
         />
       )}
 
-      <div className="relative z-[70]">
+      <div className="relative z-[95]">
         {isMobile ? (
           <button
             type="button"
@@ -207,9 +207,8 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
             role="listbox"
             data-testid="search-results-dropdown"
             className={cn(
-              'absolute left-0 right-0 top-full mt-2 z-[80] overflow-hidden rounded-[1rem] border border-border/80 bg-card shadow-2xl',
-              'max-h-[min(22rem,58dvh)] sm:max-h-[26rem] overflow-y-auto custom-scrollbar',
-              isMobile && 'fixed left-3 right-3 top-auto bottom-[max(0.75rem,env(safe-area-inset-bottom))] mt-0 max-h-[min(24rem,62dvh)]',
+              'absolute left-0 right-0 top-full mt-2 z-[100] overflow-hidden rounded-[1rem] border border-border/80 bg-card shadow-2xl',
+              'max-h-[min(22rem,calc(100dvh-14rem))] sm:max-h-[26rem] overflow-y-auto custom-scrollbar',
             )}
           >
             {isFetching && !hasResults && (
