@@ -48,3 +48,13 @@ export function parseArtistSongLine(line: string): {
   }
   return { artist: left.trim(), song: right.trim(), whole: cleaned };
 }
+
+/** Pasted lines are often "title – artist"; PSH uses "artist – title". */
+export function parseLineBothWays(line: string): Array<{ artist: string; song: string }> {
+  const one = parseArtistSongLine(line);
+  if (!one.artist) return [one];
+  return [
+    one,
+    { artist: one.song, song: one.artist },
+  ];
+}

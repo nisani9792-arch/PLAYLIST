@@ -3,18 +3,31 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { repairPshRow } from "./psh-repair";
 import type { PshSongRow } from "./psh-types";
-import {
-  dedupePlaylistLines,
-  sanitizePlaylistLine,
-} from "./sanitize";
+import { dedupePlaylistLines } from "./sanitize";
 import { assertHashkafaClean } from "./secular-artists";
-import { findPshRowForLine, validateHashkafa, validateStagingMatch } from "./validate";
+import {
+  findPshRowForLine,
+  validateHashkafa,
+  validateStagingMatch,
+} from "./validate";
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../../artifacts/api-server/data/psh-catalog.json",
 );
-const rows = JSON.parse(readFileSync(root, "utf8")) as PshSongRow[];
+const allRows = (JSON.parse(readFileSync(root, "utf8")) as PshSongRow[]).map(
+  repairPshRow,
+);
+const nasso = allRows.filter((r) => r.parasha === "נשא");
+const ctx = {
+  targetParasha: "נשא",
+  catalogRows: nasso,
+  allCatalogRows: allRows,
+};
+
+function assert(cond: boolean, msg: string) {
+  if (!cond) throw new Error(msg);
+}
 
 const wmaLines = [
   "חיים בר - הוא שומר עלינו - סינגל.wma",
@@ -22,52 +35,100 @@ const wmaLines = [
   "חיים בר - הוא שומר עלינו.wma",
 ];
 const deduped = dedupePlaylistLines(wmaLines);
-console.assert(deduped.length === 1, "wma dedupe");
-console.assert(!deduped[0]!.includes(".wma"), "wma stripped");
+assert(deduped.length === 1, "wma dedupe");
+assert(!deduped[0]!.includes(".wma"), "wma stripped");
 
-const secular = assertHashkafaClean("יהודה כץ ושאנן סטריט בלעדיך לא אבוא");
-console.assert(secular !== null, "blocks shanan street");
-
-const nasso = rows.filter((r) => r.parasha === "נשא").map(repairPshRow);
-const baladek = nasso.find((r) =>
-  r.title.includes("בלעדיך") || r.artist.includes("בלעדיך"),
-);
-console.log("repaired baladek", baladek);
-console.assert(
-  baladek?.artist.includes("יהודה"),
-  "baladek artist should be yehuda katz",
+assert(
+  assertHashkafaClean("יהודה כץ ושאנן סטריט בלעדיך לא אבוא") !== null,
+  "blocks shanan street",
 );
 
-const row = findPshRowForLine(
+const vaahavta = findPshRowForLine(
   "ואהבת לרעך כמוך - בני אלבז",
   nasso,
   "נשא",
+  allRows,
 );
-console.log("vaahavta row", row);
-console.assert(
-  row?.artist.includes("פרחי") || row?.title.includes("ואהבת"),
-  "vaahavta maps to psh row",
+assert(vaahavta?.artist.includes("פרחי"), "vaahavta → פרחי בני הישיבות");
+
+const yivarechecha = findPshRowForLine(
+  "הורה עם דודוד - נפשנו",
+  nasso,
+  "נשא",
+  allRows,
+);
+assert(
+  yivarechecha?.title.includes("יברכך"),
+  "הורה עם דודוד → יברכך",
 );
 
-const hashkafaIssue = validateHashkafa([
-  "יהודה כץ ושאנן סטריט",
-  "בלעדיך לא אבוא",
-]);
-console.assert(hashkafaIssue !== null, "hashkafa on featured");
+const yaale = findPshRowForLine(
+  "Be Free - צבי זילברשטיין",
+  nasso,
+  "נשא",
+  allRows,
+);
+assert(yaale?.title.includes("יעלה"), "Be Free → יעלה");
 
-const nassoBaladek = nasso.find((r) => r.title.includes("בלעדיך"));
 const baladekValidation = validateStagingMatch({
   query: "יהודה כץ - בלעדיך לא אבוא",
   hit: {
     id: "1",
     song_name: "בלעדיך לא אבוא",
-    artist: "יהודה כץ ושאנן סטריט",
+    artist: "יהודה כץ",
     tags: [],
   },
   confidence: 0.9,
-  pshRow: nassoBaladek,
-  parashaContext: { targetParasha: "נשא", catalogRows: nasso },
+  parashaContext: ctx,
 });
-console.assert(baladekValidation.issue?.code === "HASHKAFA_SECULAR_ARTIST", "blocks featured on meili hit");
+assert(
+  baladekValidation.issue?.code === "HASHKAFA_SECULAR_ARTIST" ||
+    baladekValidation.issue?.code === "PARASHA_MISMATCH",
+  "blocks בלעדיך in נשא",
+);
+
+const simShalomBlock = validateStagingMatch({
+  query: "שים שלום - דדי גראוכר",
+  hit: null,
+  confidence: 0,
+  parashaContext: ctx,
+});
+assert(
+  simShalomBlock.issue?.code === "PARASHA_MISMATCH",
+  "שים שלום blocked for נשא",
+);
+
+const canonicalDemo = validateStagingMatch({
+  query: "ואהבת לרעך כמוך - בני אלבז",
+  hit: {
+    id: "9",
+    song_name: "ואהבת לרעך כמוך",
+    artist: "בני אלבז",
+  },
+  confidence: 0.95,
+  parashaContext: ctx,
+});
+assert(
+  canonicalDemo.canonicalHit?.artist.includes("פרחי"),
+  "canonical overwrite בני אלבז → פרחי",
+);
+
+const mendy = validateStagingMatch({
+  query: "אחד יחיד ומיוחד - מנדי פיאמנטה",
+  hit: {
+    id: "2",
+    song_name: "אחד יחיד ומיוחד",
+    artist: "מנדי פיאמנטה",
+  },
+  confidence: 0.85,
+  parashaContext: ctx,
+});
+assert(
+  !mendy.issue &&
+    mendy.canonicalHit?.artist.includes("וואלד"),
+  "מנדי פיאמנטה → מנדי וואלד in נשא",
+);
+
+assert(validateHashkafa(["יהודה כץ ושאנן סטריט", "בלעדיך לא אבוא"]) !== null, "hashkafa featured");
 
 console.log("playlist-validation self-test OK");

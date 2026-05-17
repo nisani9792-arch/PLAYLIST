@@ -13,6 +13,7 @@ export type ParashaResolveResponse = {
   lines: string[];
   songs?: Array<PshSongRow & { line: string }>;
   catalogRows?: PshSongRow[];
+  allCatalogRows?: PshSongRow[];
   parashaLines: string[];
   haftarahLines: string[];
   pdfSongCount: number;

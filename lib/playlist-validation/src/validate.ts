@@ -1,5 +1,13 @@
+import {
+  applyInputTitleAliases,
+  canonicalParashaForTitle,
+} from "./aliases";
 import { normalizeHebrew, normalizeParashaToken } from "./normalize";
-import { parseArtistSongLine, sanitizePlaylistLine } from "./sanitize";
+import {
+  parseArtistSongLine,
+  parseLineBothWays,
+  sanitizePlaylistLine,
+} from "./sanitize";
 import { assertHashkafaClean, findForbiddenFeatureViolation } from "./secular-artists";
 import type { MsHitLike } from "./ms-hit";
 import { applyPshCanonical, canonicalSongKey } from "./ms-hit";
@@ -20,7 +28,10 @@ export type ValidationIssue = {
 
 export type ParashaValidationContext = {
   targetParasha: string;
+  /** Rows for the target parasha (playlist membership). */
   catalogRows: PshSongRow[];
+  /** Full PSH catalog — used for cross-parasha and hashkafa checks on pasted lines. */
+  allCatalogRows?: PshSongRow[];
 };
 
 export const AUTO_MATCH_THRESHOLD = 0.68;
@@ -60,24 +71,107 @@ export function matchConfidence(
   return Math.min(1, Math.max(structured, wholeScore * 0.9));
 }
 
+function globalCatalog(ctx?: ParashaValidationContext | null): PshSongRow[] {
+  if (!ctx) return [];
+  return ctx.allCatalogRows?.length ? ctx.allCatalogRows : ctx.catalogRows;
+}
+
+export function hashkafaFromCatalogTitle(
+  title: string,
+  catalog: PshSongRow[],
+): ValidationIssue | null {
+  const needle = normalizeHebrew(title);
+  if (!needle) return null;
+
+  for (const row of catalog) {
+    const rowTitle = normalizeHebrew(row.title);
+    if (!rowTitle.includes(needle) && !needle.includes(rowTitle)) continue;
+    const blocked = assertHashkafaClean(
+      row.title,
+      row.artist,
+      row.composer,
+      row.album,
+    );
+    if (blocked) {
+      return {
+        code: "HASHKAFA_SECULAR_ARTIST",
+        message: `חסימת השקפה: זוהה אמן חילוני אסור (${blocked})`,
+      };
+    }
+  }
+  return null;
+}
+
+export function validateCanonicalTitleParasha(
+  title: string,
+  ctx: ParashaValidationContext,
+): ValidationIssue | null {
+  const canonicalParasha = canonicalParashaForTitle(title);
+  if (!canonicalParasha) return null;
+  const target = normalizeParashaToken(ctx.targetParasha);
+  if (normalizeParashaToken(canonicalParasha) === target) return null;
+  return {
+    code: "PARASHA_MISMATCH",
+    message: `השיר שייך לפרשת ${canonicalParasha}, לא לפרשת ${ctx.targetParasha}`,
+  };
+}
+
 export function findPshRowForLine(
   line: string,
   rows: PshSongRow[],
   targetParasha?: string,
+  globalRows?: PshSongRow[],
 ): PshSongRow | null {
-  const sanitized = sanitizePlaylistLine(line);
+  const sanitized = applyInputTitleAliases(sanitizePlaylistLine(line));
   const key = normalizeHebrew(sanitized);
   const target = targetParasha
     ? normalizeParashaToken(targetParasha)
     : null;
+  const pool = globalRows?.length ? globalRows : rows;
 
   let best: PshSongRow | null = null;
   let bestScore = 0;
 
-  const parsed = parseArtistSongLine(sanitized);
+  const orientations = parseLineBothWays(sanitized);
+  const titleTokens = [
+    ...new Set(
+      orientations
+        .flatMap((o) => [o.song, o.artist])
+        .map((t) => normalizeHebrew(t))
+        .filter((t) => t.length >= 3),
+    ),
+  ];
 
-  for (const row of rows) {
-    if (target && normalizeParashaToken(row.parasha) !== target) continue;
+  const directPool = target
+    ? pool.filter((r) => normalizeParashaToken(r.parasha) === target)
+    : pool;
+  const directMatches = directPool.filter((row) => {
+    const rt = normalizeHebrew(row.title);
+    return titleTokens.some((t) => rt === t || rt.includes(t));
+  });
+  if (directMatches.length === 1) {
+    return directMatches[0]!;
+  }
+  if (directMatches.length > 1) {
+    let bestDirect: PshSongRow | null = null;
+    let bestDirectScore = 0;
+    for (const row of directMatches) {
+      for (const parsed of orientations) {
+        const conf = matchConfidence(parsed.song, parsed.artist, {
+          id: "",
+          song_name: row.title,
+          artist: row.artist,
+        });
+        if (conf > bestDirectScore) {
+          bestDirectScore = conf;
+          bestDirect = row;
+        }
+      }
+    }
+    if (bestDirect) return bestDirect;
+  }
+
+  for (const row of pool) {
 
     const lineVariants = [
       normalizeHebrew(toPlaylistLine(row)),
@@ -89,18 +183,22 @@ export function findPshRowForLine(
       if (variant === key) return row;
     }
 
-    const conf = Math.max(
-      matchConfidence(parsed.song || sanitized, parsed.artist, {
-        id: "",
-        song_name: row.title,
-        artist: row.artist,
-      }),
-      matchConfidence(row.title, row.artist, {
-        id: "",
-        song_name: parsed.song || sanitized,
-        artist: parsed.artist,
-      }),
-    );
+    let conf = 0;
+    for (const parsed of orientations) {
+      conf = Math.max(
+        conf,
+        matchConfidence(parsed.song || sanitized, parsed.artist, {
+          id: "",
+          song_name: row.title,
+          artist: row.artist,
+        }),
+        matchConfidence(row.title, row.artist, {
+          id: "",
+          song_name: parsed.song || sanitized,
+          artist: parsed.artist,
+        }),
+      );
+    }
 
     if (conf > bestScore) {
       bestScore = conf;
@@ -187,17 +285,33 @@ export type StagingValidationResult = {
   effectivePshRow: PshSongRow | null;
 };
 
+function pshRowToHit(row: PshSongRow, seed?: MsHitLike | null): MsHitLike {
+  return applyPshCanonical(
+    {
+      id: seed?.id ?? "",
+      song_name: seed?.song_name ?? row.title,
+      artist: seed?.artist ?? row.artist,
+      album: seed?.album ?? row.album,
+      tags: seed?.tags,
+    },
+    row,
+  );
+}
+
 export function validateStagingMatch(
   input: StagingValidationInput,
 ): StagingValidationResult {
-  const query = sanitizePlaylistLine(input.query);
+  const query = applyInputTitleAliases(sanitizePlaylistLine(input.query));
+  const parsed = parseArtistSongLine(query);
   let pshRow = input.pshRow ?? null;
+  const global = globalCatalog(input.parashaContext);
 
   if (input.parashaContext && !pshRow) {
     pshRow = findPshRowForLine(
       query,
       input.parashaContext.catalogRows,
       input.parashaContext.targetParasha,
+      global,
     );
   }
 
@@ -217,7 +331,29 @@ export function validateStagingMatch(
     return { issue: hashkafaIssue, canonicalHit: null, effectivePshRow: pshRow };
   }
 
+  const titleNeedles = [
+    ...parseLineBothWays(query).flatMap((p) => [p.song, p.artist]),
+    pshRow?.title,
+    query,
+  ].filter((t): t is string => Boolean(t?.trim()));
+
+  for (const needle of titleNeedles) {
+    const catalogHashkafa = hashkafaFromCatalogTitle(needle, global);
+    if (catalogHashkafa) {
+      return { issue: catalogHashkafa, canonicalHit: null, effectivePshRow: pshRow };
+    }
+  }
+
   if (input.parashaContext) {
+    let titleParasha: ValidationIssue | null = null;
+    for (const needle of titleNeedles) {
+      titleParasha = validateCanonicalTitleParasha(needle, input.parashaContext);
+      if (titleParasha) break;
+    }
+    if (titleParasha) {
+      return { issue: titleParasha, canonicalHit: null, effectivePshRow: pshRow };
+    }
+
     const parashaIssue = validateParashaMembership(pshRow, input.parashaContext);
     if (parashaIssue) {
       return { issue: parashaIssue, canonicalHit: null, effectivePshRow: pshRow };
@@ -225,6 +361,13 @@ export function validateStagingMatch(
   }
 
   if (!input.hit || input.confidence < REVIEW_THRESHOLD) {
+    if (pshRow) {
+      return {
+        issue: null,
+        canonicalHit: pshRowToHit(pshRow, input.hit),
+        effectivePshRow: pshRow,
+      };
+    }
     return { issue: null, canonicalHit: null, effectivePshRow: pshRow };
   }
 
@@ -273,11 +416,23 @@ export function validatePlaylistForExport(
     ]);
     if (hashkafa) issues.push(hashkafa);
 
+    const line = `${song.artist} - ${song.song_name}`;
+    const global = globalCatalog(parashaContext);
+    const hashkafaCatalog = hashkafaFromCatalogTitle(song.song_name, global);
+    if (hashkafaCatalog) issues.push(hashkafaCatalog);
+
     if (parashaContext) {
+      const titleParasha = validateCanonicalTitleParasha(
+        song.song_name,
+        parashaContext,
+      );
+      if (titleParasha) issues.push(titleParasha);
+
       const pshRow = findPshRowForLine(
-        `${song.artist} - ${song.song_name}`,
+        line,
         parashaContext.catalogRows,
         parashaContext.targetParasha,
+        global,
       );
       const parashaIssue = validateParashaMembership(pshRow, parashaContext);
       if (parashaIssue) issues.push(parashaIssue);

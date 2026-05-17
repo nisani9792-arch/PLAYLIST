@@ -81,6 +81,7 @@ router.post("/resolve", async (req, res) => {
       line: toPlaylistLine(r),
     })),
     catalogRows: catalogForParasha,
+    allCatalogRows: catalogRows,
     parashaLines: bundle.parashaLines,
     haftarahLines: bundle.haftarahLines,
     pdfSongCount: orderedSongs.length,

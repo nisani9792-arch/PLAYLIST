@@ -93,7 +93,7 @@ export function ASIComposerPanel({
     const clean = dedupePlaylistLines(lines);
     if (!clean.length) return;
     setParashaContext(null);
-    setActiveParashaExportContext(null, null);
+    setActiveParashaExportContext(null, null, null);
     setStagingBatchId((b) => b + 1);
     setStagingItems(
       clean.map((line) => ({
@@ -113,12 +113,14 @@ export function ASIComposerPanel({
         return;
       }
       const catalogRows = data.catalogRows ?? data.songs ?? [];
+      const allCatalogRows = data.allCatalogRows ?? catalogRows;
       const ctx: StagingParashaContext = {
         targetParasha: data.parasha,
         catalogRows,
+        allCatalogRows,
       };
       setParashaContext(ctx);
-      setActiveParashaExportContext(data.parasha, catalogRows);
+      setActiveParashaExportContext(data.parasha, catalogRows, allCatalogRows);
 
       const sourceRows = data.songs?.length
         ? data.songs
