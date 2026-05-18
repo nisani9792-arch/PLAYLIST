@@ -1,5 +1,6 @@
 export * from "./aliases";
 export * from "./lomdaat-export";
+export * from "./export-row";
 export * from "./staging-query";
 export * from "./normalize";export * from "./sanitize";
 export * from "./secular-artists";

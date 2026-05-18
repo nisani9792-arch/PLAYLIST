@@ -8,6 +8,10 @@ import {
   LOMDAAT_PLAYLIST_HEADERS,
 } from "./lomdaat-export.js";
 import {
+  lomdaatRowFromHits,
+  repairMsHitForExport,
+} from "./export-row.js";
+import {
   odooImportArtistFromHit,
   odooImportSongNameFromHit,
 } from "./ms-hit.js";
@@ -199,6 +203,42 @@ assert(
   sampleCsv === `${LOMDAAT_PLAYLIST_HEADERS}\r\nבדיקה חדש,שבתראמפ,ליפא שמעלצר\r\n`,
   "Lomdaat CSV row mapping",
 );
+assert(
+  repairMsHitForExport({
+    id: "1",
+    song_name: "ברכת כהנים נתנאל כהן",
+    artist: "סינגל",
+  }).artist === "נתנאל כהן",
+  "repair splits artist from combined title when artist is סינגל",
+);
+assert(
+  repairMsHitForExport({
+    id: "2",
+    song_name: "כה תברכו קינדערלך",
+    artist: "שיר",
+  }).song_name.includes("כה תברכו"),
+  "repair keeps song when artist is placeholder שיר",
+);
+assert(
+  repairMsHitForExport({
+    id: "3",
+    song_name: "בלעדיך לא אבוא",
+    artist: "יהודה כץ Yehuda Katz",
+  }).artist === "יהודה כץ",
+  "repair strips English from bilingual artist in playlist",
+);
+assert(
+  lomdaatRowFromHits(
+    { id: "4", song_name: "ביום ההוא", artist: "ישראל עמר" },
+    {
+      id: "5",
+      song_name: "ביום ההוא",
+      artist: "ישראל עמר",
+    },
+  ).artist === "ישראל עמר",
+  "lomdaat row uses resolved catalog hit",
+);
+
 const quotedCsv = buildLomdaatPlaylistCsv("My Playlist", [
   { song_name: 'Song, "Special"', artist: "Artist Name" },
 ]);

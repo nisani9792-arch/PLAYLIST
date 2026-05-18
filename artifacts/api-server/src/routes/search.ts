@@ -3,6 +3,7 @@ import {
   matchConfidence,
   msHitLikeFromMeiliRecord,
   REVIEW_THRESHOLD,
+  stagingSearchVariants,
 } from "@workspace/playlist-validation";
 import {
   getMeilisearchConfig,
@@ -385,22 +386,43 @@ router.post("/resolve", async (req, res) => {
           }
         }
 
-        // 2) Fallback to text lookup, but still return canonical DB hit.
-        const fuzzyQ = `${song.song_name ?? ""} ${song.artist ?? ""}`.trim();
-        if (!fuzzyQ) return null;
-        const byText = await runMeiliSearchWithFilterFallback(
-          baseUrl,
-          index,
-          apiKey,
-          {
-            q: fuzzyQ,
-            limit: 8,
-            filter: ['type = "SONG"'],
-          },
-          { songsOnly: true },
-          8,
-        );
-        return pickBestResolveHit(song, byText.hits) ?? null;
+        // 2) Song-first text lookup (multiple variants for pasted PDF lines).
+        const line = [song.artist, song.song_name]
+          .filter((p) => String(p ?? "").trim())
+          .join(" - ");
+        const queries = stagingSearchVariants(line);
+        const fallbackQ = `${song.song_name ?? ""} ${song.artist ?? ""}`.trim();
+        const searchQs = queries.length ? queries : fallbackQ ? [fallbackQ] : [];
+        if (!searchQs.length) return null;
+
+        let bestHit: MeiliHit | undefined;
+        let bestScore = 0;
+        for (const q of searchQs) {
+          const byText = await runMeiliSearchWithFilterFallback(
+            baseUrl,
+            index,
+            apiKey,
+            {
+              q,
+              limit: 12,
+              filter: ['type = "SONG"'],
+            },
+            { songsOnly: true },
+            12,
+          );
+          const picked = pickBestResolveHit(song, byText.hits);
+          if (!picked) continue;
+          const score = matchConfidence(
+            String(song.song_name ?? ""),
+            String(song.artist ?? ""),
+            msHitLikeFromMeiliRecord(picked),
+          );
+          if (score > bestScore) {
+            bestScore = score;
+            bestHit = picked;
+          }
+        }
+        return bestHit ?? null;
       },
     );
     res.json({ hits: resolved });
