@@ -1,5 +1,7 @@
 import {
+  countHebrewLetters,
   isPrimarilyLatin,
+  preferHebrewOnlyText,
   trimLomdaatField,
 } from "./lomdaat-export";
 
@@ -44,40 +46,44 @@ function artistNamesFromArray(raw: unknown): string[] {
         const row = entry as Record<string, unknown>;
         const he = String(row.name_he ?? row.artist_he ?? "").trim();
         const main = String(row.name ?? row.artist ?? row.label ?? "").trim();
-        if (main && !isPrimarilyLatin(main)) return main;
-        if (he) return he;
-        return main;
+        if (main && !isPrimarilyLatin(main)) return preferHebrewOnlyText(main);
+        if (he) return preferHebrewOnlyText(he);
+        return preferHebrewOnlyText(main);
       }
       return "";
     })
     .filter(Boolean);
 }
 
-/** Artist string for Lomdaat / Odoo `imported_artist_name` (must match catalog). */
+/** Artist string for Lomdaat / Odoo `imported_artist_name` (Hebrew only). */
 export function odooImportArtistFromHit(hit: Record<string, unknown>): string {
   const artistHe = String(hit.artist_he ?? hit.artist_name_he ?? "").trim();
   const artistMain = String(hit.artist ?? hit.artist_name ?? "").trim();
 
-  if (artistMain && !isPrimarilyLatin(artistMain)) {
-    return trimLomdaatField(artistMain);
+  if (artistMain && countHebrewLetters(artistMain) > 0) {
+    const heOnly = preferHebrewOnlyText(artistMain);
+    if (heOnly) return heOnly;
   }
-  if (artistHe) return trimLomdaatField(artistHe);
+  if (artistHe) return preferHebrewOnlyText(artistHe);
 
   const fromArray = artistNamesFromArray(hit.artists);
-  if (fromArray.length) return trimLomdaatField(fromArray.join(" "));
+  if (fromArray.length) return preferHebrewOnlyText(fromArray.join(" "));
 
-  if (artistMain) return trimLomdaatField(artistMain);
+  if (artistMain && !isPrimarilyLatin(artistMain)) {
+    return preferHebrewOnlyText(artistMain);
+  }
+  if (artistMain) return preferHebrewOnlyText(artistMain);
   return "";
 }
 
-/** Song title for Lomdaat / Odoo `imported_song_name`. */
+/** Song title for Lomdaat / Odoo `imported_song_name` (Hebrew preferred). */
 export function odooImportSongNameFromHit(hit: Record<string, unknown>): string {
   const nameHe = String(hit.name_he ?? "").trim();
   const main = String(hit.song_name ?? hit.name ?? hit.title ?? "").trim();
 
-  if (main && !isPrimarilyLatin(main)) return trimLomdaatField(main);
-  if (nameHe) return trimLomdaatField(nameHe);
-  return trimLomdaatField(main);
+  if (main && !isPrimarilyLatin(main)) return preferHebrewOnlyText(main);
+  if (nameHe) return preferHebrewOnlyText(nameHe);
+  return preferHebrewOnlyText(main);
 }
 
 export function msHitLikeFromMeiliRecord(hit: Record<string, unknown>): MsHitLike {

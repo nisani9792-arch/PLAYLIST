@@ -10,15 +10,28 @@ import { resolveParashaNameFromClient } from './parasha-export-context';
 
 export { LOMDAAT_PLAYLIST_HEADERS, LOMDAAT_PLAYLIST_FILENAME, buildLomdaatPlaylistCsv };
 
+/** Trigger a UTF-8 CSV download in the browser (no BOM). */
+export function downloadCsvInBrowser(csv: string, filename: string): void {
+  const bytes = new TextEncoder().encode(csv);
+  const blob = new Blob([bytes], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export type ExportOptions = {
   parashaContext?: ParashaValidationContext | null;
 };
 
-export async function exportToLomdaatPlaylistCSV(
+/** Download the active playlist as a Lomdaat-compatible UTF-8 CSV (CRLF, comma-delimited). */
+export async function exportPlaylistToCsv(
   playlistName: string,
   songs: MsHit[],
   options: ExportOptions = {},
-) {
+): Promise<void> {
   const parashaContext =
     options.parashaContext ?? resolveParashaNameFromClient(playlistName);
 
@@ -51,14 +64,11 @@ export async function exportToLomdaatPlaylistCSV(
   });
 
   const csv = buildLomdaatPlaylistCsv(playlistName, rows);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = LOMDAAT_PLAYLIST_FILENAME;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCsvInBrowser(csv, LOMDAAT_PLAYLIST_FILENAME);
 }
 
-/** @deprecated Use exportToLomdaatPlaylistCSV — kept for any stale imports. */
-export const exportToOdooCSV = exportToLomdaatPlaylistCSV;
+/** @deprecated Use exportPlaylistToCsv */
+export const exportToLomdaatPlaylistCSV = exportPlaylistToCsv;
+
+/** @deprecated Use exportPlaylistToCsv */
+export const exportToOdooCSV = exportPlaylistToCsv;

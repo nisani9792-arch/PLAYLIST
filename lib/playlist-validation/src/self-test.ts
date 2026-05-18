@@ -166,6 +166,19 @@ assert(
   }) === "משה קליין",
   "Odoo export uses Hebrew when main artist is Latin",
 );
+assert(
+  odooImportArtistFromHit({
+    artist: "מידד טסה / Meded Tasa",
+    artist_he: "מדד טסה",
+  }) === "מידד טסה",
+  "Odoo export strips English from bilingual artist",
+);
+assert(
+  odooImportArtistFromHit({
+    artist: "משה קליין (David Klein)",
+  }) === "משה קליין",
+  "Odoo export strips parenthetical English artist",
+);
 assert(isArtistOnlyPlaylistLine("יניב בן משיח"), "artist-only header");
 assert(!isArtistOnlyPlaylistLine("שבתראמפ"), "single song title is searchable");
 assert(
@@ -181,6 +194,17 @@ assert(
   sampleCsv.startsWith(LOMDAAT_PLAYLIST_HEADERS),
   "Lomdaat CSV header",
 );
-assert(sampleCsv.includes("\r\n"), "Lomdaat CSV CRLF");
+assert(sampleCsv.endsWith("\r\n"), "Lomdaat CSV trailing CRLF");
+assert(
+  sampleCsv === `${LOMDAAT_PLAYLIST_HEADERS}\r\nבדיקה חדש,שבתראמפ,ליפא שמעלצר\r\n`,
+  "Lomdaat CSV row mapping",
+);
+const quotedCsv = buildLomdaatPlaylistCsv("My Playlist", [
+  { song_name: 'Song, "Special"', artist: "Artist Name" },
+]);
+assert(
+  quotedCsv.includes('My Playlist,"Song, ""Special""",Artist Name'),
+  "Lomdaat CSV escapes commas and quotes",
+);
 
 console.log("playlist-validation self-test OK");

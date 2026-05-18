@@ -5,7 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { GripVertical, X, Download, Trash2, Search, Music } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { exportToLomdaatPlaylistCSV } from '../../lib/export';
+import { exportPlaylistToCsv } from '../../lib/export';
 import { cn } from '@/lib/utils';
 import { recordPlaylistExport } from '../../lib/playlist-learning';
 import { motion } from 'framer-motion';
@@ -52,7 +52,7 @@ export function PlaylistView({
     recordPlaylistExport(playlistName, songs);
     setIsExporting(true);
     try {
-      await exportToLomdaatPlaylistCSV(playlistName, songs);
+      await exportPlaylistToCsv(playlistName, songs);
       toast.success('קובץ פלייליסט לג\'וזיק אודיו נוצר עם שמות קנוניים ממסד הנתונים');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'שגיאה בייצוא פלייליסט';

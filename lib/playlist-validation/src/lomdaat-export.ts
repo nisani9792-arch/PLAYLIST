@@ -25,6 +25,36 @@ export function trimLomdaatField(value: string): string {
     .trim();
 }
 
+/**
+ * When a catalog field mixes Hebrew and Latin (e.g. "מידד טסה / Meded Tasa"),
+ * return the Hebrew-only portion for Lomdaat export.
+ */
+export function preferHebrewOnlyText(text: string): string {
+  const trimmed = trimLomdaatField(text);
+  if (!trimmed) return "";
+
+  const heCount = countHebrewLetters(trimmed);
+  const enCount = countLatinLetters(trimmed);
+  if (heCount === 0) return trimmed;
+  if (enCount === 0) return trimmed;
+
+  const segments = trimmed
+    .split(/\s*[/|–—\-]\s*|\s*\(\s*|\s*\)\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (segments.length > 1) {
+    const hebrewSegments = segments.filter(
+      (s) => countHebrewLetters(s) > 0 && !isPrimarilyLatin(s),
+    );
+    if (hebrewSegments.length) {
+      return trimLomdaatField(hebrewSegments.join(" "));
+    }
+  }
+
+  return trimLomdaatField(trimmed.replace(/[a-zA-Z]+/g, " "));
+}
+
 /** Lomdaat / Jusic Audio import — must match player template exactly. */
 export const LOMDAAT_PLAYLIST_HEADERS =
   "imported_playlist_name,imported_song_name,imported_artist_name";
@@ -36,6 +66,30 @@ export type LomdaatPlaylistRow = {
   artist: string;
 };
 
+/** RFC 4180-style field: quote when value contains comma, quote, or line break. */
+export function escapeCsvField(value: string): string {
+  const v = trimLomdaatField(value);
+  if (/[",\r\n]/.test(v)) {
+    return `"${v.replace(/"/g, '""')}"`;
+  }
+  return v;
+}
+
+function formatLomdaatCsvRow(
+  playlistName: string,
+  songName: string,
+  artistName: string,
+): string {
+  return [
+    escapeCsvField(playlistName),
+    escapeCsvField(songName),
+    escapeCsvField(artistName),
+  ].join(",");
+}
+
+/**
+ * Build Lomdaat / Jusic Audio playlist CSV (UTF-8 text, CRLF after every line).
+ */
 export function buildLomdaatPlaylistCsv(
   playlistName: string,
   rows: LomdaatPlaylistRow[],
@@ -44,12 +98,8 @@ export function buildLomdaatPlaylistCsv(
   const lines = [
     LOMDAAT_PLAYLIST_HEADERS,
     ...rows.map((row) =>
-      [
-        safePlaylist,
-        trimLomdaatField(row.song_name),
-        trimLomdaatField(row.artist),
-      ].join(","),
+      formatLomdaatCsvRow(safePlaylist, row.song_name, row.artist),
     ),
   ];
-  return lines.join("\r\n");
+  return `${lines.join("\r\n")}\r\n`;
 }
