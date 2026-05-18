@@ -6,6 +6,7 @@ import type { PshSongRow } from "./psh-types";
 import {
   buildLomdaatPlaylistCsv,
   LOMDAAT_PLAYLIST_HEADERS,
+  trimLomdaatSongName,
 } from "./lomdaat-export.js";
 import {
   lomdaatRowFromHits,
@@ -198,10 +199,14 @@ assert(
   sampleCsv.startsWith(LOMDAAT_PLAYLIST_HEADERS),
   "Lomdaat CSV header",
 );
-assert(sampleCsv.endsWith("\r\n"), "Lomdaat CSV trailing CRLF");
+assert(!sampleCsv.endsWith("\r\n"), "Lomdaat CSV no trailing CRLF (Odoo template)");
 assert(
-  sampleCsv === `${LOMDAAT_PLAYLIST_HEADERS}\r\nבדיקה חדש,שבתראמפ,ליפא שמעלצר\r\n`,
+  sampleCsv === `${LOMDAAT_PLAYLIST_HEADERS}\r\nבדיקה חדש,שבתראמפ,ליפא שמעלצר`,
   "Lomdaat CSV row mapping",
+);
+assert(
+  trimLomdaatSongName("01-אחד יחיד ומיוחד") === "אחד יחיד ומיוחד",
+  "Lomdaat song strips track prefix",
 );
 assert(
   repairMsHitForExport({

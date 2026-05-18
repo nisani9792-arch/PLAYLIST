@@ -25,6 +25,11 @@ export function trimLomdaatField(value: string): string {
     .trim();
 }
 
+/** Strip track-number prefixes (e.g. "01-שיר") — Lomdaat template has no track index. */
+export function trimLomdaatSongName(value: string): string {
+  return trimLomdaatField(value).replace(/^\d{1,3}[-.)]\s*/, "");
+}
+
 /**
  * When a catalog field mixes Hebrew and Latin (e.g. "מידד טסה / Meded Tasa"),
  * return the Hebrew-only portion for Lomdaat export.
@@ -82,7 +87,7 @@ function formatLomdaatCsvRow(
 ): string {
   return [
     escapeCsvField(playlistName),
-    escapeCsvField(songName),
+    escapeCsvField(trimLomdaatSongName(songName)),
     escapeCsvField(artistName),
   ].join(",");
 }
@@ -95,11 +100,20 @@ export function buildLomdaatPlaylistCsv(
   rows: LomdaatPlaylistRow[],
 ): string {
   const safePlaylist = trimLomdaatField(playlistName);
-  const lines = [
-    LOMDAAT_PLAYLIST_HEADERS,
-    ...rows.map((row) =>
+  const dataLines = rows
+    .filter(
+      (row) =>
+        trimLomdaatSongName(row.song_name) &&
+        trimLomdaatField(row.artist),
+    )
+    .map((row) =>
       formatLomdaatCsvRow(safePlaylist, row.song_name, row.artist),
-    ),
-  ];
-  return `${lines.join("\r\n")}\r\n`;
+    );
+
+  if (!dataLines.length) {
+    return LOMDAAT_PLAYLIST_HEADERS;
+  }
+
+  // Match Lomdaat/Odoo reference CSV: CRLF between lines, NO trailing CRLF or blank row.
+  return [LOMDAAT_PLAYLIST_HEADERS, ...dataLines].join("\r\n");
 }
