@@ -5,7 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { GripVertical, X, Download, Trash2, Search, Music } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { exportToOdooCSV } from '../../lib/export';
+import { exportToLomdaatPlaylistCSV } from '../../lib/export';
 import { cn } from '@/lib/utils';
 import { recordPlaylistExport } from '../../lib/playlist-learning';
 import { motion } from 'framer-motion';
@@ -52,10 +52,10 @@ export function PlaylistView({
     recordPlaylistExport(playlistName, songs);
     setIsExporting(true);
     try {
-      await exportToOdooCSV(playlistName, songs);
-      toast.success('CSV לאודו נוצר עם שמות קנוניים ממסד הנתונים');
+      await exportToLomdaatPlaylistCSV(playlistName, songs);
+      toast.success('קובץ פלייליסט לג\'וזיק אודיו נוצר עם שמות קנוניים ממסד הנתונים');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'שגיאה בייצוא לאודו';
+      const msg = err instanceof Error ? err.message : 'שגיאה בייצוא פלייליסט';
       toast.error(msg);
     } finally {
       setIsExporting(false);
@@ -88,8 +88,9 @@ export function PlaylistView({
             />
             <span
               className="font-display self-start sm:self-auto shrink-0 text-primary text-xs whitespace-nowrap bg-primary/10 border border-primary/25 px-3 py-1.5 rounded-xl tabular-nums font-semibold"
+              title="שירים בפלייליסט — בייצוא יישמרו שמות קנוניים ממסד ג'וזיק"
             >
-              {songs.length} שירים
+              {songs.length} שירים · ייצוא Lomdaat
             </span>
           </div>
         </div>
@@ -126,7 +127,7 @@ export function PlaylistView({
                 </>
               ) : (
                 <>
-                  <Download className="w-3.5 h-3.5 mr-1.5" /> ייצוא לאודו
+                  <Download className="w-3.5 h-3.5 mr-1.5" /> ייצוא לג&apos;וזיק אודיו
                 </>
               )}
             </Button>

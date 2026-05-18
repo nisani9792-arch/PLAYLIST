@@ -2,84 +2,75 @@ import { validatePlaylistForExport, type ParashaValidationContext } from '@works
 import { MsHit, resolveSongsForOdoo } from './meilisearch';
 import { resolveParashaNameFromClient } from './parasha-export-context';
 
-function parseSongIds(rawId: string): { dbId: string; externalId: string } {
-  const clean = String(rawId ?? '').trim();
-  if (!clean) return { dbId: '', externalId: '' };
+/** Lomdaat / Jusic Audio import format (must match player expectations exactly). */
+export const LOMDAAT_PLAYLIST_HEADERS =
+  'imported_playlist_name,imported_song_name,imported_artist_name';
 
-  if (/^\d+$/.test(clean)) return { dbId: clean, externalId: '' };
+export const LOMDAAT_PLAYLIST_FILENAME = 'lomdaat_music.playlist.csv';
 
-  const knownUid = clean.match(/^SON-(\d+)$/i);
-  if (knownUid) {
-    return { dbId: knownUid[1] ?? '', externalId: clean };
-  }
-
-  return { dbId: '', externalId: clean };
+export function buildLomdaatPlaylistCsv(
+  playlistName: string,
+  rows: Array<{ song_name: string; artist: string }>,
+): string {
+  const safePlaylist = playlistName.trim();
+  const lines = [
+    LOMDAAT_PLAYLIST_HEADERS,
+    ...rows.map((row) =>
+      [safePlaylist, row.song_name.trim(), row.artist.trim()].join(','),
+    ),
+  ];
+  return lines.join('\r\n');
 }
 
 export type ExportOptions = {
   parashaContext?: ParashaValidationContext | null;
 };
 
-export async function exportToOdooCSV(
+export async function exportToLomdaatPlaylistCSV(
   playlistName: string,
   songs: MsHit[],
   options: ExportOptions = {},
 ) {
   const parashaContext =
-    options.parashaContext ??
-    resolveParashaNameFromClient(playlistName);
+    options.parashaContext ?? resolveParashaNameFromClient(playlistName);
 
   const issues = validatePlaylistForExport(songs, parashaContext);
-  if (issues.length) {
-    const preview = issues
+  const blocking = issues.filter((i) => i.severity === 'block');
+  if (blocking.length) {
+    const preview = blocking
       .slice(0, 4)
       .map((i) => i.message)
       .join('\n');
     throw new Error(
-      issues.length === 1
+      blocking.length === 1
         ? preview
-        : `נמצאו ${issues.length} בעיות אימות:\n${preview}`,
+        : `נמצאו ${blocking.length} בעיות חסימה:\n${preview}`,
     );
   }
 
   const canonical = await resolveSongsForOdoo(songs);
-  const BOM = '\uFEFF';
-  const headers = [
-    'שם הפלייליסט',
-    'מזהה פלייליסט',
-    'שירים / מזהה במסד הנתונים',
-    'שירים / מזהה חיצוני',
-    'Tags Token',
-    'אמן מבצע',
-    'שם השיר',
-    'אלבום',
-  ];
   const rows = songs.map((song, index) => {
-    const s = canonical[index] ?? song;
-    const ids = parseSongIds(s.id);
-    if (!ids.dbId && !ids.externalId) {
+    const resolved = canonical[index];
+    if (!resolved) {
       throw new Error(
-        `חסר מזהה מסד לשיר: ${s.song_name} – ${s.artist}. הסר או התאם מחדש.`,
+        `לא נמצא במסד הנתונים: ${song.song_name} – ${song.artist}. הסר או התאם מחדש.`,
       );
     }
-    return [
-      playlistName,
-      '',
-      ids.dbId,
-      ids.externalId,
-      ids.dbId,
-      s.artist || '',
-      s.song_name || '',
-      s.album || '',
-    ];
+    return {
+      song_name: resolved.song_name || '',
+      artist: resolved.artist || '',
+    };
   });
-  const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
-  const csv = BOM + [headers, ...rows].map((r) => r.map(escape).join(',')).join('\r\n');
+
+  const csv = buildLomdaatPlaylistCsv(playlistName, rows);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${playlistName || 'playlist'}_odoo.csv`;
+  a.download = LOMDAAT_PLAYLIST_FILENAME;
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** @deprecated Use exportToLomdaatPlaylistCSV — kept for any stale imports. */
+export const exportToOdooCSV = exportToLomdaatPlaylistCSV;

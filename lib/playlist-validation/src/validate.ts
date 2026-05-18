@@ -21,10 +21,31 @@ export type ValidationIssueCode =
   | "MEILI_PSH_MISMATCH"
   | "DUPLICATE_SONG";
 
+export type ValidationIssueSeverity = "block" | "review";
+
 export type ValidationIssue = {
   code: ValidationIssueCode;
   message: string;
+  severity: ValidationIssueSeverity;
 };
+
+export function validationIssueSeverity(
+  code: ValidationIssueCode,
+): ValidationIssueSeverity {
+  return code === "HASHKAFA_SECULAR_ARTIST" ? "block" : "review";
+}
+
+function issue(
+  code: ValidationIssueCode,
+  message: string,
+  severity?: ValidationIssueSeverity,
+): ValidationIssue {
+  return {
+    code,
+    message,
+    severity: severity ?? validationIssueSeverity(code),
+  };
+}
 
 export type ParashaValidationContext = {
   targetParasha: string;
@@ -85,7 +106,12 @@ export function hashkafaFromCatalogTitle(
 
   for (const row of catalog) {
     const rowTitle = normalizeHebrew(row.title);
-    if (!rowTitle.includes(needle) && !needle.includes(rowTitle)) continue;
+    const titleMatches =
+      rowTitle === needle ||
+      (needle.length >= 4 &&
+        (rowTitle.includes(needle) || needle.includes(rowTitle)) &&
+        wordsSimilarity(needle, rowTitle) >= 0.72);
+    if (!titleMatches) continue;
     const blocked = assertHashkafaClean(
       row.title,
       row.artist,
@@ -93,10 +119,11 @@ export function hashkafaFromCatalogTitle(
       row.album,
     );
     if (blocked) {
-      return {
-        code: "HASHKAFA_SECULAR_ARTIST",
-        message: `חסימת השקפה: זוהה אמן חילוני אסור (${blocked})`,
-      };
+      return issue(
+        "HASHKAFA_SECULAR_ARTIST",
+        `חסימת השקפה: זוהה אמן חילוני אסור (${blocked})`,
+        "block",
+      );
     }
   }
   return null;
@@ -110,10 +137,11 @@ export function validateCanonicalTitleParasha(
   if (!canonicalParasha) return null;
   const target = normalizeParashaToken(ctx.targetParasha);
   if (normalizeParashaToken(canonicalParasha) === target) return null;
-  return {
-    code: "PARASHA_MISMATCH",
-    message: `השיר שייך לפרשת ${canonicalParasha}, לא לפרשת ${ctx.targetParasha}`,
-  };
+  return issue(
+    "PARASHA_MISMATCH",
+    `השיר שייך לפרשת ${canonicalParasha}, לא לפרשת ${ctx.targetParasha}`,
+    "review",
+  );
 }
 
 export function findPshRowForLine(
@@ -214,20 +242,22 @@ export function validateHashkafa(
 ): ValidationIssue | null {
   const blocked = assertHashkafaClean(...texts);
   if (blocked) {
-    return {
-      code: "HASHKAFA_SECULAR_ARTIST",
-      message: `חסימת השקפה: זוהה אמן חילוני אסור (${blocked})`,
-    };
+    return issue(
+      "HASHKAFA_SECULAR_ARTIST",
+      `חסימת השקפה: זוהה אמן חילוני אסור (${blocked})`,
+      "block",
+    );
   }
 
   for (const text of texts) {
     if (!text?.trim()) continue;
     const feature = findForbiddenFeatureViolation(text, ...texts);
     if (feature) {
-      return {
-        code: "HASHKAFA_SECULAR_ARTIST",
-        message: `חסימת השקפה: בשיר זה מופיע אמן חילוני אסור (${feature})`,
-      };
+      return issue(
+        "HASHKAFA_SECULAR_ARTIST",
+        `חסימת השקפה: בשיר זה מופיע אמן חילוני אסור (${feature})`,
+        "block",
+      );
     }
   }
 
@@ -242,17 +272,19 @@ export function validateParashaMembership(
   if (!target) return null;
 
   if (!pshRow) {
-    return {
-      code: "PSH_NOT_IN_PARASHA",
-      message: `השיר לא נמצא בקטלוג PSH לפרשת ${ctx.targetParasha}`,
-    };
+    return issue(
+      "PSH_NOT_IN_PARASHA",
+      `השיר לא נמצא בקטלוג PSH לפרשת ${ctx.targetParasha}`,
+      "review",
+    );
   }
 
   if (normalizeParashaToken(pshRow.parasha) !== target) {
-    return {
-      code: "PARASHA_MISMATCH",
-      message: `השיר שייך לפרשת ${pshRow.parasha}, לא לפרשת ${ctx.targetParasha}`,
-    };
+    return issue(
+      "PARASHA_MISMATCH",
+      `השיר שייך לפרשת ${pshRow.parasha}, לא לפרשת ${ctx.targetParasha}`,
+      "review",
+    );
   }
 
   return null;
@@ -265,10 +297,11 @@ export function validateMeiliAgainstPsh(
 ): ValidationIssue | null {
   const conf = matchConfidence(pshRow.title, pshRow.artist, hit);
   if (conf >= minConfidence) return null;
-  return {
-    code: "MEILI_PSH_MISMATCH",
-    message: `התאמה חלשה למאגר: PSH "${pshRow.title}" – ${pshRow.artist}, נמצא "${hit.song_name}" – ${hit.artist}`,
-  };
+  return issue(
+    "MEILI_PSH_MISMATCH",
+    `התאמה חלשה למאגר: PSH "${pshRow.title}" – ${pshRow.artist}, נמצא "${hit.song_name}" – ${hit.artist}`,
+    "review",
+  );
 }
 
 export type StagingValidationInput = {
@@ -337,10 +370,22 @@ export function validateStagingMatch(
     query,
   ].filter((t): t is string => Boolean(t?.trim()));
 
-  for (const needle of titleNeedles) {
-    const catalogHashkafa = hashkafaFromCatalogTitle(needle, global);
-    if (catalogHashkafa) {
-      return { issue: catalogHashkafa, canonicalHit: null, effectivePshRow: pshRow };
+  if (pshRow) {
+    const rowHashkafa = validateHashkafa([
+      pshRow.title,
+      pshRow.artist,
+      pshRow.composer,
+      pshRow.album,
+    ]);
+    if (rowHashkafa?.severity === "block") {
+      return { issue: rowHashkafa, canonicalHit: null, effectivePshRow: pshRow };
+    }
+  } else {
+    for (const needle of titleNeedles) {
+      const catalogHashkafa = hashkafaFromCatalogTitle(needle, global);
+      if (catalogHashkafa?.severity === "block") {
+        return { issue: catalogHashkafa, canonicalHit: null, effectivePshRow: pshRow };
+      }
     }
   }
 
@@ -372,9 +417,27 @@ export function validateStagingMatch(
   }
 
   if (pshRow) {
+    const target = input.parashaContext
+      ? normalizeParashaToken(input.parashaContext.targetParasha)
+      : "";
+    const rowInTargetParasha =
+      Boolean(target) && normalizeParashaToken(pshRow.parasha) === target;
+
+    if (rowInTargetParasha) {
+      return {
+        issue: null,
+        canonicalHit: applyPshCanonical(input.hit ?? pshRowToHit(pshRow), pshRow),
+        effectivePshRow: pshRow,
+      };
+    }
+
     const mismatch = validateMeiliAgainstPsh(input.hit, pshRow);
     if (mismatch) {
-      return { issue: mismatch, canonicalHit: null, effectivePshRow: pshRow };
+      return {
+        issue: mismatch,
+        canonicalHit: pshRowToHit(pshRow, input.hit),
+        effectivePshRow: pshRow,
+      };
     }
     return {
       issue: null,
@@ -400,10 +463,13 @@ export function validatePlaylistForExport(
   for (const song of songs) {
     const key = canonicalSongKey(song);
     if (seen.has(key)) {
-      issues.push({
-        code: "DUPLICATE_SONG",
-        message: `כפילות בפלייליסט: ${song.song_name} – ${song.artist}`,
-      });
+      issues.push(
+        issue(
+          "DUPLICATE_SONG",
+          `כפילות בפלייליסט: ${song.song_name} – ${song.artist}`,
+          "review",
+        ),
+      );
       continue;
     }
     seen.add(key);

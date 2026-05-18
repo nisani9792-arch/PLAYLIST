@@ -327,12 +327,24 @@ export function StagingArea({
             parashaContext,
           });
           if (validation.issue) {
+            const hardBlock = validation.issue.severity === "block";
+            if (hardBlock) {
+              return {
+                id: item.id,
+                hit: null,
+                confidence: 0,
+                blocked: true,
+                blockReason: validation.issue.message,
+              };
+            }
+            const reviewHit = validation.canonicalHit ?? best.hit;
             return {
               id: item.id,
-              hit: null,
-              confidence: 0,
-              blocked: true,
-              blockReason: validation.issue.message,
+              hit: reviewHit,
+              confidence: best.confidence,
+              blocked: false,
+              pendingApproval: true,
+              reviewReason: validation.issue.message,
             };
           }
           return {
@@ -366,6 +378,23 @@ export function StagingArea({
 
           const conf = res.confidence ?? 0;
           const hit = res.hit as MsHit | null | undefined;
+          const pendingApproval =
+            "pendingApproval" in res && Boolean(res.pendingApproval);
+          const reviewReason =
+            "reviewReason" in res && typeof res.reviewReason === "string"
+              ? res.reviewReason
+              : undefined;
+
+          if (pendingApproval && hit) {
+            return {
+              ...p,
+              status: "review" as const,
+              match: hit,
+              confidence: conf,
+              blockReason: reviewReason,
+            };
+          }
+
           if (conf >= AUTO_MATCH_THRESHOLD) {
             return {
               ...p,
@@ -439,13 +468,13 @@ export function StagingArea({
             {reviewCount > 0 && (
               <span className="text-amber-600 mr-1 font-semibold">
                 {" "}
-                · {reviewCount} לבדיקה
+                · {reviewCount} ממתינים לאישור
               </span>
             )}
             {blockedCount > 0 && (
               <span className="text-destructive mr-1 font-semibold">
                 {" "}
-                · {blockedCount} חסומים
+                · {blockedCount} חסומי השקפה
               </span>
             )}
           </span>
@@ -481,7 +510,12 @@ export function StagingArea({
                 <span className="block break-words" title={item.query}>
                   {item.query}
                 </span>
-                {item.blockReason && (
+                {item.blockReason && item.status !== "blocked" && (
+                  <span className="block text-[10px] text-amber-700 mt-1 leading-tight">
+                    {item.blockReason}
+                  </span>
+                )}
+                {item.blockReason && item.status === "blocked" && (
                   <span className="block text-[10px] text-destructive mt-1 leading-tight">
                     {item.blockReason}
                   </span>
@@ -513,11 +547,13 @@ export function StagingArea({
                 )}
                 {item.status === "review" && item.match && (
                   <>
+                    <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-lg shrink-0">
+                      <AlertTriangle className="h-3 w-3" /> ממתין לאישור
+                    </span>
                     <span
                       className="flex items-center gap-1 text-xs text-yellow-600 truncate max-w-full sm:max-w-[140px]"
                       title={`${item.match.song_name} - ${item.match.artist}`}
                     >
-                      <AlertTriangle className="h-3 w-3 flex-shrink-0" />
                       {item.match.song_name}
                     </span>
                     <button

@@ -32,10 +32,29 @@ function stableHitId(hit: Record<string, unknown>): string {
   return `local-${Math.abs(hash)}`;
 }
 
+function joinCanonicalArtists(hit: Record<string, unknown>): string {
+  const direct = String(hit.artist_he || hit.artist_name_he || hit.artist || hit.artist_name || '').trim();
+  if (direct) return direct;
+
+  if (Array.isArray(hit.artists)) {
+    const names = hit.artists
+      .map((entry) => {
+        if (typeof entry === 'string') return entry.trim();
+        if (entry && typeof entry === 'object') {
+          const row = entry as Record<string, unknown>;
+          return String(row.name_he || row.name || row.artist || row.label || '').trim();
+        }
+        return '';
+      })
+      .filter(Boolean);
+    if (names.length) return names.join(' ');
+  }
+
+  return '';
+}
+
 function normalizeHit(hit: Record<string, unknown>): MsHit {
-  const artists = Array.isArray(hit.artists)
-    ? hit.artists.join(', ')
-    : String(hit.artist || hit.artist_name || '');
+  const artists = joinCanonicalArtists(hit);
   const genres = Array.isArray(hit.genres)
     ? hit.genres[0] || ''
     : String(hit.genre || '');
@@ -46,7 +65,7 @@ function normalizeHit(hit: Record<string, unknown>): MsHit {
   return {
     id: stableHitId(hit),
     song_name: String(
-      hit.name_he || hit.name_en || hit.song_name || hit.name || hit.title || 'Unknown',
+      hit.name_he || hit.song_name || hit.name_en || hit.name || hit.title || 'Unknown',
     ),
     artist: artists || 'Unknown',
     genre: String(genres || ''),
