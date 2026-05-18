@@ -82,8 +82,15 @@ export function PlaylistView({
           <div className="flex flex-col xs:flex-row xs:items-center gap-2 sm:gap-3">
             <Input
               data-testid="playlist-name-input"
+              type="text"
+              aria-label="שם הפלייליסט"
+              placeholder="שם הפלייליסט"
               value={playlistName}
               onChange={(e) => setPlaylistName(e.target.value)}
+              onBlur={(e) => {
+                const trimmed = e.target.value.trim();
+                if (trimmed !== playlistName) setPlaylistName(trimmed || 'פלייליסט חדש');
+              }}
               className="w-full min-w-0 font-display text-[1rem] sm:text-lg font-bold bg-background border-border/60 hover:border-primary/25 focus-visible:ring-2 focus-visible:ring-primary/25 h-10 sm:h-11 px-3 rounded-xl text-foreground shadow-inner"
             />
             <span

@@ -7,13 +7,29 @@
   --bp-touch-min: 2.75rem;
 }
 
-/* Full-height flex column that never clips footers */
+/* Vertical pane (composer / playlist panels) */
 .bp-workspace-pane {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
   flex: 1 1 0%;
   overflow: hidden;
+}
+
+/* Main split row — do NOT set flex-direction here (Tailwind md:flex-row) */
+.bp-workspace-split {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.bp-playlist-main {
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 0;
 }
 
 .bp-staging {

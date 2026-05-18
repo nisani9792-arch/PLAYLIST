@@ -116,7 +116,19 @@ export default function Workspace({ operatorName, offline = false }: WorkspacePr
           </div>
         ) : null}
 
-        <div className="bp-workspace-pane flex-1 flex flex-col md:flex-row gap-0 md:gap-2 p-0 md:p-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)]">
+        <div className="bp-workspace-split flex flex-col md:flex-row flex-1 gap-0 md:gap-2 p-0 md:p-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)]">
+          <PlaylistView
+            playlistName={playlist.playlistName}
+            setPlaylistName={playlist.setPlaylistName}
+            songs={playlist.songs}
+            removeSong={playlist.removeSong}
+            reorderSongs={playlist.reorderSongs}
+            clearPlaylist={playlist.clearPlaylist}
+            className={cn(
+              "bp-playlist-main order-2 md:order-1",
+              isMobile && mobileTab !== "playlist" && "hidden",
+            )}
+          />
           <ASIComposerPanel
             onAddSongs={playlist.addSongs}
             draftHistory={playlist.draftHistory}
@@ -126,18 +138,6 @@ export default function Workspace({ operatorName, offline = false }: WorkspacePr
             mobileFullScreen={isMobile}
             mobileVisible={!isMobile || mobileTab === "composer"}
             onStagingActiveChange={setStagingActive}
-          />
-          <PlaylistView
-            playlistName={playlist.playlistName}
-            setPlaylistName={playlist.setPlaylistName}
-            songs={playlist.songs}
-            removeSong={playlist.removeSong}
-            reorderSongs={playlist.reorderSongs}
-            clearPlaylist={playlist.clearPlaylist}
-            className={cn(
-              "bp-workspace-pane",
-              isMobile && mobileTab !== "playlist" && "hidden",
-            )}
           />
         </div>
       </main>

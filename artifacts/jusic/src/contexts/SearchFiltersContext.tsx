@@ -2,16 +2,10 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useState,
 } from 'react';
 import type { SearchFilterOptions } from '@/lib/search-filters';
-import {
-  loadStoredGenre,
-  persistGenre,
-  toSearchFilters,
-} from '@/lib/search-filters';
+import { SONGS_ONLY_FILTERS } from '@/lib/search-filters';
 
 type SearchFiltersContextValue = {
   filters: SearchFilterOptions;
@@ -24,29 +18,17 @@ const SearchFiltersContext = createContext<SearchFiltersContextValue | null>(
 );
 
 export function SearchFiltersProvider({ children }: { children: React.ReactNode }) {
-  const [genre, setGenreState] = useState('');
-
-  useEffect(() => {
-    setGenreState(loadStoredGenre());
-  }, []);
-
-  const filters = useMemo(() => toSearchFilters(genre), [genre]);
-
-  useEffect(() => {
-    persistGenre(genre);
-  }, [genre]);
-
-  const setGenre = useCallback((v: string) => {
-    setGenreState(v);
+  const setGenre = useCallback((_v: string) => {
+    /* genre filter removed from UI */
   }, []);
 
   const value = useMemo(
     () => ({
-      filters,
-      genreInput: genre,
+      filters: SONGS_ONLY_FILTERS,
+      genreInput: '',
       setGenre,
     }),
-    [filters, genre, setGenre],
+    [setGenre],
   );
 
   return (

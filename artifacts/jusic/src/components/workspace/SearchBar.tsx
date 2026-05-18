@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Input } from '../ui/input';
 import {
   Search,
@@ -8,7 +8,6 @@ import {
   Tag,
   SearchX,
   AlertCircle,
-  ChevronDown,
 } from 'lucide-react';
 import type { MsHit } from '../../lib/meilisearch';
 import { Button } from '../ui/button';
@@ -19,11 +18,10 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
 export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
-  const { filters, genreInput, setGenre } = useSearchFilters();
+  const { filters } = useSearchFilters();
   const isMobile = useIsMobile();
   const [query, setQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showGenreFilter, setShowGenreFilter] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,44 +117,6 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
       )}
 
       <div className="relative z-[95]">
-        {isMobile ? (
-          <button
-            type="button"
-            className="mb-2 flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground"
-            onClick={() => setShowGenreFilter((v) => !v)}
-          >
-            <span>
-              סינון ז׳אנר{genreInput.trim() ? `: ${genreInput.trim()}` : ' (אופציונלי)'}
-            </span>
-            <ChevronDown
-              className={cn('h-4 w-4 transition-transform', showGenreFilter && 'rotate-180')}
-            />
-          </button>
-        ) : null}
-
-        {(showGenreFilter || !isMobile) && (
-          <div
-            className={cn(
-              'bp-glass-panel flex flex-wrap items-center gap-2 sm:gap-3 rounded-2xl px-2.5 sm:px-3.5 py-2 shadow-sm bg-card/95',
-              isMobile && 'mb-2',
-            )}
-            data-testid="search-filters-bar"
-          >
-            {!isMobile && (
-              <span className="text-[11px] font-semibold text-foreground/80 shrink-0">
-                סינון ז׳אנר
-              </span>
-            )}
-            <div className="flex-1 min-w-0">
-              <Input
-                placeholder="ז׳אנר מדויק (אופציונלי)"
-                className="h-10 sm:h-8 text-base sm:text-xs rounded-xl border-border/70 bg-background"
-                value={genreInput}
-                onChange={(e) => setGenre(e.target.value)}
-              />
-            </div>
-          </div>
-        )}
 
         <div className="relative">
           <Input
@@ -233,7 +193,7 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
                 <SearchX className="w-8 h-8 text-muted-foreground/70" />
                 <p className="text-sm font-semibold">לא נמצאו שירים</p>
                 <p className="text-xs text-muted-foreground">
-                  נסה מילים אחרות{genreInput.trim() ? ' או הסר את סינון הז׳אנר' : ''}.
+                  נסה מילים אחרות או איות שונה.
                 </p>
               </div>
             )}
