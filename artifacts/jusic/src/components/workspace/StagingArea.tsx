@@ -14,6 +14,7 @@ import { MsHit, meilisearchSearch } from "../../lib/meilisearch";
 import type { SearchFilterOptions } from "../../lib/search-filters";
 import { SONGS_ONLY_FILTERS } from "../../lib/search-filters";
 import { Button } from "../ui/button";
+import { cn } from "@/lib/utils";
 import {
   Loader2,
   X,
@@ -454,68 +455,56 @@ export function StagingArea({
   const skippedCount = items.filter((i) => i.status === "skipped").length;
   const totalCount = items.length;
 
+  const itemTone = (status: StagingItem["status"]) => {
+    switch (status) {
+      case "matched":
+        return "bp-staging-item--matched";
+      case "review":
+        return "bp-staging-item--review";
+      case "blocked":
+      case "not-found":
+        return "bp-staging-item--not-found";
+      case "skipped":
+        return "bp-staging-item--skipped";
+      default:
+        return "";
+    }
+  };
+
   return (
-    <div
-      className={`flex flex-col min-h-0 ${
-        mobileLayout
-          ? 'h-full gap-3 p-3 rounded-[1rem] border border-primary/14 bg-muted/30'
-          : 'gap-4 mt-5 p-4 sm:p-5 rounded-[1.15rem] border border-primary/14 bg-gradient-to-b from-muted/40 to-transparent backdrop-blur-sm shadow-[inset_0_1px_0_hsl(var(--foreground)/0.04)]'
-      }`}
+    <section
+      className={cn(
+        "bp-staging",
+        mobileLayout ? "bp-staging--focus" : "bp-staging--embedded",
+      )}
+      aria-label="אזור התאמה"
     >
-      <div className="flex flex-wrap justify-between items-center gap-2 shrink-0">
-        <h3 className="font-display font-bold text-sm flex flex-wrap items-center gap-x-2 gap-y-1 tracking-tight">
-          <span className="rounded-lg bg-primary/12 text-primary px-2 py-1 text-[11px] font-semibold border border-primary/20">
+      <header className="bp-staging__header">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <span className="bp-chip bg-primary/12 text-primary border border-primary/20">
             אזור התאמה
           </span>
-          <span className="text-muted-foreground text-xs font-medium tabular-nums">
+          <span className="text-xs font-semibold text-muted-foreground tabular-nums">
             {matchedSongs.length}/{totalCount}
-            {reviewCount > 0 && (
-              <span className="text-amber-600 mr-1 font-semibold">
-                {" "}
-                · {reviewCount} ממתינים לאישור
-              </span>
-            )}
-            {blockedCount > 0 && (
-              <span className="text-destructive mr-1 font-semibold">
-                {" "}
-                · {blockedCount} חסומי השקפה
-              </span>
-            )}
-            {skippedCount > 0 && (
-              <span className="text-muted-foreground mr-1">
-                {" "}
-                · {skippedCount} דולגו
-              </span>
-            )}
+            {reviewCount > 0 ? (
+              <span className="text-amber-600 mr-1"> · {reviewCount} לאישור</span>
+            ) : null}
+            {blockedCount > 0 ? (
+              <span className="text-destructive mr-1"> · {blockedCount} חסום</span>
+            ) : null}
+            {skippedCount > 0 ? (
+              <span className="mr-1"> · {skippedCount} דולג</span>
+            ) : null}
           </span>
-        </h3>
-        {isProcessing && (
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        )}
-      </div>
+        </div>
+        {isProcessing ? (
+          <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" aria-hidden />
+        ) : null}
+      </header>
 
-      <div
-        className={`flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar ${
-          mobileLayout ? 'pb-1' : 'max-h-[min(22rem,45dvh)] sm:max-h-72'
-        }`}
-      >
+      <ul className="bp-staging__scroll custom-scrollbar list-none m-0 p-0">
           {items.map((item) => (
-            <div
-              key={item.id}
-              className={`flex flex-col gap-2.5 p-3 rounded-xl text-sm border transition-colors min-w-0 overflow-hidden ${
-                item.status === "matched"
-                  ? "bg-primary/5 border-primary/20"
-                  : item.status === "review"
-                    ? "bg-yellow-500/5 border-yellow-500/20"
-                    : item.status === "blocked"
-                      ? "bg-destructive/8 border-destructive/25"
-                    : item.status === "not-found"
-                      ? "bg-destructive/5 border-destructive/15"
-                      : item.status === "skipped"
-                        ? "bg-muted/20 border-transparent opacity-40"
-                        : "bg-background/30 border-border/40"
-              }`}
-            >
+            <li key={item.id} className={cn("bp-staging-item", itemTone(item.status))}>
               <div className="min-w-0 w-full space-y-1">
                 <p
                   className="text-xs font-semibold leading-snug line-clamp-2 break-words text-foreground"
@@ -549,7 +538,7 @@ export function StagingArea({
                   </p>
                 )}
               </div>
-              <div className="flex flex-wrap items-center justify-start sm:justify-end gap-1.5 w-full shrink-0 border-t border-border/30 pt-2 sm:border-0 sm:pt-0">
+              <div className="bp-staging-item__actions">
                 {item.status === "pending" && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" /> ממתין
@@ -581,16 +570,18 @@ export function StagingArea({
                     <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-lg shrink-0">
                       <AlertTriangle className="h-3 w-3" /> ממתין לאישור
                     </span>
-                    <button
+                    <Button
                       type="button"
-                      className="text-[11px] text-yellow-700 border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1.5 rounded-lg min-h-[2rem]"
+                      size="sm"
+                      className="min-h-[var(--bp-touch-min)] rounded-xl px-4 font-semibold"
                       onClick={() => handleApproveReview(item.id)}
                     >
                       אשר
-                    </button>
+                    </Button>
                     <button
                       type="button"
-                      className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      className="bp-icon-btn"
+                      aria-label="דלג"
                       onClick={() => handleSkip(item.id)}
                     >
                       <X className="h-4 w-4" />
@@ -613,35 +604,29 @@ export function StagingArea({
                   </>
                 )}
               </div>
-            </div>
+            </li>
           ))}
-      </div>
+      </ul>
 
-      <div
-        className={`flex gap-2 justify-stretch sm:justify-end shrink-0 ${
-          mobileLayout
-            ? 'sticky bottom-0 pt-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)] bg-gradient-to-t from-card via-card/95 to-transparent'
-            : 'mt-1'
-        }`}
-      >
+      <footer className="bp-staging__dock">
         <Button
-          variant="ghost"
-          size="sm"
+          variant="outline"
+          size="lg"
           onClick={onCancel}
-          className={`rounded-xl text-xs ${mobileLayout ? 'flex-1 min-h-[2.75rem]' : ''}`}
+          className="flex-1 min-h-[var(--bp-touch-min)] rounded-xl font-semibold"
         >
           ביטול
         </Button>
         <Button
           data-testid="approve-all-button"
-          size="sm"
+          size="lg"
           disabled={isProcessing || !matchedSongs.length}
           onClick={() => onApproveAll(matchedSongs)}
-          className={`rounded-xl shadow-sm min-h-[2.5rem] px-4 ${mobileLayout ? 'flex-[2] min-h-[2.75rem]' : ''}`}
+          className="flex-[2] min-h-[var(--bp-touch-min)] rounded-xl font-semibold shadow-md shadow-primary/20"
         >
           אשר הכל ({matchedSongs.length})
         </Button>
-      </div>
-    </div>
+      </footer>
+    </section>
   );
 }

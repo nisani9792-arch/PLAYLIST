@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { usePlaylist } from "../hooks/use-playlist";
 import { useIsMobile } from "../hooks/use-mobile";
 import { SearchBar } from "../components/workspace/SearchBar";
@@ -29,6 +29,13 @@ export default function Workspace({ operatorName, offline = false }: WorkspacePr
   const playlist = usePlaylist();
   const isMobile = useIsMobile();
   const [mobileTab, setMobileTab] = useState<MobileWorkspaceTab>("playlist");
+  const [stagingActive, setStagingActive] = useState(false);
+
+  useEffect(() => {
+    if (stagingActive && isMobile) {
+      setMobileTab("composer");
+    }
+  }, [stagingActive, isMobile]);
 
   return (
     <div className="app-shell-bg flex flex-col h-[100dvh] w-full overflow-hidden text-foreground selection:bg-primary/20 selection:text-foreground">
@@ -75,34 +82,18 @@ export default function Workspace({ operatorName, offline = false }: WorkspacePr
 
       <main className="flex-1 flex flex-col overflow-hidden min-h-0 relative z-10 touch-manipulation">
         {isMobile ? (
-          <div
-            className="flex shrink-0 gap-1 px-3 py-2 border-b border-border/50 bg-card/90"
-            role="tablist"
-            aria-label="אזורי עבודה"
-          >
+          <div className="bp-workspace-tabs" role="tablist" aria-label="אזורי עבודה">
             <button
               type="button"
               role="tab"
               aria-selected={mobileTab === "playlist"}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 min-h-[2.75rem] rounded-xl text-sm font-semibold transition-colors",
-                mobileTab === "playlist"
-                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
-                  : "bg-muted/60 text-muted-foreground",
-              )}
+              className="bp-workspace-tab"
               onClick={() => setMobileTab("playlist")}
             >
               <ListMusic className="w-4 h-4 shrink-0" />
               פלייליסט
               {playlist.songs.length > 0 ? (
-                <span
-                  className={cn(
-                    "tabular-nums text-[11px] px-1.5 py-0.5 rounded-md",
-                    mobileTab === "playlist"
-                      ? "bg-primary-foreground/20"
-                      : "bg-background/80",
-                  )}
-                >
+                <span className="tabular-nums text-[11px] px-1.5 py-0.5 rounded-md bg-background/80">
                   {playlist.songs.length}
                 </span>
               ) : null}
@@ -111,23 +102,21 @@ export default function Workspace({ operatorName, offline = false }: WorkspacePr
               type="button"
               role="tab"
               aria-selected={mobileTab === "composer"}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 min-h-[2.75rem] rounded-xl text-sm font-semibold transition-colors",
-                mobileTab === "composer"
-                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
-                  : "bg-muted/60 text-muted-foreground",
-              )}
+              className="bp-workspace-tab"
               onClick={() => setMobileTab("composer")}
             >
               <Sparkles className="w-4 h-4 shrink-0" />
               התאמה / AI
+              {stagingActive ? (
+                <span className="tabular-nums text-[11px] px-1.5 py-0.5 rounded-md bg-amber-400/30 text-amber-900">
+                  פעיל
+                </span>
+              ) : null}
             </button>
           </div>
         ) : null}
 
-        <div
-          className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0 gap-0 md:gap-2 p-0 md:p-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)]"
-        >
+        <div className="bp-workspace-pane flex-1 flex flex-col md:flex-row gap-0 md:gap-2 p-0 md:p-2 pb-[max(env(safe-area-inset-bottom,0px),0.25rem)]">
           <ASIComposerPanel
             onAddSongs={playlist.addSongs}
             draftHistory={playlist.draftHistory}
@@ -136,6 +125,7 @@ export default function Workspace({ operatorName, offline = false }: WorkspacePr
             onDeleteDraft={playlist.deleteDraft}
             mobileFullScreen={isMobile}
             mobileVisible={!isMobile || mobileTab === "composer"}
+            onStagingActiveChange={setStagingActive}
           />
           <PlaylistView
             playlistName={playlist.playlistName}
@@ -144,7 +134,10 @@ export default function Workspace({ operatorName, offline = false }: WorkspacePr
             removeSong={playlist.removeSong}
             reorderSongs={playlist.reorderSongs}
             clearPlaylist={playlist.clearPlaylist}
-            className={isMobile && mobileTab !== "playlist" ? "hidden" : undefined}
+            className={cn(
+              "bp-workspace-pane",
+              isMobile && mobileTab !== "playlist" && "hidden",
+            )}
           />
         </div>
       </main>

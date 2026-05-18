@@ -1,0 +1,206 @@
+/* BUILD PLAY workspace layout — responsive shell & staging */
+
+:root {
+  --bp-header-compact: 3.5rem;
+  --bp-tab-bar-h: 3.25rem;
+  --bp-staging-dock-h: 4.5rem;
+  --bp-touch-min: 2.75rem;
+}
+
+/* Full-height flex column that never clips footers */
+.bp-workspace-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+}
+
+.bp-staging {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  gap: 0.75rem;
+}
+
+.bp-staging--focus {
+  flex: 1 1 0%;
+  height: 100%;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--primary) / 0.18);
+  background: linear-gradient(
+    180deg,
+    hsl(var(--muted) / 0.45) 0%,
+    hsl(var(--card) / 0.92) 100%
+  );
+}
+
+.bp-staging__header {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.bp-staging__scroll {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0.25rem;
+}
+
+.bp-staging--focus .bp-staging__scroll {
+  padding-bottom: 0.5rem;
+}
+
+.bp-staging__dock {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid hsl(var(--border) / 0.55);
+  background: linear-gradient(
+    to top,
+    hsl(var(--card) / 0.98) 70%,
+    hsl(var(--card) / 0.85) 100%
+  );
+}
+
+.bp-staging--focus .bp-staging__dock {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.25rem);
+}
+
+.bp-staging-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  border-radius: 0.875rem;
+  border: 1px solid hsl(var(--border) / 0.65);
+  background: hsl(var(--card) / 0.88);
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+  min-width: 0;
+}
+
+.bp-staging-item--matched {
+  border-color: hsl(var(--primary) / 0.28);
+  background: hsl(var(--primary) / 0.06);
+}
+
+.bp-staging-item--review {
+  border-color: hsl(45 93% 47% / 0.35);
+  background: hsl(45 100% 96% / 0.85);
+}
+
+.bp-staging-item--blocked,
+.bp-staging-item--not-found {
+  border-color: hsl(var(--destructive) / 0.25);
+  background: hsl(var(--destructive) / 0.05);
+}
+
+.bp-staging-item--skipped {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.bp-staging-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  width: 100%;
+}
+
+.bp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.bp-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--bp-touch-min);
+  min-height: var(--bp-touch-min);
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border) / 0.7);
+  background: hsl(var(--background) / 0.9);
+  color: hsl(var(--muted-foreground));
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.bp-icon-btn:hover {
+  background: hsl(var(--destructive) / 0.08);
+  color: hsl(var(--destructive));
+  border-color: hsl(var(--destructive) / 0.35);
+}
+
+.bp-workspace-tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  background: hsl(var(--card) / 0.95);
+}
+
+.bp-workspace-tab {
+  flex: 1 1 0%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--bp-touch-min);
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.bp-workspace-tab[aria-selected="true"] {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 4px 14px hsl(var(--primary) / 0.28);
+}
+
+.bp-workspace-tab[aria-selected="false"] {
+  background: hsl(var(--muted) / 0.65);
+  color: hsl(var(--muted-foreground));
+}
+
+@media (min-width: 768px) {
+  .bp-staging--embedded {
+    margin-top: 1.25rem;
+    padding: 1.25rem;
+    border-radius: 1.15rem;
+    border: 1px solid hsl(var(--primary) / 0.14);
+    background: linear-gradient(
+      180deg,
+      hsl(var(--muted) / 0.35) 0%,
+      transparent 100%
+    );
+  }
+
+  .bp-staging--embedded .bp-staging__scroll {
+    max-height: min(22rem, 42dvh);
+  }
+}

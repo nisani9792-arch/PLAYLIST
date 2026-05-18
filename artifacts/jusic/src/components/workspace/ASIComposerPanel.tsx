@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { dedupePlaylistLines, sanitizePlaylistLine } from '@workspace/playlist-validation';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { setActiveParashaExportContext } from '@/lib/parasha-export-context';
@@ -35,6 +35,7 @@ export function ASIComposerPanel({
   onDeleteDraft,
   mobileFullScreen = false,
   mobileVisible = true,
+  onStagingActiveChange,
 }: {
   onAddSongs: (songs: MsHit[]) => void;
   draftHistory: PlaylistDraftSnapshot[];
@@ -43,6 +44,7 @@ export function ASIComposerPanel({
   onDeleteDraft: (draftId: string) => void;
   mobileFullScreen?: boolean;
   mobileVisible?: boolean;
+  onStagingActiveChange?: (active: boolean) => void;
 }) {
   const { filters } = useSearchFilters();
   const isMobile = useIsMobile();
@@ -57,7 +59,13 @@ export function ASIComposerPanel({
   const [parashaContext, setParashaContext] = useState<StagingParashaContext | null>(null);
   const generatePlaylist = useGeneratePlaylist();
 
+  const stagingActive = stagingItems.length > 0;
   const stagingBusy = stagingItems.some((i) => i.status === 'searching' || i.status === 'pending');
+  const mobileStagingFocus = useMobileTabs && stagingActive;
+
+  useEffect(() => {
+    onStagingActiveChange?.(stagingActive);
+  }, [stagingActive, onStagingActiveChange]);
   const listLines = useMemo(
     () => dedupePlaylistLines(composerInput.split('\n')),
     [composerInput],
@@ -232,14 +240,12 @@ export function ASIComposerPanel({
               transition={{ duration: 0.16 }}
               className={
                 useMobileTabs
-                  ? `flex flex-col min-h-0 h-full p-3 ${
-                      stagingItems.length > 0 ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'
-                    }`
+                  ? `bp-workspace-pane p-3 ${mobileStagingFocus ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`
                   : 'h-full p-3 sm:p-5 overflow-y-auto custom-scrollbar mt-12 md:mt-0 pt-4 md:pt-5'
               }
             >
               <div
-                className={`shrink-0 border-b border-border/45 ${useMobileTabs ? 'mb-3 pb-3' : 'mb-5 pb-4'}`}
+                className={`shrink-0 border-b border-border/45 ${useMobileTabs ? 'mb-3 pb-3' : 'mb-5 pb-4'} ${mobileStagingFocus ? 'hidden' : ''}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex gap-3 min-w-0 flex-1">
@@ -268,7 +274,7 @@ export function ASIComposerPanel({
               </div>
 
               <div
-                className={`shrink-0 space-y-3 ${useMobileTabs && stagingItems.length > 0 ? 'hidden' : ''}`}
+                className={`shrink-0 space-y-3 ${mobileStagingFocus ? 'hidden' : ''}`}
               >
                 <Textarea
                   data-testid="asi-composer-input"
@@ -316,7 +322,7 @@ export function ASIComposerPanel({
 
               <div
                 className={`border-t border-border/35 ${
-                  useMobileTabs && stagingItems.length > 0
+                  mobileStagingFocus
                     ? 'hidden'
                     : useMobileTabs
                       ? 'mt-3 pt-3'
@@ -371,8 +377,8 @@ export function ASIComposerPanel({
                 </div>
               </div>
 
-              {stagingItems.length > 0 && useMobileTabs ? (
-                <div className="flex-1 min-h-0 flex flex-col overflow-hidden mt-3">
+              {stagingActive ? (
+                <div className={useMobileTabs ? 'bp-workspace-pane mt-0' : 'mt-5'}>
                   <StagingArea
                     key={stagingBatchId}
                     items={stagingItems}
@@ -384,24 +390,9 @@ export function ASIComposerPanel({
                     }}
                     searchFilters={filters}
                     parashaContext={parashaContext}
-                    mobileLayout
+                    mobileLayout={useMobileTabs}
                   />
                 </div>
-              ) : null}
-
-              {stagingItems.length > 0 && !useMobileTabs ? (
-                <StagingArea
-                  key={stagingBatchId}
-                  items={stagingItems}
-                  setItems={setStagingItems}
-                  onApproveAll={handleApprove}
-                  onCancel={() => {
-                    setStagingItems([]);
-                    setParashaContext(null);
-                  }}
-                  searchFilters={filters}
-                  parashaContext={parashaContext}
-                />
               ) : null}
             </motion.div>
           ) : (
