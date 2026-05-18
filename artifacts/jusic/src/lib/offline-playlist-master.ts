@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import * as fuzzball from 'fuzzball';
+import { buildLomdaatPlaylistCsv } from './export';
 
 const EXCLUDED_TOKENS = [
   'podcast',
@@ -205,18 +206,12 @@ function findBestMatch(
 
 function buildCsv(
   playlistName: string,
-  matchedRows: Array<{ artist: string; song: string; album: string }>,
+  matchedRows: Array<{ artist: string; song: string }>,
 ): string {
-  const BOM = '\uFEFF';
-  const headers = ['שם הפלייליסט', 'אמן מבצע', 'שם השיר', 'אלבום'];
-  const escape = (value: string) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-  const rows = matchedRows.map((row) => [
+  return buildLomdaatPlaylistCsv(
     playlistName,
-    row.artist,
-    row.song,
-    row.album ?? '',
-  ]);
-  return `${BOM}${[headers, ...rows].map((line) => line.map(escape).join(',')).join('\r\n')}`;
+    matchedRows.map((row) => ({ song_name: row.song, artist: row.artist })),
+  );
 }
 
 export async function runOfflinePlaylistMaster(input: {

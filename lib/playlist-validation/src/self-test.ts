@@ -3,6 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { repairPshRow } from "./psh-repair";
 import type { PshSongRow } from "./psh-types";
+import {
+  odooImportArtistFromHit,
+  odooImportSongNameFromHit,
+} from "./ms-hit.js";
 import { dedupePlaylistLines } from "./sanitize";
 import { assertHashkafaClean } from "./secular-artists";
 import {
@@ -130,5 +134,24 @@ assert(
 );
 
 assert(validateHashkafa(["יהודה כץ ושאנן סטריט", "בלעדיך לא אבוא"]) !== null, "hashkafa featured");
+
+assert(
+  odooImportArtistFromHit({
+    artist_he: "מדד טסה",
+    artist: "מידד טסה עקיבא תורג'מן",
+  }) === "מידד טסה עקיבא תורג'מן",
+  "Odoo export prefers artist over artist_he",
+);
+assert(
+  odooImportArtistFromHit({
+    artists: ["מידד טסה", "עקיבא תורג'מן"],
+  }) === "מידד טסה עקיבא תורג'מן",
+  "Odoo export joins artists array with spaces",
+);
+assert(
+  odooImportSongNameFromHit({ name_he: "שבתראמפ", song_name: "Shabbos Ramp" }) ===
+    "שבתראמפ",
+  "Odoo export prefers Hebrew song title",
+);
 
 console.log("playlist-validation self-test OK");

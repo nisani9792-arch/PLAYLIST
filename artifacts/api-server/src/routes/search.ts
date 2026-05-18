@@ -1,5 +1,10 @@
 import { Router } from "express";
 import {
+  matchConfidence,
+  msHitLikeFromMeiliRecord,
+  REVIEW_THRESHOLD,
+} from "@workspace/playlist-validation";
+import {
   getMeilisearchConfig,
   isMeilisearchConfigured,
 } from "../lib/meilisearch-config";
@@ -155,6 +160,32 @@ function hitLooksLikeSong(hit: MeiliHit): boolean {
   return Boolean(
     hit.song_name || hit.name_he || hit.name_en || hit.title || hit.name,
   );
+}
+
+function pickBestResolveHit(
+  query: { song_name?: string; artist?: string },
+  hits: MeiliHit[] | undefined,
+): MeiliHit | undefined {
+  if (!hits?.length) return undefined;
+  const song = String(query.song_name ?? "").trim();
+  const artist = String(query.artist ?? "").trim();
+  if (!song && !artist) return hits[0];
+
+  let best: MeiliHit | undefined;
+  let bestScore = 0;
+  for (const hit of hits) {
+    const score = matchConfidence(
+      song,
+      artist,
+      msHitLikeFromMeiliRecord(hit),
+    );
+    if (score > bestScore) {
+      bestScore = score;
+      best = hit;
+    }
+  }
+  if (best && bestScore >= REVIEW_THRESHOLD) return best;
+  return hits[0];
 }
 
 function hitMatchesGenre(hit: MeiliHit, genre: string | undefined): boolean {
@@ -363,16 +394,13 @@ router.post("/resolve", async (req, res) => {
           apiKey,
           {
             q: fuzzyQ,
-            limit: 5,
+            limit: 8,
             filter: ['type = "SONG"'],
           },
           { songsOnly: true },
-          1,
+          8,
         );
-        const firstText = Array.isArray(byText.hits)
-          ? byText.hits[0]
-          : undefined;
-        return firstText ?? null;
+        return pickBestResolveHit(song, byText.hits) ?? null;
       },
     );
     res.json({ hits: resolved });

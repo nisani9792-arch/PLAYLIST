@@ -128,7 +128,7 @@ export function OfflinePlaylistMasterDialog() {
             {downloadUrl && (
               <a
                 href={downloadUrl}
-                download={`${playlistName || 'playlist'}_odoo.csv`}
+                download="lomdaat_music.playlist.csv"
                 className="inline-flex text-sm font-medium underline underline-offset-4"
               >
                 הורדת קובץ CSV
