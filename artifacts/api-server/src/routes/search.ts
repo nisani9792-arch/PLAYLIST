@@ -1,5 +1,7 @@
 import { Router } from "express";
 import {
+  AUTO_MATCH_THRESHOLD,
+  isPlaceholderExportArtist,
   matchConfidence,
   msHitLikeFromMeiliRecord,
   REVIEW_THRESHOLD,
@@ -163,14 +165,15 @@ function hitLooksLikeSong(hit: MeiliHit): boolean {
   );
 }
 
-function pickBestResolveHit(
+function pickResolveHit(
   query: { song_name?: string; artist?: string },
   hits: MeiliHit[] | undefined,
-): MeiliHit | undefined {
-  if (!hits?.length) return undefined;
+  minScore: number,
+): { hit: MeiliHit; score: number } | null {
+  if (!hits?.length) return null;
   const song = String(query.song_name ?? "").trim();
   const artist = String(query.artist ?? "").trim();
-  if (!song && !artist) return hits[0];
+  if (!song && !artist) return null;
 
   let best: MeiliHit | undefined;
   let bestScore = 0;
@@ -185,8 +188,8 @@ function pickBestResolveHit(
       best = hit;
     }
   }
-  if (best && bestScore >= REVIEW_THRESHOLD) return best;
-  return hits[0];
+  if (!best || bestScore < minScore) return null;
+  return { hit: best, score: bestScore };
 }
 
 function hitMatchesGenre(hit: MeiliHit, genre: string | undefined): boolean {
@@ -328,14 +331,17 @@ router.post("/", async (req, res) => {
 });
 
 router.post("/resolve", async (req, res) => {
-  const { songs } = req.body as {
+  const { songs, export: exportMode } = req.body as {
     songs?: Array<{
       id?: string;
       song_name?: string;
       artist?: string;
       album?: string;
     }>;
+    export?: boolean;
   };
+
+  const minScore = exportMode ? AUTO_MATCH_THRESHOLD : REVIEW_THRESHOLD;
 
   if (!Array.isArray(songs)) {
     res.status(400).json({ error: "Expected { songs: [...] }" });
@@ -364,6 +370,13 @@ router.post("/resolve", async (req, res) => {
       async (song) => {
         const rawId = String(song.id ?? "").trim();
         const safeId = escapeFilterValue(rawId);
+        const songName = String(song.song_name ?? "").trim();
+        const artistName = String(song.artist ?? "").trim();
+
+        const accept = (hit: MeiliHit): { hit: MeiliHit; score: number } | null => {
+          const picked = pickResolveHit(song, [hit], minScore);
+          return picked;
+        };
 
         // 1) Strict lookup by uid (database/external id equivalent in index)
         if (safeId) {
@@ -376,7 +389,8 @@ router.post("/resolve", async (req, res) => {
             const firstUid = Array.isArray(byUid.hits)
               ? byUid.hits[0]
               : undefined;
-            if (firstUid) return firstUid;
+            const uidMatch = firstUid ? accept(firstUid) : null;
+            if (uidMatch) return uidMatch;
           } catch (err) {
             if (!isRecoverableFilterError(err)) throw err;
             logger.warn(
@@ -391,13 +405,19 @@ router.post("/resolve", async (req, res) => {
           .filter((p) => String(p ?? "").trim())
           .join(" - ");
         const queries = stagingSearchVariants(line);
-        const fallbackQ = `${song.song_name ?? ""} ${song.artist ?? ""}`.trim();
-        const searchQs = queries.length ? queries : fallbackQ ? [fallbackQ] : [];
-        if (!searchQs.length) return null;
+        const searchQs = [...queries];
+        if (songName && isPlaceholderExportArtist(artistName)) {
+          searchQs.unshift(songName);
+        }
+        const fallbackQ = `${songName} ${artistName}`.trim();
+        if (fallbackQ && !searchQs.includes(fallbackQ)) {
+          searchQs.push(fallbackQ);
+        }
+        const uniqueQs = [...new Set(searchQs.filter((q) => q.trim().length >= 2))];
+        if (!uniqueQs.length) return null;
 
-        let bestHit: MeiliHit | undefined;
-        let bestScore = 0;
-        for (const q of searchQs) {
+        let best: { hit: MeiliHit; score: number } | null = null;
+        for (const q of uniqueQs) {
           const byText = await runMeiliSearchWithFilterFallback(
             baseUrl,
             index,
@@ -410,22 +430,20 @@ router.post("/resolve", async (req, res) => {
             { songsOnly: true },
             12,
           );
-          const picked = pickBestResolveHit(song, byText.hits);
-          if (!picked) continue;
-          const score = matchConfidence(
-            String(song.song_name ?? ""),
-            String(song.artist ?? ""),
-            msHitLikeFromMeiliRecord(picked),
-          );
-          if (score > bestScore) {
-            bestScore = score;
-            bestHit = picked;
+          const picked = pickResolveHit(song, byText.hits, minScore);
+          if (picked && (!best || picked.score > best.score)) {
+            best = picked;
           }
         }
-        return bestHit ?? null;
+        return best;
       },
     );
-    res.json({ hits: resolved });
+    res.json({
+      hits: resolved.map((r) => r?.hit ?? null),
+      results: resolved.map((r) =>
+        r ? { hit: r.hit, confidence: r.score } : null,
+      ),
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     res.status(502).json({ error: `Resolve search proxy error: ${msg}` });

@@ -9,7 +9,7 @@ import {
   trimLomdaatSongName,
 } from "./lomdaat-export.js";
 import {
-  lomdaatRowFromHits,
+  lomdaatRowFromMeiliRecord,
   repairMsHitForExport,
 } from "./export-row.js";
 import {
@@ -233,15 +233,11 @@ assert(
   "repair strips English from bilingual artist in playlist",
 );
 assert(
-  lomdaatRowFromHits(
-    { id: "4", song_name: "ביום ההוא", artist: "ישראל עמר" },
-    {
-      id: "5",
-      song_name: "ביום ההוא",
-      artist: "ישראל עמר",
-    },
-  ).artist === "ישראל עמר",
-  "lomdaat row uses resolved catalog hit",
+  lomdaatRowFromMeiliRecord({
+    song_name: "ביום ההוא",
+    artist: "ישראל עמר",
+  }).artist === "ישראל עמר",
+  "lomdaat row uses Meili import fields",
 );
 
 const quotedCsv = buildLomdaatPlaylistCsv("My Playlist", [

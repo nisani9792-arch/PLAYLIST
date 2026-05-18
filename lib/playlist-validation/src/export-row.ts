@@ -6,6 +6,10 @@ import {
 } from "./lomdaat-export";
 import type { MsHitLike } from "./ms-hit";
 import {
+  odooImportArtistFromHit,
+  odooImportSongNameFromHit,
+} from "./ms-hit";
+import {
   parseArtistSongLine,
   parseLineBothWays,
   sanitizePlaylistLine,
@@ -119,14 +123,28 @@ export function repairMsHitForExport(hit: MsHitLike): LomdaatPlaylistRow {
   };
 }
 
-/** One Lomdaat CSV row: canonical resolve when possible, else repaired playlist fields. */
+/**
+ * Lomdaat/Odoo row from a Meilisearch catalog record — exact import field mapping, no heuristics.
+ */
+export function lomdaatRowFromMeiliRecord(
+  hit: Record<string, unknown>,
+): LomdaatPlaylistRow {
+  return {
+    song_name: odooImportSongNameFromHit(hit),
+    artist: odooImportArtistFromHit(hit),
+  };
+}
+
+/** @deprecated Export uses lomdaatRowFromMeiliRecord after strict catalog resolve only. */
 export function lomdaatRowFromHits(
   playlistHit: MsHitLike,
   resolvedHit: MsHitLike | null | undefined,
 ): LomdaatPlaylistRow {
   if (resolvedHit) {
-    const fromCatalog = repairMsHitForExport(resolvedHit);
-    if (fromCatalog.song_name && fromCatalog.artist) return fromCatalog;
+    return {
+      song_name: preferHebrewOnlyText(resolvedHit.song_name),
+      artist: preferHebrewOnlyText(resolvedHit.artist),
+    };
   }
   return repairMsHitForExport(playlistHit);
 }

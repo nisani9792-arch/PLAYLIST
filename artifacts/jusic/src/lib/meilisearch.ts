@@ -4,6 +4,7 @@ import {
 } from '@workspace/playlist-validation';
 import type { SearchFilterOptions } from './search-filters';
 import { SONGS_ONLY_FILTERS } from './search-filters';
+
 export interface MsHit {
   id: string;
   song_name: string;
@@ -23,11 +24,18 @@ export type SearchResponse = {
   warning?: string;
 };
 
+export type OdooResolveResult = {
+  raw: Record<string, unknown>;
+  confidence: number;
+  song_name: string;
+  artist: string;
+} | null;
+
 function stableHitId(hit: Record<string, unknown>): string {
-  const uid = String(hit.uid ?? hit.id ?? "").trim();
+  const uid = String(hit.uid ?? hit.id ?? '').trim();
   if (uid) return uid;
-  const name = String(hit.song_name ?? hit.name_he ?? hit.name ?? hit.title ?? "");
-  const artist = String(hit.artist ?? hit.artist_name ?? "");
+  const name = String(hit.song_name ?? hit.name_he ?? hit.name ?? hit.title ?? '');
+  const artist = String(hit.artist ?? hit.artist_name ?? '');
   const key = `${artist}|${name}`.toLocaleLowerCase();
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) {
@@ -99,13 +107,17 @@ export async function meilisearchSearch(
   return { hits, warning };
 }
 
-export async function resolveSongsForOdoo(songs: MsHit[]): Promise<Array<MsHit | null>> {
+/** Strict catalog resolve for Lomdaat/Odoo export (high-confidence matches only). */
+export async function resolveSongsForOdoo(
+  songs: MsHit[],
+): Promise<OdooResolveResult[]> {
   if (!songs.length) return [];
 
   const res = await fetch('/api/search/resolve', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      export: true,
       songs: songs.map((s) => ({
         id: s.id,
         song_name: s.song_name,
@@ -126,6 +138,33 @@ export async function resolveSongsForOdoo(songs: MsHit[]): Promise<Array<MsHit |
     throw new Error(detail || `Resolve error: ${res.status}`);
   }
 
-  const data = (await res.json()) as { hits?: Array<Record<string, unknown> | null> };
-  return (data.hits || []).map((h) => (h ? normalizeHit(h) : null));
+  const data = (await res.json()) as {
+    results?: Array<{ hit: Record<string, unknown>; confidence: number } | null>;
+    hits?: Array<Record<string, unknown> | null>;
+  };
+
+  const results = data.results;
+  if (results?.length) {
+    return results.map((r) =>
+      r
+        ? {
+            raw: r.hit,
+            confidence: r.confidence,
+            song_name: odooImportSongNameFromHit(r.hit),
+            artist: odooImportArtistFromHit(r.hit),
+          }
+        : null,
+    );
+  }
+
+  return (data.hits || []).map((h) =>
+    h
+      ? {
+          raw: h,
+          confidence: 1,
+          song_name: odooImportSongNameFromHit(h),
+          artist: odooImportArtistFromHit(h),
+        }
+      : null,
+  );
 }
