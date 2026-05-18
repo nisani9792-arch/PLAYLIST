@@ -53,7 +53,6 @@ export function PlaylistView({
     setIsExporting(true);
     try {
       await exportPlaylistToCsv(playlistName, songs);
-      toast.success('קובץ פלייליסט לג\'וזיק אודיו נוצר עם שמות קנוניים ממסד הנתונים');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'שגיאה בייצוא פלייליסט';
       toast.error(msg);

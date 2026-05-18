@@ -71,8 +71,8 @@ export type LomdaatPlaylistRow = {
   artist: string;
 };
 
-/** RFC 4180-style field: quote when value contains comma, quote, or line break. */
-export function escapeCsvField(value: string): string {
+/** Quote only when required — Lomdaat reference CSV uses plain comma-separated Hebrew. */
+export function lomdaatCsvCell(value: string): string {
   const v = trimLomdaatField(value);
   if (/[",\r\n]/.test(v)) {
     return `"${v.replace(/"/g, '""')}"`;
@@ -80,15 +80,18 @@ export function escapeCsvField(value: string): string {
   return v;
 }
 
+/** @deprecated Use lomdaatCsvCell */
+export const escapeCsvField = lomdaatCsvCell;
+
 function formatLomdaatCsvRow(
   playlistName: string,
   songName: string,
   artistName: string,
 ): string {
   return [
-    escapeCsvField(playlistName),
-    escapeCsvField(trimLomdaatSongName(songName)),
-    escapeCsvField(artistName),
+    lomdaatCsvCell(playlistName),
+    lomdaatCsvCell(trimLomdaatSongName(songName)),
+    lomdaatCsvCell(artistName),
   ].join(",");
 }
 

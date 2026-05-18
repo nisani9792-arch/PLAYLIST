@@ -57,6 +57,8 @@ export type ParashaValidationContext = {
 
 export const AUTO_MATCH_THRESHOLD = 0.68;
 export const REVIEW_THRESHOLD = 0.38;
+/** Lomdaat/Odoo export — accept catalog matches at review confidence (not only auto-match). */
+export const LOMDAAT_EXPORT_THRESHOLD = REVIEW_THRESHOLD;
 
 function wordsSimilarity(query: string, candidate: string): number {
   const qWords = normalizeHebrew(query)

@@ -248,4 +248,15 @@ assert(
   "Lomdaat CSV escapes commas and quotes",
 );
 
+const templateCsv = buildLomdaatPlaylistCsv("בדיקה חדש", [
+  { song_name: "שבתראמפ", artist: "ליפא שמעלצר" },
+  { song_name: "בכיים של הילדים (ווקאלי)", artist: "שי וינר" },
+  { song_name: "לא לבד - עם ים רפאלי", artist: "קובי ברומר" },
+]);
+assert(
+  templateCsv ===
+    `${LOMDAAT_PLAYLIST_HEADERS}\r\nבדיקה חדש,שבתראמפ,ליפא שמעלצר\r\nבדיקה חדש,בכיים של הילדים (ווקאלי),שי וינר\r\nבדיקה חדש,לא לבד - עם ים רפאלי,קובי ברומר`,
+  "Lomdaat CSV matches reference template (CRLF, no quotes, no trailing CRLF)",
+);
+
 console.log("playlist-validation self-test OK");

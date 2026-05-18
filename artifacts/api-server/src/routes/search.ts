@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
-  AUTO_MATCH_THRESHOLD,
   isPlaceholderExportArtist,
+  LOMDAAT_EXPORT_THRESHOLD,
   matchConfidence,
   msHitLikeFromMeiliRecord,
   REVIEW_THRESHOLD,
@@ -341,7 +341,7 @@ router.post("/resolve", async (req, res) => {
     export?: boolean;
   };
 
-  const minScore = exportMode ? AUTO_MATCH_THRESHOLD : REVIEW_THRESHOLD;
+  const minScore = exportMode ? LOMDAAT_EXPORT_THRESHOLD : REVIEW_THRESHOLD;
 
   if (!Array.isArray(songs)) {
     res.status(400).json({ error: "Expected { songs: [...] }" });
@@ -389,6 +389,9 @@ router.post("/resolve", async (req, res) => {
             const firstUid = Array.isArray(byUid.hits)
               ? byUid.hits[0]
               : undefined;
+            if (firstUid && exportMode) {
+              return { hit: firstUid, score: 1 };
+            }
             const uidMatch = firstUid ? accept(firstUid) : null;
             if (uidMatch) return uidMatch;
           } catch (err) {
