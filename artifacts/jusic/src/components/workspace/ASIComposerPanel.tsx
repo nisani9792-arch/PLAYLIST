@@ -96,7 +96,13 @@ export function ASIComposerPanel({
 
   const handleMatchFromList = (lines: string[]) => {
     const clean = dedupePlaylistLines(lines);
-    if (!clean.length) return;
+    if (!clean.length) {
+      toast.error('לא נמצאו שורות שיר תקינות (שורות אמן/כותרות סוננו)');
+      return;
+    }
+    if (clean.length < lines.length) {
+      toast.info(`סוננו ${lines.length - clean.length} שורות (אמן בלבד / כותרות)`);
+    }
     setParashaContext(null);
     setActiveParashaExportContext(null, null, null);
     setStagingBatchId((b) => b + 1);

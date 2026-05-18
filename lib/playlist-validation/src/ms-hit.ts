@@ -1,3 +1,8 @@
+import {
+  isPrimarilyLatin,
+  trimLomdaatField,
+} from "./lomdaat-export";
+
 /** Minimal song hit shape used by validation (matches jusic MsHit). */
 export type MsHitLike = {
   id: string;
@@ -37,9 +42,11 @@ function artistNamesFromArray(raw: unknown): string[] {
       if (typeof entry === "string") return entry.trim();
       if (entry && typeof entry === "object") {
         const row = entry as Record<string, unknown>;
-        return String(
-          row.name ?? row.artist ?? row.name_he ?? row.label ?? "",
-        ).trim();
+        const he = String(row.name_he ?? row.artist_he ?? "").trim();
+        const main = String(row.name ?? row.artist ?? row.label ?? "").trim();
+        if (main && !isPrimarilyLatin(main)) return main;
+        if (he) return he;
+        return main;
       }
       return "";
     })
@@ -48,25 +55,29 @@ function artistNamesFromArray(raw: unknown): string[] {
 
 /** Artist string for Lomdaat / Odoo `imported_artist_name` (must match catalog). */
 export function odooImportArtistFromHit(hit: Record<string, unknown>): string {
-  const direct = String(hit.artist ?? hit.artist_name ?? "").trim();
-  if (direct) return direct;
+  const artistHe = String(hit.artist_he ?? hit.artist_name_he ?? "").trim();
+  const artistMain = String(hit.artist ?? hit.artist_name ?? "").trim();
+
+  if (artistMain && !isPrimarilyLatin(artistMain)) {
+    return trimLomdaatField(artistMain);
+  }
+  if (artistHe) return trimLomdaatField(artistHe);
 
   const fromArray = artistNamesFromArray(hit.artists);
-  if (fromArray.length) return fromArray.join(" ");
+  if (fromArray.length) return trimLomdaatField(fromArray.join(" "));
 
-  return String(hit.artist_he ?? hit.artist_name_he ?? "").trim();
+  if (artistMain) return trimLomdaatField(artistMain);
+  return "";
 }
 
 /** Song title for Lomdaat / Odoo `imported_song_name`. */
 export function odooImportSongNameFromHit(hit: Record<string, unknown>): string {
-  return String(
-    hit.name_he ??
-      hit.song_name ??
-      hit.name_en ??
-      hit.name ??
-      hit.title ??
-      "",
-  ).trim();
+  const nameHe = String(hit.name_he ?? "").trim();
+  const main = String(hit.song_name ?? hit.name ?? hit.title ?? "").trim();
+
+  if (main && !isPrimarilyLatin(main)) return trimLomdaatField(main);
+  if (nameHe) return trimLomdaatField(nameHe);
+  return trimLomdaatField(main);
 }
 
 export function msHitLikeFromMeiliRecord(hit: Record<string, unknown>): MsHitLike {

@@ -4,9 +4,15 @@ import { fileURLToPath } from "node:url";
 import { repairPshRow } from "./psh-repair";
 import type { PshSongRow } from "./psh-types";
 import {
+  buildLomdaatPlaylistCsv,
+  LOMDAAT_PLAYLIST_HEADERS,
+} from "./lomdaat-export.js";
+import {
   odooImportArtistFromHit,
   odooImportSongNameFromHit,
 } from "./ms-hit.js";
+import { isArtistOnlyPlaylistLine } from "./sanitize.js";
+import { buildStagingSearchQuery } from "./staging-query.js";
 import { dedupePlaylistLines } from "./sanitize";
 import { assertHashkafaClean } from "./secular-artists";
 import {
@@ -153,5 +159,28 @@ assert(
     "שבתראמפ",
   "Odoo export prefers Hebrew song title",
 );
+assert(
+  odooImportArtistFromHit({
+    artist: "David Klein",
+    artist_he: "משה קליין",
+  }) === "משה קליין",
+  "Odoo export uses Hebrew when main artist is Latin",
+);
+assert(isArtistOnlyPlaylistLine("יניב בן משיח"), "artist-only header");
+assert(!isArtistOnlyPlaylistLine("שבתראמפ"), "single song title is searchable");
+assert(
+  buildStagingSearchQuery("דוד יפרח - שבת שלום") === "שבת שלום דוד יפרח",
+  "staging search is song-first",
+);
+assert(buildStagingSearchQuery("יניב בן משיח") === null, "artist-only not searched");
+
+const sampleCsv = buildLomdaatPlaylistCsv("בדיקה חדש", [
+  { song_name: "שבתראמפ", artist: "ליפא שמעלצר" },
+]);
+assert(
+  sampleCsv.startsWith(LOMDAAT_PLAYLIST_HEADERS),
+  "Lomdaat CSV header",
+);
+assert(sampleCsv.includes("\r\n"), "Lomdaat CSV CRLF");
 
 console.log("playlist-validation self-test OK");

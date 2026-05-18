@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { dedupePlaylistLines } from '@workspace/playlist-validation';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { StagingArea, StagingItem } from './StagingArea';
@@ -21,8 +22,15 @@ export function BulkPanel({ onAddSongs }: { onAddSongs: (songs: MsHit[]) => void
   );
 
   const handleMatch = () => {
-    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) return;
+    const raw = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    const lines = dedupePlaylistLines(raw);
+    if (!lines.length) {
+      toast.error('לא נמצאו שורות שיר תקינות (שורות אמן/כותרות סוננו)');
+      return;
+    }
+    if (lines.length < raw.length) {
+      toast.info(`סוננו ${raw.length - lines.length} שורות (אמן בלבד / כותרות)`);
+    }
     setStagingBatchId((b) => b + 1);
     setStagingItems(
       lines.map((line) => ({

@@ -1,26 +1,14 @@
-import { validatePlaylistForExport, type ParashaValidationContext } from '@workspace/playlist-validation';
+import {
+  buildLomdaatPlaylistCsv,
+  LOMDAAT_PLAYLIST_FILENAME,
+  LOMDAAT_PLAYLIST_HEADERS,
+  validatePlaylistForExport,
+  type ParashaValidationContext,
+} from '@workspace/playlist-validation';
 import { MsHit, resolveSongsForOdoo } from './meilisearch';
 import { resolveParashaNameFromClient } from './parasha-export-context';
 
-/** Lomdaat / Jusic Audio import format (must match player expectations exactly). */
-export const LOMDAAT_PLAYLIST_HEADERS =
-  'imported_playlist_name,imported_song_name,imported_artist_name';
-
-export const LOMDAAT_PLAYLIST_FILENAME = 'lomdaat_music.playlist.csv';
-
-export function buildLomdaatPlaylistCsv(
-  playlistName: string,
-  rows: Array<{ song_name: string; artist: string }>,
-): string {
-  const safePlaylist = playlistName.trim();
-  const lines = [
-    LOMDAAT_PLAYLIST_HEADERS,
-    ...rows.map((row) =>
-      [safePlaylist, row.song_name.trim(), row.artist.trim()].join(','),
-    ),
-  ];
-  return lines.join('\r\n');
-}
+export { LOMDAAT_PLAYLIST_HEADERS, LOMDAAT_PLAYLIST_FILENAME, buildLomdaatPlaylistCsv };
 
 export type ExportOptions = {
   parashaContext?: ParashaValidationContext | null;

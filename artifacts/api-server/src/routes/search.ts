@@ -386,7 +386,7 @@ router.post("/resolve", async (req, res) => {
         }
 
         // 2) Fallback to text lookup, but still return canonical DB hit.
-        const fuzzyQ = `${song.artist ?? ""} ${song.song_name ?? ""}`.trim();
+        const fuzzyQ = `${song.song_name ?? ""} ${song.artist ?? ""}`.trim();
         if (!fuzzyQ) return null;
         const byText = await runMeiliSearchWithFilterFallback(
           baseUrl,

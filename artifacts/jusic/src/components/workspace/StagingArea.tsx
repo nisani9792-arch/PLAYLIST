@@ -2,7 +2,10 @@ import { useEffect } from "react";
 import {
   AUTO_MATCH_THRESHOLD,
   REVIEW_THRESHOLD,
+  buildStagingSearchQuery,
+  formatStagingDisplayLabel,
   sanitizePlaylistLine,
+  stagingSearchVariants,
   validateStagingMatch,
   type ParashaValidationContext,
   type PshSongRow,
@@ -37,9 +40,11 @@ export interface StagingItem {
   confidence?: number;
   pshRow?: PshSongRow;
   blockReason?: string;
+  skipReason?: string;
 }
 const RANKING_BOOST = 0.1;
 const STAGING_SEARCH_LIMIT = 20;
+const STAGING_BATCH_SIZE = 10;
 
 function normalizeHebrew(s: string): string {
   return s
@@ -124,26 +129,6 @@ function splitArtistSong(query: string): {
   if (!left.trim() || !right.trim())
     return { left: "", right: cleaned, whole: cleaned };
   return { left: left.trim(), right: right.trim(), whole: cleaned };
-}
-
-function uniqueSearchVariants(query: string, maxVariants = 2): string[] {
-  const parsed = splitArtistSong(query);
-  const variants = [
-    parsed.whole,
-    parsed.left && parsed.right ? `${parsed.left} ${parsed.right}` : parsed.right,
-  ];
-
-  const seen = new Set<string>();
-  return variants
-    .map((v) => v.trim())
-    .filter((v) => {
-      if (v.length < 2) return false;
-      const key = normalizeHebrew(v);
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, maxVariants);
 }
 
 function candidateConfidence(
@@ -249,7 +234,7 @@ async function findBestMatch(
   cache: Map<string, Promise<MsHit[]>>,
 ): Promise<{ hit: MsHit | null; confidence: number }> {
   const allHits = new Map<string, MsHit>();
-  const [primaryVariant, ...fallbackVariants] = uniqueSearchVariants(query);
+  const [primaryVariant, ...fallbackVariants] = stagingSearchVariants(query);
   if (!primaryVariant) return { hit: null, confidence: 0 };
 
   const primaryHits = await cachedSearch(primaryVariant, filters, cache);
@@ -300,20 +285,29 @@ export function StagingArea({
     if (!pendingItems.length) return;
     const searchCache = new Map<string, Promise<MsHit[]>>();
 
-    for (let i = 0; i < pendingItems.length; i += 8) {
-      const batch = pendingItems.slice(i, i + 8);
+    for (let i = 0; i < pendingItems.length; i += STAGING_BATCH_SIZE) {
+      const batch = pendingItems.slice(i, i + STAGING_BATCH_SIZE);
 
       const promises = batch.map(async (item) => {
+        const query = sanitizePlaylistLine(item.query);
+        const searchLine = buildStagingSearchQuery(query, item.pshRow);
+
+        if (!searchLine) {
+          return {
+            id: item.id,
+            hit: null,
+            confidence: 0,
+            blocked: false,
+            artistOnly: true,
+          };
+        }
+
         setItems((prev) =>
           prev.map((p) =>
             p.id === item.id ? { ...p, status: "searching" as const } : p,
           ),
         );
         try {
-          const query = sanitizePlaylistLine(item.query);
-          const searchLine = item.pshRow
-            ? `${item.pshRow.artist} ${item.pshRow.title}`
-            : query;
           const best = await findBestMatch(
             searchLine,
             searchFilters,
@@ -364,6 +358,15 @@ export function StagingArea({
         prev.map((p) => {
           const res = results.find((r) => r.id === p.id);
           if (!res) return p;
+          if ("artistOnly" in res && res.artistOnly) {
+            return {
+              ...p,
+              status: "skipped" as const,
+              skipReason: "שורת אמן בלבד — לא נכלל בחיפוש",
+              match: undefined,
+              confidence: 0,
+            };
+          }
           if ("blocked" in res && res.blocked) {
             return {
               ...p,
@@ -448,6 +451,7 @@ export function StagingArea({
     .map((i) => i.match!);
   const reviewCount = items.filter((i) => i.status === "review").length;
   const blockedCount = items.filter((i) => i.status === "blocked").length;
+  const skippedCount = items.filter((i) => i.status === "skipped").length;
   const totalCount = items.length;
 
   return (
@@ -477,6 +481,12 @@ export function StagingArea({
                 · {blockedCount} חסומי השקפה
               </span>
             )}
+            {skippedCount > 0 && (
+              <span className="text-muted-foreground mr-1">
+                {" "}
+                · {skippedCount} דולגו
+              </span>
+            )}
           </span>
         </h3>
         {isProcessing && (
@@ -485,14 +495,14 @@ export function StagingArea({
       </div>
 
       <div
-        className={`flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto custom-scrollbar ${
-          mobileLayout ? '' : 'max-h-[min(16rem,38dvh)] sm:max-h-64'
+        className={`flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain custom-scrollbar ${
+          mobileLayout ? 'pb-1' : 'max-h-[min(22rem,45dvh)] sm:max-h-72'
         }`}
       >
           {items.map((item) => (
             <div
               key={item.id}
-              className={`flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 p-3 min-h-[3rem] rounded-xl text-sm border transition-colors ${
+              className={`flex flex-col gap-2.5 p-3 rounded-xl text-sm border transition-colors min-w-0 overflow-hidden ${
                 item.status === "matched"
                   ? "bg-primary/5 border-primary/20"
                   : item.status === "review"
@@ -506,22 +516,40 @@ export function StagingArea({
                         : "bg-background/30 border-border/40"
               }`}
             >
-              <span className="w-full sm:flex-1 min-w-0 text-xs font-medium leading-snug">
-                <span className="block break-words" title={item.query}>
-                  {item.query}
-                </span>
+              <div className="min-w-0 w-full space-y-1">
+                <p
+                  className="text-xs font-semibold leading-snug line-clamp-2 break-words text-foreground"
+                  title={item.query}
+                  dir="rtl"
+                >
+                  {formatStagingDisplayLabel(item.query)}
+                </p>
+                {item.match && (
+                  <p
+                    className="text-[11px] text-muted-foreground line-clamp-1 break-words"
+                    dir="rtl"
+                    title={`${item.match.artist} · ${item.match.song_name}`}
+                  >
+                    {item.match.artist} · {item.match.song_name}
+                  </p>
+                )}
+                {item.skipReason && item.status === "skipped" && (
+                  <p className="text-[10px] text-muted-foreground line-clamp-2">
+                    {item.skipReason}
+                  </p>
+                )}
                 {item.blockReason && item.status !== "blocked" && (
-                  <span className="block text-[10px] text-amber-700 mt-1 leading-tight">
+                  <p className="text-[10px] text-amber-700 line-clamp-2">
                     {item.blockReason}
-                  </span>
+                  </p>
                 )}
                 {item.blockReason && item.status === "blocked" && (
-                  <span className="block text-[10px] text-destructive mt-1 leading-tight">
+                  <p className="text-[10px] text-destructive line-clamp-2">
                     {item.blockReason}
-                  </span>
+                  </p>
                 )}
-              </span>
-              <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:flex-shrink-0 sm:mr-2">
+              </div>
+              <div className="flex flex-wrap items-center justify-start sm:justify-end gap-1.5 w-full shrink-0 border-t border-border/30 pt-2 sm:border-0 sm:pt-0">
                 {item.status === "pending" && (
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" /> ממתין
@@ -541,20 +569,17 @@ export function StagingArea({
                   </span>
                 )}
                 {item.status === "skipped" && (
-                  <span className="text-xs text-muted-foreground bg-muted/30 border border-border px-2 py-0.5 rounded-lg">
-                    דולג
+                  <span
+                    className="text-[10px] text-muted-foreground bg-muted/30 border border-border px-2 py-0.5 rounded-lg shrink-0"
+                    title={item.skipReason}
+                  >
+                    {item.skipReason?.includes("אמן") ? "אמן בלבד" : "דולג"}
                   </span>
                 )}
                 {item.status === "review" && item.match && (
                   <>
                     <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-lg shrink-0">
                       <AlertTriangle className="h-3 w-3" /> ממתין לאישור
-                    </span>
-                    <span
-                      className="flex items-center gap-1 text-xs text-yellow-600 truncate max-w-full sm:max-w-[140px]"
-                      title={`${item.match.song_name} - ${item.match.artist}`}
-                    >
-                      {item.match.song_name}
                     </span>
                     <button
                       type="button"
@@ -574,12 +599,9 @@ export function StagingArea({
                 )}
                 {item.status === "matched" && item.match && (
                   <>
-                    <span
-                      className="flex items-center gap-1 text-xs text-primary truncate max-w-full sm:max-w-[140px]"
-                      title={`${item.match.song_name} - ${item.match.artist}`}
-                    >
+                    <span className="flex items-center gap-1 text-[10px] text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-lg shrink-0">
                       <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
-                      {item.match.song_name}
+                      הותאם
                     </span>
                     <button
                       type="button"

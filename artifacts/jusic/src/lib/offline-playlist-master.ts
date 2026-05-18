@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import * as fuzzball from 'fuzzball';
-import { buildLomdaatPlaylistCsv } from './export';
+import { buildLomdaatPlaylistCsv } from '@workspace/playlist-validation';
 
 const EXCLUDED_TOKENS = [
   'podcast',
