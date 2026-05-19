@@ -159,6 +159,15 @@ export function getBuildSignals(): BuildSignals {
   return loadSignals();
 }
 
+export function clearBuildSignals(): void {
+  try {
+    localStorage.removeItem(SIGNALS_KEY);
+    localStorage.removeItem(HISTORY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function getPlaylistHistory(): PlaylistHistoryEntry[] {
   return loadHistory();
 }

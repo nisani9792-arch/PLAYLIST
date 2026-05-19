@@ -118,6 +118,12 @@
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
+  /* Surface hierarchy — hybrid light UI */
+  --surface-0: 210 52% 98%;
+  --surface-1: 0 0% 100%;
+  --surface-2: 214 42% 96%;
+  --text-secondary: 215 17% 45%;
+
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-accent-border: hsl(var(--sidebar-accent));
   --primary-border: hsl(var(--primary));
@@ -218,16 +224,33 @@
   }
 
   .app-shell-bg {
-    background-color: hsl(var(--background));
-    background-image:
-      radial-gradient(ellipse 1100px 640px at 98% -8%, hsl(188 96% 45% / 0.17), transparent 58%),
-      radial-gradient(ellipse 880px 520px at -6% 108%, hsl(259 94% 64% / 0.09), transparent 52%),
-      linear-gradient(
-        164deg,
-        hsl(212 72% 99.6%) 0%,
-        hsl(204 62% 97.8%) 45%,
-        hsl(216 54% 98.8%) 100%
-      );
+    background-color: hsl(var(--surface-0));
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--surface-0)) 0%,
+      hsl(var(--surface-2) / 0.65) 100%
+    );
+  }
+
+  .bp-surface-card {
+    background: hsl(var(--surface-1));
+    border: 1px solid hsl(var(--border) / 0.75);
+    box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+    border-radius: var(--radius);
+  }
+
+  .text-secondary {
+    color: hsl(var(--text-secondary));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 
   .dark .app-shell-bg {

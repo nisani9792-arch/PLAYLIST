@@ -22,6 +22,7 @@ import { dedupePlaylistLines } from "./sanitize";
 import { assertHashkafaClean } from "./secular-artists";
 import {
   findPshRowForLine,
+  queryMatchesHit,
   validateHashkafa,
   validateStagingMatch,
 } from "./validate";
@@ -257,6 +258,14 @@ assert(
   templateCsv ===
     `${LOMDAAT_PLAYLIST_HEADERS}\r\nבדיקה חדש,שבתראמפ,ליפא שמעלצר\r\nבדיקה חדש,בכיים של הילדים (ווקאלי),שי וינר\r\nבדיקה חדש,לא לבד - עם ים רפאלי,קובי ברומר`,
   "Lomdaat CSV matches reference template (CRLF, no quotes, no trailing CRLF)",
+);
+
+assert(
+  queryMatchesHit("ישראל עמר - ביום ההוא", {
+    song_name: "ביום ההוא",
+    artist: "ישראל עמר",
+  }),
+  "queryMatchesHit accepts exact artist-song pairing",
 );
 
 console.log("playlist-validation self-test OK");

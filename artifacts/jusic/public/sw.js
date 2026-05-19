@@ -1,4 +1,4 @@
-const CACHE_NAME = "build-play-v9";
+const CACHE_NAME = "build-play-v10";
 const APP_SHELL = ["./"];
 const NETWORK_FIRST_ASSETS = [
   "manifest.json",

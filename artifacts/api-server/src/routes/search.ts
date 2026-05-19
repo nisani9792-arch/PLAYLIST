@@ -1,5 +1,7 @@
 import { Router } from "express";
 import {
+  isExactSongArtistMatch,
+  isExactSongTitleMatch,
   isPlaceholderExportArtist,
   LOMDAAT_EXPORT_THRESHOLD,
   matchConfidence,
@@ -169,6 +171,7 @@ function pickResolveHit(
   query: { song_name?: string; artist?: string },
   hits: MeiliHit[] | undefined,
   minScore: number,
+  exportMode = false,
 ): { hit: MeiliHit; score: number } | null {
   if (!hits?.length) return null;
   const song = String(query.song_name ?? "").trim();
@@ -178,11 +181,29 @@ function pickResolveHit(
   let best: MeiliHit | undefined;
   let bestScore = 0;
   for (const hit of hits) {
-    const score = matchConfidence(
-      song,
-      artist,
-      msHitLikeFromMeiliRecord(hit),
-    );
+    const like = msHitLikeFromMeiliRecord(hit);
+    let score = matchConfidence(song, artist, like);
+
+    const songExact = song && isExactSongTitleMatch(song, like.song_name);
+    const pairExact =
+      song &&
+      artist &&
+      isExactSongArtistMatch(
+        { song_name: song, artist },
+        { song_name: like.song_name, artist: like.artist },
+      );
+    if (pairExact) score = 1;
+    else if (songExact && (!artist || isPlaceholderExportArtist(artist))) {
+      score = Math.max(score, 0.92);
+    } else if (songExact) {
+      score = Math.max(score, matchConfidence(song, artist, like));
+    }
+
+    if (exportMode && song && artist && !isPlaceholderExportArtist(artist)) {
+      const artistScore = matchConfidence("", artist, like);
+      if (!pairExact && artistScore < 0.42 && !songExact) continue;
+    }
+
     if (score > bestScore) {
       bestScore = score;
       best = hit;
@@ -374,7 +395,7 @@ router.post("/resolve", async (req, res) => {
         const artistName = String(song.artist ?? "").trim();
 
         const accept = (hit: MeiliHit): { hit: MeiliHit; score: number } | null => {
-          const picked = pickResolveHit(song, [hit], minScore);
+          const picked = pickResolveHit(song, [hit], minScore, exportMode);
           return picked;
         };
 
@@ -389,10 +410,8 @@ router.post("/resolve", async (req, res) => {
             const firstUid = Array.isArray(byUid.hits)
               ? byUid.hits[0]
               : undefined;
-            if (firstUid && exportMode) {
-              return { hit: firstUid, score: 1 };
-            }
             const uidMatch = firstUid ? accept(firstUid) : null;
+            if (uidMatch && exportMode) return uidMatch;
             if (uidMatch) return uidMatch;
           } catch (err) {
             if (!isRecoverableFilterError(err)) throw err;
@@ -427,13 +446,13 @@ router.post("/resolve", async (req, res) => {
             apiKey,
             {
               q,
-              limit: 12,
+              limit: exportMode ? 24 : 12,
               filter: ['type = "SONG"'],
             },
             { songsOnly: true },
-            12,
+            exportMode ? 24 : 12,
           );
-          const picked = pickResolveHit(song, byText.hits, minScore);
+          const picked = pickResolveHit(song, byText.hits, minScore, exportMode);
           if (picked && (!best || picked.score > best.score)) {
             best = picked;
           }
@@ -443,9 +462,16 @@ router.post("/resolve", async (req, res) => {
     );
     res.json({
       hits: resolved.map((r) => r?.hit ?? null),
-      results: resolved.map((r) =>
-        r ? { hit: r.hit, confidence: r.score } : null,
-      ),
+      results: resolved.map((r, i) => {
+        if (r) return { hit: r.hit, confidence: r.score };
+        const song = songs[i];
+        const songName = String(song?.song_name ?? "").trim();
+        const artistName = String(song?.artist ?? "").trim();
+        if (!songName && !artistName) {
+          return { hit: null, failedReason: "empty" as const };
+        }
+        return { hit: null, failedReason: "no_match" as const };
+      }),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";

@@ -6,6 +6,11 @@ import {
 } from "../lib/system-settings-store";
 import { createGeminiClient } from "../lib/gemini-client-factory";
 import { logger } from "../lib/logger";
+import {
+  getOperatorPreferences,
+  listRecentPlaylists,
+} from "../lib/playlist-store";
+import type { RequestWithOperator } from "../middleware/operator";
 
 const router = Router();
 
@@ -153,6 +158,7 @@ function buildCuratorPrompt(input: {
   prompt: string;
   customInstructions: string;
   includePshPdf: boolean;
+  operatorMemory?: string;
 }): string {
   const modeList = promptLooksLikeSongList(input.prompt);
 
@@ -193,6 +199,7 @@ ${listModeInstructions}
 ${pshInstructions}
 
 ${input.customInstructions ? `## הנחיות מערכת נוספות\n${input.customInstructions}\n` : ""}
+${input.operatorMemory ? `${input.operatorMemory}\n` : ""}
 
 ## פלט חובה
 החזר אך ורק JSON תקין, ללא markdown וללא טקסט מסביב, במבנה:
@@ -207,7 +214,35 @@ ${input.customInstructions ? `## הנחיות מערכת נוספות\n${input.c
 "${input.prompt}"`;
 }
 
-async function buildGeminiContents(prompt: string): Promise<
+async function buildOperatorMemoryBlock(operatorName: string): Promise<string> {
+  const name = operatorName.trim();
+  if (!name) return "";
+  const [recent, prefs] = await Promise.all([
+    listRecentPlaylists(name, 5),
+    getOperatorPreferences(name),
+  ]);
+  const lines: string[] = [];
+  const style = prefs.geminiStyleNotes?.trim();
+  const genres = (prefs.preferredGenres ?? []).filter(Boolean);
+  if (style) lines.push(`העדפות סגנון המפעיל: ${style}`);
+  if (genres.length) lines.push(`ז'אנרים מועדפים: ${genres.join(", ")}`);
+  if (recent.length) {
+    lines.push(
+      "פלייליסטים אחרונים של המפעיל (השתמש כהשראה, לא להעתקה מדויקת):",
+      ...recent.map(
+        (p: { name: string; parasha?: string | null }) =>
+          `- ${p.name}${p.parasha ? ` (פרשת ${p.parasha})` : ""}`,
+      ),
+    );
+  }
+  if (!lines.length) return "";
+  return `## זיכרון מפעיל\n${lines.join("\n")}`;
+}
+
+async function buildGeminiContents(
+  prompt: string,
+  operatorName?: string,
+): Promise<
   Array<{
     role: "user";
     parts: Array<Record<string, unknown>>;
@@ -220,6 +255,9 @@ async function buildGeminiContents(prompt: string): Promise<
   const customInstructions = settings[SETTINGS_KEYS.AI_CUSTOM_INSTRUCTIONS]?.trim() ?? "";
   const pshPdfBase64 = settings[SETTINGS_KEYS.AI_PSH_PDF_BASE64]?.trim() ?? "";
   const usePsh = promptIsParashaRelated(prompt) && pshPdfBase64.length > 0;
+  const operatorMemory = operatorName
+    ? await buildOperatorMemoryBlock(operatorName)
+    : "";
 
   const parts: Array<Record<string, unknown>> = [];
   if (usePsh) {
@@ -235,6 +273,7 @@ async function buildGeminiContents(prompt: string): Promise<
       prompt,
       customInstructions,
       includePshPdf: usePsh,
+      operatorMemory,
     }),
   });
 
@@ -244,8 +283,9 @@ async function buildGeminiContents(prompt: string): Promise<
 async function generatePlaylistWithFallback(
   client: Awaited<ReturnType<typeof getGeminiClientOrThrow>>,
   prompt: string,
+  operatorName?: string,
 ) {
-  const contents = await buildGeminiContents(prompt);
+  const contents = await buildGeminiContents(prompt, operatorName);
   let lastErr: unknown;
   for (const model of PLAYLIST_MODELS) {
     try {
@@ -307,8 +347,10 @@ router.post("/playlist/stream", async (req, res) => {
     return;
   }
 
+  const operatorName = (req as RequestWithOperator).operatorName;
+
   try {
-    const response = await generatePlaylistWithFallback(client, prompt);
+    const response = await generatePlaylistWithFallback(client, prompt, operatorName);
 
     const lines = linesFromModelText(response.text ?? "");
 
@@ -353,8 +395,14 @@ router.post("/playlist", async (req, res) => {
     return;
   }
 
+  const operatorName = (req as RequestWithOperator).operatorName;
+
   try {
-    const response = await generatePlaylistWithFallback(client, prompt);
+    const response = await generatePlaylistWithFallback(
+      client,
+      prompt,
+      operatorName,
+    );
 
     const text = response.text ?? "";
     const lines = linesFromModelText(text);

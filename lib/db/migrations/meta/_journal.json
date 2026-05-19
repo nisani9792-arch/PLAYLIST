@@ -22,6 +22,13 @@
       "when": 1778858000000,
       "tag": "0002_access_operators",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779200000000,
+      "tag": "0003_playlist_memory",
+      "breakpoints": true
     }
   ]
 }

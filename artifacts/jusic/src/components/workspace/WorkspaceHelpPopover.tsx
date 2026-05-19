@@ -23,33 +23,35 @@ export function WorkspaceHelpPopover() {
       >
         <div className="space-y-3">
           <div>
-            <p className="font-semibold text-foreground mb-1.5">מטרת BUILD PLAY</p>
-            <p className="text-muted-foreground leading-relaxed text-[13px]">
-              עמדת עריכת פלייליסטים לצוותים שמכינים רשימות השמעה מדויקות: חיפוש במאגר עם פילטרים,
-              סידור וגרירה, ייבוא מטקסט חופשי ו-AI, וייצוא CSV לאודו.
-            </p>
-          </div>
-          <div>
-            <p className="font-semibold text-foreground mb-1.5">חיפוש במאגר</p>
-            <p className="text-[13px] text-muted-foreground leading-relaxed">
-              החיפוש מחזיר <strong className="text-foreground">שירים בלבד</strong> תמיד.
-              ניתן להוסיף <strong className="text-foreground">ז&apos;אנר</strong> מדויק — אם אין תוצאות, נסה בלי ז&apos;אנר.
-            </p>
-          </div>
-          <div>
-            <p className="font-semibold text-foreground mb-1.5">אזורים במסך</p>
+            <p className="font-semibold text-foreground mb-1.5">שלושה שלבים</p>
             <ul className="text-[13px] text-muted-foreground space-y-1 list-disc pr-4">
-              <li>פס הפילטרים + חיפוש — הוספת שירים בודדים</li>
-              <li>ייבוא מרשימה — אותם פילטרים נשמרים להתאמת השורות</li>
-              <li>AI מוזיקלי — נושא חופשי (22–30 שירים) או פרשת שבוע (מקובץ PSH + התאמה במאגר)</li>
-              <li>מרכז — הפלייליסט (גרירה, הסרה, ייצוא לאודו)</li>
+              <li>
+                <strong className="text-foreground">בנה</strong> — הדבק רשימה, פרשת שבוע, או תאר נושא (AI)
+              </li>
+              <li>
+                <strong className="text-foreground">התאם</strong> — אשר התאמות, בחר חלופות, סנן לפי סטטוס
+              </li>
+              <li>
+                <strong className="text-foreground">פלייליסט</strong> — סדר, חפש מקומית, ייצא לאודו עם תצוגה מקדימה
+              </li>
             </ul>
           </div>
           <div>
-            <p className="font-semibold text-foreground mb-1.5">טיוטה ולמידה עתידית</p>
+            <p className="font-semibold text-foreground mb-1.5">מובייל</p>
             <p className="text-[13px] text-muted-foreground leading-relaxed">
-              הטיוטה נשמרת אוטומטית בדפדפן, כולל בעת סגירת טאב או קריסה — עם סנכרון לפני יציאה מהעמוד.
-              כפתור המוח ליד כאן מוריד JSON עם סטטיסטיקות ז&apos;אנרים/תגיות והיסטוריית ייצואים לשימוש עתידי באימון מודל.
+              ניווט תחתון בין השלבים. בדסקטופ — פלייליסט, התאמה ומלחין גלויים יחד בזמן התאמה.
+            </p>
+          </div>
+          <div>
+            <p className="font-semibold text-foreground mb-1.5">ייצוא לאודו</p>
+            <p className="text-[13px] text-muted-foreground leading-relaxed">
+              רק שורות עם resolve מוצלח במאגר נכנסות ל-CSV (ברירת מחדל). בדיאלוג הייצוא רואים מה ייכנס ומה נפל.
+            </p>
+          </div>
+          <div>
+            <p className="font-semibold text-foreground mb-1.5">זיכרון</p>
+            <p className="text-[13px] text-muted-foreground leading-relaxed">
+              בחירות בהתאמה וייצואים נשמרים בשרת ומשפרים הצעות AI בהמשך. הגדרות מפעיל ב־/settings.
             </p>
           </div>
         </div>

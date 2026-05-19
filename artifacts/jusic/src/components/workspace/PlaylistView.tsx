@@ -5,7 +5,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { GripVertical, X, Download, Trash2, Search, Music } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { exportPlaylistToCsv } from '../../lib/export';
+import { ExportControlDialog } from './ExportControlDialog';
 import { cn } from '@/lib/utils';
 import { recordPlaylistExport } from '../../lib/playlist-learning';
 import { motion } from 'framer-motion';
@@ -31,10 +31,20 @@ export function PlaylistView({
   className,
 }: PlaylistViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const [isExporting, setIsExporting] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+
+  const filteredSongs = filter.trim()
+    ? songs.filter((s) => {
+        const q = filter.trim().toLowerCase();
+        return (
+          s.song_name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q)
+        );
+      })
+    : songs;
 
   const rowVirtualizer = useVirtualizer({
-    count: songs.length,
+    count: filteredSongs.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 68,
     overscan: 8,
@@ -46,19 +56,6 @@ export function PlaylistView({
   }) => {
     if (!result.destination) return;
     reorderSongs(result.source.index, result.destination.index);
-  };
-
-  const handleExport = async () => {
-    recordPlaylistExport(playlistName, songs);
-    setIsExporting(true);
-    try {
-      await exportPlaylistToCsv(playlistName, songs);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'שגיאה בייצוא פלייליסט';
-      toast.error(msg);
-    } finally {
-      setIsExporting(false);
-    }
   };
 
   return (
@@ -78,7 +75,7 @@ export function PlaylistView({
             <Music className="h-3.5 w-3.5 text-primary" />
             <span>פלייליסט פעיל</span>
           </div>
-          <div className="flex flex-col xs:flex-row xs:items-center gap-2 sm:gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <Input
               data-testid="playlist-name-input"
               type="text"
@@ -99,6 +96,14 @@ export function PlaylistView({
               {songs.length} שירים · ייצוא Lomdaat
             </span>
           </div>
+          <Input
+            type="search"
+            placeholder="סינון שירים..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="h-9 rounded-xl text-sm"
+            dir="rtl"
+          />
         </div>
         <div className="flex items-center justify-stretch sm:justify-end gap-2 w-full sm:w-auto shrink-0">
           <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="flex-1 sm:flex-none">
@@ -116,30 +121,22 @@ export function PlaylistView({
             <Button
               data-testid="export-csv-button"
               size="sm"
-              onClick={handleExport}
-              disabled={!songs.length || isExporting}
+              onClick={() => setExportOpen(true)}
+              disabled={!songs.length}
               className="w-full sm:w-auto rounded-xl shadow-md shadow-primary/20 text-xs font-semibold min-h-[2.35rem] sm:min-h-[2rem]"
             >
-              {isExporting ? (
-                <>
-                  <motion.span
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                    className="inline-flex"
-                  >
-                    <Download className="w-3.5 h-3.5 mr-1.5" />
-                  </motion.span>
-                  מייצא...
-                </>
-              ) : (
-                <>
-                  <Download className="w-3.5 h-3.5 mr-1.5" /> ייצוא לג&apos;וזיק אודיו
-                </>
-              )}
+              <Download className="w-3.5 h-3.5 mr-1.5" /> ייצוא לאודו
             </Button>
           </motion.div>
         </div>
       </div>
+
+      <ExportControlDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        playlistName={playlistName}
+        songs={songs}
+      />
 
       <div className="flex-1 overflow-hidden relative bg-gradient-to-b from-transparent to-muted/[0.12]">
         {songs.length === 0 ? (
@@ -187,7 +184,7 @@ export function PlaylistView({
                 >
                   <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
                     {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                      const song = songs[virtualRow.index];
+                      const song = filteredSongs[virtualRow.index]!;
 
                       return (
                         <Draggable

@@ -4,6 +4,7 @@ import accessRouter from "./access";
 import geminiRouter from "./gemini";
 import searchRouter from "./search";
 import parashaRouter from "./parasha";
+import playlistsRouter from "./playlists";
 import { attachOperator } from "../middleware/operator";
 import { geminiRateLimiter, searchRateLimiter } from "../middleware/rate-limit";
 
@@ -15,5 +16,6 @@ router.use(attachOperator);
 router.use("/gemini", geminiRateLimiter, geminiRouter);
 router.use("/search", searchRateLimiter, searchRouter);
 router.use("/parasha", searchRateLimiter, parashaRouter);
+router.use("/playlists", searchRateLimiter, playlistsRouter);
 
 export default router;

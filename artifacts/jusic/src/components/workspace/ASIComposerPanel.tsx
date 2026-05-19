@@ -9,12 +9,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
-import { StagingArea, StagingItem } from './StagingArea';
+import { StagingArea, type StagingItem } from './StagingArea';
+import { ComposerEntryCards } from './ComposerEntryCards';
 import { useSearchFilters } from '@/contexts/SearchFiltersContext';
+import { createStagingItem, useStagingSession } from '@/contexts/StagingSessionContext';
 import type { MsHit } from '../../lib/meilisearch';
 import { newClientId } from '../../lib/ids';
 import type { PlaylistDraftSnapshot } from '../../lib/playlist-draft';
 import { promptLooksLikeParasha, resolveParashaFromPdf } from '../../lib/parasha';
+import { cn } from '@/lib/utils';
+import { fetchSuggestions } from '@/lib/memory-api';
 
 function formatDraftTime(ts: number): string {
   try {
@@ -35,7 +39,9 @@ export function ASIComposerPanel({
   onDeleteDraft,
   mobileFullScreen = false,
   mobileVisible = true,
-  onStagingActiveChange,
+  hideStaging = false,
+  onMatchStepRequest,
+  className,
 }: {
   onAddSongs: (songs: MsHit[]) => void;
   draftHistory: PlaylistDraftSnapshot[];
@@ -44,28 +50,44 @@ export function ASIComposerPanel({
   onDeleteDraft: (draftId: string) => void;
   mobileFullScreen?: boolean;
   mobileVisible?: boolean;
-  onStagingActiveChange?: (active: boolean) => void;
+  hideStaging?: boolean;
+  onMatchStepRequest?: () => void;
+  className?: string;
 }) {
   const { filters } = useSearchFilters();
   const isMobile = useIsMobile();
   const useMobileTabs = mobileFullScreen && isMobile;
+  const {
+    stagingItems,
+    setStagingItems,
+    stagingBatchId,
+    startStaging,
+    clearStaging,
+    parashaContext,
+    setParashaContext,
+    stagingActive,
+  } = useStagingSession();
   const [isOpen, setIsOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
   );
   const [composerInput, setComposerInput] = useState('');
-  const [stagingBatchId, setStagingBatchId] = useState(0);
-  const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
   const [parashaBusy, setParashaBusy] = useState(false);
-  const [parashaContext, setParashaContext] = useState<StagingParashaContext | null>(null);
+  const [showDrafts, setShowDrafts] = useState(!useMobileTabs);
+  const [styleHint, setStyleHint] = useState('');
   const generatePlaylist = useGeneratePlaylist();
 
-  const stagingActive = stagingItems.length > 0;
+  useEffect(() => {
+    void fetchSuggestions().then((s) => {
+      if (s.styleNotes) setStyleHint(s.styleNotes);
+    });
+  }, []);
+
   const stagingBusy = stagingItems.some((i) => i.status === 'searching' || i.status === 'pending');
-  const mobileStagingFocus = useMobileTabs && stagingActive;
+  const mobileStagingFocus = useMobileTabs && stagingActive && !hideStaging;
 
   useEffect(() => {
-    onStagingActiveChange?.(stagingActive);
-  }, [stagingActive, onStagingActiveChange]);
+    if (stagingActive) onMatchStepRequest?.();
+  }, [stagingActive, onMatchStepRequest]);
   const listLines = useMemo(
     () => dedupePlaylistLines(composerInput.split('\n')),
     [composerInput],
@@ -79,13 +101,9 @@ export function ASIComposerPanel({
       {
         onSuccess: (res) => {
           if (res.lines?.length) {
-            setStagingBatchId((b) => b + 1);
-            setStagingItems(
-              res.lines.map((line) => ({
-                id: newClientId(),
-                query: line,
-                status: 'pending' as const,
-              })),
+            startStaging(
+              res.lines.map((line) => createStagingItem(line)),
+              null,
             );
           } else {
             toast.error('לא התקבלו תוצאות');
@@ -113,13 +131,9 @@ export function ASIComposerPanel({
     }
     setParashaContext(null);
     setActiveParashaExportContext(null, null, null);
-    setStagingBatchId((b) => b + 1);
-    setStagingItems(
-      clean.map((line) => ({
-        id: newClientId(),
-        query: sanitizePlaylistLine(line),
-        status: 'pending' as const,
-      })),
+    startStaging(
+      clean.map((line) => createStagingItem(sanitizePlaylistLine(line))),
+      null,
     );
   };
 
@@ -160,8 +174,7 @@ export function ASIComposerPanel({
         });
       }
 
-      setStagingBatchId((b) => b + 1);
-      setStagingItems(stagingItemsNext);
+      startStaging(stagingItemsNext, ctx);
       toast.success(
         `פרשת ${data.parasha}: ${data.parashaOnlyCount} שירי פרשה` +
           (data.haftarahCount ? ` + ${data.haftarahCount} הפטרה` : '') +
@@ -191,7 +204,7 @@ export function ASIComposerPanel({
 
   const handleApprove = (songs: MsHit[]) => {
     onAddSongs(songs);
-    setStagingItems([]);
+    clearStaging();
     setComposerInput('');
     toast.success(`נוספו ${songs.length} שירים`);
   };
@@ -204,13 +217,15 @@ export function ASIComposerPanel({
 
   return (
     <aside
-      className={`relative flex flex-col shrink-0 rounded-none sm:rounded-[1.25rem] md:mr-2 overflow-hidden border-0 sm:border border-border/55 bg-card shadow-lg transition-all duration-300 ${
+      className={cn(
+        'relative flex flex-col shrink-0 rounded-none sm:rounded-[1.25rem] md:mr-2 overflow-hidden border-0 sm:border border-border/55 bg-card shadow-lg transition-all duration-300 min-h-0',
         panelOpen
           ? useMobileTabs
             ? 'flex-1 min-h-0 w-full h-full'
-            : 'h-full w-[380px] lg:w-[400px]'
-          : 'h-12 w-full md:h-full md:w-14'
-      }`}
+            : 'h-full min-w-0'
+          : 'h-12 w-full md:h-full md:w-14',
+        className,
+      )}
     >
       <div className="flex flex-col h-full overflow-hidden rounded-[inherit] bg-card">
         {!useMobileTabs ? (
@@ -276,6 +291,15 @@ export function ASIComposerPanel({
               <div
                 className={`shrink-0 space-y-3 ${mobileStagingFocus ? 'hidden' : ''}`}
               >
+                {!composerInput.trim() ? (
+                  <ComposerEntryCards
+                    onPick={(id) => {
+                      if (id === 'list') setComposerInput('אמן - שיר\nאמן - שיר\n');
+                      else if (id === 'parasha') setComposerInput('פרשת ');
+                      else setComposerInput('שירי ');
+                    }}
+                  />
+                ) : null}
                 <Textarea
                   data-testid="asi-composer-input"
                   placeholder="הדבק רשימה, כתוב נושא (22–30 שירים), או פרשה — למשל: פרשת שמות"
@@ -291,6 +315,12 @@ export function ASIComposerPanel({
                     : promptLooksLikeParasha(composerInput)
                       ? 'זוהתה פרשת שבוע — שירים יילקחו מקובץ PSH ויותאמו במאגר'
                       : 'זוהתה בקשת נושא — הפלייליסט ייווצר (22–30 שירים)'}
+                  {styleHint && !inputLooksLikeList && !promptLooksLikeParasha(composerInput) ? (
+                    <span className="block mt-1 text-[10px] text-primary/80">
+                      זיכרון: {styleHint.slice(0, 80)}
+                      {styleHint.length > 80 ? '…' : ''}
+                    </span>
+                  ) : null}
                 </div>
                 <Button
                   data-testid="asi-compose-button"
@@ -377,7 +407,7 @@ export function ASIComposerPanel({
                 </div>
               </div>
 
-              {stagingActive ? (
+              {stagingActive && !hideStaging ? (
                 <div className={useMobileTabs ? 'bp-workspace-pane mt-0' : 'mt-5'}>
                   <StagingArea
                     key={stagingBatchId}
@@ -385,8 +415,9 @@ export function ASIComposerPanel({
                     setItems={setStagingItems}
                     onApproveAll={handleApprove}
                     onCancel={() => {
-                      setStagingItems([]);
+                      clearStaging();
                       setParashaContext(null);
+                      setActiveParashaExportContext(null, null, null);
                     }}
                     searchFilters={filters}
                     parashaContext={parashaContext}

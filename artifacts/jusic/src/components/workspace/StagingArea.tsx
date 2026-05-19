@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AUTO_MATCH_THRESHOLD,
   REVIEW_THRESHOLD,
   buildStagingSearchQuery,
   formatStagingDisplayLabel,
+  normalizeHebrew,
+  queryMatchesHit,
   sanitizePlaylistLine,
   stagingSearchVariants,
   validateStagingMatch,
@@ -25,6 +27,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import React from "react";
+import { postStagingEvents } from "@/lib/memory-api";
 
 export interface StagingItem {
   id: string;
@@ -39,6 +42,8 @@ export interface StagingItem {
     | "blocked";
   match?: MsHit;
   confidence?: number;
+  /** Top Meilisearch candidates when auto-match failed (pick manually). */
+  alternatives?: MsHit[];
   pshRow?: PshSongRow;
   blockReason?: string;
   skipReason?: string;
@@ -46,21 +51,6 @@ export interface StagingItem {
 const RANKING_BOOST = 0.1;
 const STAGING_SEARCH_LIMIT = 20;
 const STAGING_BATCH_SIZE = 10;
-
-function normalizeHebrew(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[\u0591-\u05c7]/g, "")
-    .replace(/[׳"`]/g, "")
-    .replace(/[^\u0590-\u05ffa-z0-9\s]/g, " ")
-    .replace(/[ך]/g, "כ")
-    .replace(/[ם]/g, "מ")
-    .replace(/[ן]/g, "נ")
-    .replace(/[ף]/g, "פ")
-    .replace(/[ץ]/g, "צ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function levenshtein(a: string, b: string): number {
   if (a === b) return 0;
@@ -155,6 +145,20 @@ function candidateConfidence(
 
   const normalizedSong = normalizeHebrew(song || whole);
   const normalizedCandidateSong = normalizeHebrew(hit.song_name);
+  const normalizedArtist = artist ? normalizeHebrew(artist) : "";
+  const normalizedCandidateArtist = normalizeHebrew(hit.artist);
+
+  if (
+    normalizedSong &&
+    normalizedCandidateSong &&
+    normalizedSong === normalizedCandidateSong &&
+    (!normalizedArtist ||
+      !normalizedCandidateArtist ||
+      normalizedArtist === normalizedCandidateArtist)
+  ) {
+    return 1;
+  }
+
   const containsBoost =
     normalizedSong &&
     normalizedCandidateSong &&
@@ -197,20 +201,30 @@ function calcHitConfidence(query: string, hit: MsHit): number {
   return conf;
 }
 
+function rankHitsForQuery(
+  query: string,
+  hits: MsHit[],
+): Array<{ hit: MsHit; confidence: number }> {
+  return hits
+    .map((hit) => ({ hit, confidence: calcHitConfidence(query, hit) }))
+    .sort((a, b) => b.confidence - a.confidence);
+}
+
 function bestMatchForQuery(
   query: string,
   hits: MsHit[],
-): { hit: MsHit | null; confidence: number } {
-  let best: MsHit | null = null;
-  let confidence = 0;
-  for (const hit of hits) {
-    const c = calcHitConfidence(query, hit);
-    if (c > confidence) {
-      best = hit;
-      confidence = c;
-    }
-  }
-  return { hit: best, confidence };
+): { hit: MsHit | null; confidence: number; alternatives: MsHit[] } {
+  const ranked = rankHitsForQuery(query, hits);
+  const best = ranked[0];
+  const alternatives = ranked
+    .slice(0, 5)
+    .filter((r) => r.confidence >= 0.28)
+    .map((r) => r.hit);
+  return {
+    hit: best?.hit ?? null,
+    confidence: best?.confidence ?? 0,
+    alternatives,
+  };
 }
 
 function cachedSearch(
@@ -233,10 +247,10 @@ async function findBestMatch(
   query: string,
   filters: SearchFilterOptions,
   cache: Map<string, Promise<MsHit[]>>,
-): Promise<{ hit: MsHit | null; confidence: number }> {
+): Promise<{ hit: MsHit | null; confidence: number; alternatives: MsHit[] }> {
   const allHits = new Map<string, MsHit>();
   const [primaryVariant, ...fallbackVariants] = stagingSearchVariants(query);
-  if (!primaryVariant) return { hit: null, confidence: 0 };
+  if (!primaryVariant) return { hit: null, confidence: 0, alternatives: [] };
 
   const primaryHits = await cachedSearch(primaryVariant, filters, cache);
   for (const hit of primaryHits) {
@@ -252,7 +266,7 @@ async function findBestMatch(
   }
 
   const settledSearches = await Promise.allSettled(
-    fallbackVariants.slice(0, 1).map((variant) => cachedSearch(variant, filters, cache)),
+    fallbackVariants.map((variant) => cachedSearch(variant, filters, cache)),
   );
   for (const result of settledSearches) {
     if (result.status !== "fulfilled") continue;
@@ -264,6 +278,190 @@ async function findBestMatch(
 
   return bestMatchForQuery(query, Array.from(allHits.values()));
 }
+
+function stagingEventFromItem(
+  item: StagingItem,
+  parasha?: string | null,
+): {
+  query: string;
+  chosenUid?: string;
+  rejectedUids?: string[];
+  parasha?: string;
+  confidence?: number;
+} | null {
+  if (item.status !== "matched" || !item.match?.id) return null;
+  const rejected =
+    item.alternatives
+      ?.filter((alt) => alt.id !== item.match?.id)
+      .map((alt) => alt.id)
+      .slice(0, 12) ?? [];
+  return {
+    query: item.query,
+    chosenUid: item.match.id,
+    rejectedUids: rejected.length ? rejected : undefined,
+    parasha: parasha ?? undefined,
+    confidence: item.confidence,
+  };
+}
+
+function flushStagingMemory(
+  items: StagingItem[],
+  parasha?: string | null,
+): void {
+  const events = items
+    .map((item) => stagingEventFromItem(item, parasha))
+    .filter((e): e is NonNullable<typeof e> => e !== null);
+  if (events.length) void postStagingEvents(events);
+}
+
+function AlternativesPicker({
+  alternatives,
+  onPick,
+}: {
+  alternatives: MsHit[];
+  onPick: (hit: MsHit) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1 pt-1">
+      <span className="text-[10px] text-muted-foreground">
+        הצעות מהמאגר — לחץ לבחירה:
+      </span>
+      {alternatives.slice(0, 4).map((alt) => (
+        <Button
+          key={alt.id}
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-auto min-h-8 py-1 px-2 text-[10px] justify-start font-normal whitespace-normal text-right w-full"
+          onClick={() => onPick(alt)}
+        >
+          {alt.artist} · {alt.song_name}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+const StagingListItem = React.memo(function StagingListItem({
+  item,
+  itemTone,
+  onSkip,
+  onApproveReview,
+  onPickAlternative,
+}: {
+  item: StagingItem;
+  itemTone: string;
+  onSkip: (id: string) => void;
+  onApproveReview: (id: string) => void;
+  onPickAlternative: (id: string, hit: MsHit) => void;
+}) {
+  return (
+    <li className={cn("bp-staging-item", itemTone)}>
+      <div className="min-w-0 w-full space-y-1">
+        <p
+          className="text-xs font-semibold leading-snug line-clamp-2 break-words text-foreground"
+          title={item.query}
+          dir="rtl"
+        >
+          {formatStagingDisplayLabel(item.query)}
+        </p>
+        {item.match && (
+          <p
+            className="text-[11px] text-muted-foreground line-clamp-1 break-words"
+            dir="rtl"
+            title={`${item.match.artist} · ${item.match.song_name}`}
+          >
+            {item.match.artist} · {item.match.song_name}
+          </p>
+        )}
+        {item.skipReason && item.status === "skipped" && (
+          <p className="text-[10px] text-muted-foreground line-clamp-2">
+            {item.skipReason}
+          </p>
+        )}
+        {item.blockReason && item.status !== "blocked" && (
+          <p className="text-[10px] text-amber-700 line-clamp-2">{item.blockReason}</p>
+        )}
+        {item.blockReason && item.status === "blocked" && (
+          <p className="text-[10px] text-destructive line-clamp-2">{item.blockReason}</p>
+        )}
+        {(item.status === "not-found" || item.status === "review") &&
+          (item.alternatives?.length ?? 0) > 0 && (
+            <AlternativesPicker
+              alternatives={item.alternatives!}
+              onPick={(hit) => onPickAlternative(item.id, hit)}
+            />
+          )}
+      </div>
+      <div className="bp-staging-item__actions">
+        {item.status === "pending" && (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="h-3 w-3" /> ממתין
+          </span>
+        )}
+        {item.status === "searching" && (
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+        )}
+        {item.status === "blocked" && (
+          <span className="flex items-center gap-1 text-[10px] text-destructive bg-destructive/10 border border-destructive/25 px-2 py-1 rounded-lg shrink-0">
+            <ShieldAlert className="h-3 w-3" /> חסום
+          </span>
+        )}
+        {item.status === "not-found" && (
+          <span className="flex items-center gap-1 text-xs text-destructive bg-destructive/10 border border-destructive/20 px-2 py-0.5 rounded-lg shrink-0">
+            <SearchX className="h-3 w-3" /> לא נמצא
+          </span>
+        )}
+        {item.status === "skipped" && (
+          <span
+            className="text-[10px] text-muted-foreground bg-muted/30 border border-border px-2 py-0.5 rounded-lg shrink-0"
+            title={item.skipReason}
+          >
+            {item.skipReason?.includes("אמן") ? "אמן בלבד" : "דולג"}
+          </span>
+        )}
+        {item.status === "review" && item.match && (
+          <>
+            <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-lg shrink-0">
+              <AlertTriangle className="h-3 w-3" /> ממתין לאישור
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              className="min-h-[var(--bp-touch-min)] rounded-xl px-4 font-semibold"
+              onClick={() => onApproveReview(item.id)}
+            >
+              אשר
+            </Button>
+            <button
+              type="button"
+              className="bp-icon-btn"
+              aria-label="דלג"
+              onClick={() => onSkip(item.id)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </>
+        )}
+        {item.status === "matched" && item.match && (
+          <>
+            <span className="flex items-center gap-1 text-[10px] text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-lg shrink-0">
+              <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+              הותאם
+            </span>
+            <button
+              type="button"
+              className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              onClick={() => onSkip(item.id)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </>
+        )}
+      </div>
+    </li>
+  );
+});
 
 export function StagingArea({
   items,
@@ -321,6 +519,13 @@ export function StagingArea({
             pshRow: item.pshRow,
             parashaContext,
           });
+          const canonicalHit = validation.canonicalHit ?? best.hit;
+          const autoApprove =
+            Boolean(canonicalHit) &&
+            ((canonicalHit && queryMatchesHit(query, canonicalHit)) ||
+              (Boolean(parashaContext && item.pshRow) &&
+                best.confidence < REVIEW_THRESHOLD));
+
           if (validation.issue) {
             const hardBlock = validation.issue.severity === "block";
             if (hardBlock) {
@@ -330,6 +535,16 @@ export function StagingArea({
                 confidence: 0,
                 blocked: true,
                 blockReason: validation.issue.message,
+                alternatives: best.alternatives,
+              };
+            }
+            if (autoApprove && canonicalHit) {
+              return {
+                id: item.id,
+                hit: canonicalHit,
+                confidence: Math.max(best.confidence, AUTO_MATCH_THRESHOLD),
+                blocked: false,
+                alternatives: best.alternatives,
               };
             }
             const reviewHit = validation.canonicalHit ?? best.hit;
@@ -340,6 +555,7 @@ export function StagingArea({
               blocked: false,
               pendingApproval: true,
               reviewReason: validation.issue.message,
+              alternatives: best.alternatives,
             };
           }
           return {
@@ -347,6 +563,8 @@ export function StagingArea({
             hit: validation.canonicalHit,
             confidence: best.confidence,
             blocked: false,
+            alternatives: best.alternatives,
+            autoApprove,
           };
         } catch {
           return { id: item.id, hit: null, confidence: 0, blocked: false };
@@ -377,17 +595,35 @@ export function StagingArea({
               confidence: 0,
             };
           }
-          if (!res.hit)
-            return { ...p, status: "not-found" as const, confidence: 0 };
+          const alternatives =
+            "alternatives" in res && Array.isArray(res.alternatives)
+              ? res.alternatives
+              : undefined;
+
+          if (!res.hit) {
+            return {
+              ...p,
+              status: "not-found" as const,
+              confidence: 0,
+              alternatives,
+              match: undefined,
+            };
+          }
 
           const conf = res.confidence ?? 0;
           const hit = res.hit as MsHit | null | undefined;
-          const pendingApproval =
+          const autoApprove =
+            "autoApprove" in res && Boolean(res.autoApprove);
+          let pendingApproval =
             "pendingApproval" in res && Boolean(res.pendingApproval);
           const reviewReason =
             "reviewReason" in res && typeof res.reviewReason === "string"
               ? res.reviewReason
               : undefined;
+
+          if (hit && (autoApprove || queryMatchesHit(p.query, hit))) {
+            pendingApproval = false;
+          }
 
           if (pendingApproval && hit) {
             return {
@@ -396,15 +632,21 @@ export function StagingArea({
               match: hit,
               confidence: conf,
               blockReason: reviewReason,
+              alternatives,
             };
           }
 
-          if (conf >= AUTO_MATCH_THRESHOLD) {
+          if (
+            conf >= AUTO_MATCH_THRESHOLD ||
+            autoApprove ||
+            (hit && queryMatchesHit(p.query, hit))
+          ) {
             return {
               ...p,
               status: "matched" as const,
               match: hit ?? undefined,
               confidence: conf,
+              alternatives,
             };
           }
           if (conf >= REVIEW_THRESHOLD) {
@@ -413,12 +655,15 @@ export function StagingArea({
               status: "review" as const,
               match: hit ?? undefined,
               confidence: conf,
+              alternatives,
             };
           }
           return {
             ...p,
             status: "not-found" as const,
             confidence: conf,
+            match: undefined,
+            alternatives,
           };
         }),
       );
@@ -440,11 +685,43 @@ export function StagingArea({
     );
   };
 
+  const parashaName = parashaContext?.targetParasha ?? null;
+
   const handleApproveReview = (id: string) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: "matched" as const } : i)),
-    );
+    setItems((prev) => {
+      const next = prev.map((i) =>
+        i.id === id ? { ...i, status: "matched" as const } : i,
+      );
+      const item = next.find((i) => i.id === id);
+      const ev = item ? stagingEventFromItem(item, parashaName) : null;
+      if (ev) void postStagingEvents([ev]);
+      return next;
+    });
   };
+
+  const handlePickAlternative = (id: string, hit: MsHit) => {
+    setItems((prev) => {
+      const next = prev.map((i) =>
+        i.id === id
+          ? {
+              ...i,
+              status: "matched" as const,
+              match: hit,
+              confidence: 1,
+              alternatives: undefined,
+              blockReason: undefined,
+            }
+          : i,
+      );
+      const item = next.find((i) => i.id === id);
+      const ev = item ? stagingEventFromItem(item, parashaName) : null;
+      if (ev) void postStagingEvents([ev]);
+      return next;
+    });
+  };
+
+  type StatusFilter = "all" | "review" | "not-found" | "blocked";
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const isProcessing = items.some((i) => i.status === "searching");
   const matchedSongs = items
@@ -454,6 +731,24 @@ export function StagingArea({
   const blockedCount = items.filter((i) => i.status === "blocked").length;
   const skippedCount = items.filter((i) => i.status === "skipped").length;
   const totalCount = items.length;
+
+  const visibleItems = useMemo(() => {
+    if (statusFilter === "all") return items;
+    if (statusFilter === "review") return items.filter((i) => i.status === "review");
+    if (statusFilter === "not-found")
+      return items.filter((i) => i.status === "not-found");
+    return items.filter((i) => i.status === "blocked");
+  }, [items, statusFilter]);
+
+  const handleApproveAllExact = () => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.status !== "review" || !item.match) return item;
+        if (!queryMatchesHit(item.query, item.match)) return item;
+        return { ...item, status: "matched" as const };
+      }),
+    );
+  };
 
   const itemTone = (status: StagingItem["status"]) => {
     switch (status) {
@@ -496,6 +791,38 @@ export function StagingArea({
               <span className="mr-1"> · {skippedCount} דולג</span>
             ) : null}
           </span>
+          <div className="flex flex-wrap gap-1">
+            {(
+              [
+                ["all", "הכל"],
+                ["review", "לאישור"],
+                ["not-found", "לא נמצא"],
+                ["blocked", "חסום"],
+              ] as const
+            ).map(([id, label]) => (
+              <Button
+                key={id}
+                type="button"
+                size="sm"
+                variant={statusFilter === id ? "default" : "outline"}
+                className="h-7 text-[10px] rounded-lg px-2"
+                onClick={() => setStatusFilter(id)}
+              >
+                {label}
+              </Button>
+            ))}
+            {reviewCount > 0 ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-7 text-[10px] rounded-lg"
+                onClick={handleApproveAllExact}
+              >
+                אשר מדויקים
+              </Button>
+            ) : null}
+          </div>
         </div>
         {isProcessing ? (
           <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" aria-hidden />
@@ -503,109 +830,16 @@ export function StagingArea({
       </header>
 
       <ul className="bp-staging__scroll custom-scrollbar list-none m-0 p-0">
-          {items.map((item) => (
-            <li key={item.id} className={cn("bp-staging-item", itemTone(item.status))}>
-              <div className="min-w-0 w-full space-y-1">
-                <p
-                  className="text-xs font-semibold leading-snug line-clamp-2 break-words text-foreground"
-                  title={item.query}
-                  dir="rtl"
-                >
-                  {formatStagingDisplayLabel(item.query)}
-                </p>
-                {item.match && (
-                  <p
-                    className="text-[11px] text-muted-foreground line-clamp-1 break-words"
-                    dir="rtl"
-                    title={`${item.match.artist} · ${item.match.song_name}`}
-                  >
-                    {item.match.artist} · {item.match.song_name}
-                  </p>
-                )}
-                {item.skipReason && item.status === "skipped" && (
-                  <p className="text-[10px] text-muted-foreground line-clamp-2">
-                    {item.skipReason}
-                  </p>
-                )}
-                {item.blockReason && item.status !== "blocked" && (
-                  <p className="text-[10px] text-amber-700 line-clamp-2">
-                    {item.blockReason}
-                  </p>
-                )}
-                {item.blockReason && item.status === "blocked" && (
-                  <p className="text-[10px] text-destructive line-clamp-2">
-                    {item.blockReason}
-                  </p>
-                )}
-              </div>
-              <div className="bp-staging-item__actions">
-                {item.status === "pending" && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" /> ממתין
-                  </span>
-                )}
-                {item.status === "searching" && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                )}
-                {item.status === "blocked" && (
-                  <span className="flex items-center gap-1 text-[10px] text-destructive bg-destructive/10 border border-destructive/25 px-2 py-1 rounded-lg shrink-0">
-                    <ShieldAlert className="h-3 w-3" /> חסום
-                  </span>
-                )}
-                {item.status === "not-found" && (
-                  <span className="flex items-center gap-1 text-xs text-destructive bg-destructive/10 border border-destructive/20 px-2 py-0.5 rounded-lg">
-                    <SearchX className="h-3 w-3" /> לא נמצא
-                  </span>
-                )}
-                {item.status === "skipped" && (
-                  <span
-                    className="text-[10px] text-muted-foreground bg-muted/30 border border-border px-2 py-0.5 rounded-lg shrink-0"
-                    title={item.skipReason}
-                  >
-                    {item.skipReason?.includes("אמן") ? "אמן בלבד" : "דולג"}
-                  </span>
-                )}
-                {item.status === "review" && item.match && (
-                  <>
-                    <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-lg shrink-0">
-                      <AlertTriangle className="h-3 w-3" /> ממתין לאישור
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="min-h-[var(--bp-touch-min)] rounded-xl px-4 font-semibold"
-                      onClick={() => handleApproveReview(item.id)}
-                    >
-                      אשר
-                    </Button>
-                    <button
-                      type="button"
-                      className="bp-icon-btn"
-                      aria-label="דלג"
-                      onClick={() => handleSkip(item.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </>
-                )}
-                {item.status === "matched" && item.match && (
-                  <>
-                    <span className="flex items-center gap-1 text-[10px] text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-lg shrink-0">
-                      <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
-                      הותאם
-                    </span>
-                    <button
-                      type="button"
-                      className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleSkip(item.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </li>
-          ))}
+        {visibleItems.map((item) => (
+          <StagingListItem
+            key={item.id}
+            item={item}
+            itemTone={itemTone(item.status)}
+            onSkip={handleSkip}
+            onApproveReview={handleApproveReview}
+            onPickAlternative={handlePickAlternative}
+          />
+        ))}
       </ul>
 
       <footer className="bp-staging__dock">
@@ -621,7 +855,10 @@ export function StagingArea({
           data-testid="approve-all-button"
           size="lg"
           disabled={isProcessing || !matchedSongs.length}
-          onClick={() => onApproveAll(matchedSongs)}
+          onClick={() => {
+            flushStagingMemory(items, parashaName);
+            onApproveAll(matchedSongs);
+          }}
           className="flex-[2] min-h-[var(--bp-touch-min)] rounded-xl font-semibold shadow-md shadow-primary/20"
         >
           אשר הכל ({matchedSongs.length})

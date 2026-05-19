@@ -60,6 +60,53 @@ export const REVIEW_THRESHOLD = 0.38;
 /** Lomdaat/Odoo export — accept catalog matches at review confidence (not only auto-match). */
 export const LOMDAAT_EXPORT_THRESHOLD = REVIEW_THRESHOLD;
 
+/** Normalized song+artist equality (nikud / final letters ignored). */
+export function isExactSongArtistMatch(
+  a: { song_name?: string; artist?: string },
+  b: { song_name?: string; artist?: string },
+): boolean {
+  const s1 = normalizeHebrew(String(a.song_name ?? ""));
+  const s2 = normalizeHebrew(String(b.song_name ?? ""));
+  const ar1 = normalizeHebrew(String(a.artist ?? ""));
+  const ar2 = normalizeHebrew(String(b.artist ?? ""));
+  if (!s1 || !s2) return false;
+  if (s1 !== s2) return false;
+  if (!ar1 || !ar2) return true;
+  return ar1 === ar2;
+}
+
+export function isExactSongTitleMatch(a: string, b: string): boolean {
+  const s1 = normalizeHebrew(a);
+  const s2 = normalizeHebrew(b);
+  return Boolean(s1 && s2 && s1 === s2);
+}
+
+/** True when the pasted line clearly matches the Meilisearch hit (auto-approve staging). */
+export function queryMatchesHit(query: string, hit: MsHitLike): boolean {
+  const cleaned = applyInputTitleAliases(sanitizePlaylistLine(query));
+  for (const parsed of parseLineBothWays(cleaned)) {
+    if (
+      isExactSongArtistMatch(
+        { song_name: parsed.song, artist: parsed.artist },
+        hit,
+      )
+    ) {
+      return true;
+    }
+    if (
+      isExactSongTitleMatch(parsed.song, hit.song_name) &&
+      (!parsed.artist.trim() ||
+        matchConfidence("", parsed.artist, hit) >= 0.45)
+    ) {
+      return true;
+    }
+    if (matchConfidence(parsed.song, parsed.artist, hit) >= 0.92) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function wordsSimilarity(query: string, candidate: string): number {
   const qWords = normalizeHebrew(query)
     .split(" ")
@@ -297,6 +344,18 @@ export function validateMeiliAgainstPsh(
   pshRow: PshSongRow,
   minConfidence = 0.55,
 ): ValidationIssue | null {
+  if (
+    isExactSongArtistMatch(
+      { song_name: hit.song_name, artist: hit.artist },
+      { song_name: pshRow.title, artist: pshRow.artist },
+    )
+  ) {
+    return null;
+  }
+  if (isExactSongTitleMatch(hit.song_name, pshRow.title)) {
+    const artistOnly = matchConfidence("", pshRow.artist, hit);
+    if (artistOnly >= 0.38 || !pshRow.artist.trim()) return null;
+  }
   const conf = matchConfidence(pshRow.title, pshRow.artist, hit);
   if (conf >= minConfidence) return null;
   return issue(
@@ -416,6 +475,29 @@ export function validateStagingMatch(
       };
     }
     return { issue: null, canonicalHit: null, effectivePshRow: pshRow };
+  }
+
+  if (input.hit && queryMatchesHit(query, input.hit)) {
+    if (pshRow) {
+      const target = input.parashaContext
+        ? normalizeParashaToken(input.parashaContext.targetParasha)
+        : "";
+      const rowInTargetParasha =
+        Boolean(target) && normalizeParashaToken(pshRow.parasha) === target;
+      if (!input.parashaContext || rowInTargetParasha) {
+        return {
+          issue: null,
+          canonicalHit: applyPshCanonical(input.hit, pshRow),
+          effectivePshRow: pshRow,
+        };
+      }
+    } else {
+      return {
+        issue: null,
+        canonicalHit: input.hit,
+        effectivePshRow: pshRow,
+      };
+    }
   }
 
   if (pshRow) {

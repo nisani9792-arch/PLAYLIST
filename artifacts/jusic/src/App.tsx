@@ -7,7 +7,10 @@ import { OperatorRegistration } from '@/components/OperatorRegistration';
 import { useAccessGate } from '@/hooks/useAccessGate';
 import { useUnlockGate } from '@/hooks/useUnlockGate';
 import Workspace from '@/pages/Workspace';
+import SettingsPage from '@/pages/SettingsPage';
+import { StagingSessionProvider } from '@/contexts/StagingSessionContext';
 import { useEffect } from 'react';
+import { Route, Switch } from 'wouter';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,7 +69,16 @@ function AppShell() {
 
   return (
     <SearchFiltersProvider>
-      <Workspace operatorName={operatorName} offline={status.state === 'offline'} />
+      <StagingSessionProvider>
+        <Switch>
+          <Route path="/settings">
+            <SettingsPage operatorName={operatorName} />
+          </Route>
+          <Route>
+            <Workspace operatorName={operatorName} offline={status.state === 'offline'} />
+          </Route>
+        </Switch>
+      </StagingSessionProvider>
     </SearchFiltersProvider>
   );
 }
