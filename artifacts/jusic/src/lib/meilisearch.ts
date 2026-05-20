@@ -29,6 +29,8 @@ export type OdooResolveResult = {
   confidence: number;
   song_name: string;
   artist: string;
+  /** Similar catalog hits when strict resolve failed (export mode). */
+  alternatives?: MsHit[];
 } | null;
 
 function stableHitId(hit: Record<string, unknown>): string {
@@ -139,22 +141,39 @@ export async function resolveSongsForOdoo(
   }
 
   const data = (await res.json()) as {
-    results?: Array<{ hit: Record<string, unknown>; confidence: number } | null>;
+    results?: Array<{
+      hit: Record<string, unknown> | null;
+      confidence?: number;
+      alternatives?: Record<string, unknown>[];
+    } | null>;
     hits?: Array<Record<string, unknown> | null>;
   };
 
   const results = data.results;
   if (results?.length) {
-    return results.map((r) =>
-      r?.hit && typeof r.hit === "object"
-        ? {
-            raw: r.hit,
-            confidence: r.confidence,
-            song_name: odooImportSongNameFromHit(r.hit),
-            artist: odooImportArtistFromHit(r.hit),
-          }
-        : null,
-    );
+    return results.map((r) => {
+      if (r?.hit && typeof r.hit === "object") {
+        return {
+          raw: r.hit,
+          confidence: r.confidence ?? 1,
+          song_name: odooImportSongNameFromHit(r.hit),
+          artist: odooImportArtistFromHit(r.hit),
+        };
+      }
+      const alts = (r?.alternatives ?? [])
+        .filter((h): h is Record<string, unknown> => Boolean(h && typeof h === "object"))
+        .map((h) => normalizeHit(h));
+      if (alts.length) {
+        return {
+          raw: {},
+          confidence: 0,
+          song_name: "",
+          artist: "",
+          alternatives: alts,
+        };
+      }
+      return null;
+    });
   }
 
   return (data.hits || []).map((h) =>

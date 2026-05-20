@@ -101,7 +101,9 @@ export function validateExportBlocking(
   songs: MsHit[],
   parashaContext?: ParashaValidationContext | null,
 ): string | null {
-  const issues = validatePlaylistForExport(songs, parashaContext);
+  const issues = validatePlaylistForExport(songs, parashaContext, {
+    blockParashaReview: Boolean(parashaContext),
+  });
   const blocking = issues.filter((i) => i.severity === 'block');
   if (!blocking.length) return null;
   return blocking.map((i) => i.message).join('\n');

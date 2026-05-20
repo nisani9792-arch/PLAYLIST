@@ -1,9 +1,11 @@
 import {
   buildLomdaatPlaylistCsv,
   canonicalSongKey,
+  isExportResolveAcceptable,
   lomdaatRowFromMeiliRecord,
   LOMDAAT_PLAYLIST_FILENAME,
   LOMDAAT_PLAYLIST_HEADERS,
+  msHitLikeFromMeiliRecord,
   trimLomdaatField,
   validatePlaylistForExport,
   type LomdaatPlaylistRow,
@@ -41,9 +43,13 @@ export type ExportOptions = {
   parashaContext?: ParashaValidationContext | null;
 };
 
+function formatSuggestionLine(hit: MsHit): string {
+  return `${hit.artist} · ${hit.song_name}`;
+}
+
 /**
  * Build and download playlist CSV for Lomdaat/Odoo.
- * Runs catalog resolve in the background; file name is the playlist name + `.csv`.
+ * Only rows with a strict Meilisearch catalog match are exported (canonical DB names).
  */
 export async function exportPlaylistToCsv(
   playlistName: string,
@@ -57,7 +63,9 @@ export async function exportPlaylistToCsv(
   const parashaContext =
     options.parashaContext ?? resolveParashaNameFromClient(playlistName);
 
-  const issues = validatePlaylistForExport(songs, parashaContext);
+  const issues = validatePlaylistForExport(songs, parashaContext, {
+    blockParashaReview: Boolean(parashaContext),
+  });
   const blocking = issues.filter((i) => i.severity === 'block');
   if (blocking.length) {
     const preview = blocking
@@ -73,33 +81,53 @@ export async function exportPlaylistToCsv(
 
   const resolved = await resolveSongsForOdoo(songs);
   const rows: LomdaatPlaylistRow[] = [];
-  const unresolvedCatalog: string[] = [];
+  const unresolvedCatalog: Array<{ label: string; suggestions: string[] }> = [];
   const skipped: string[] = [];
   const seen = new Set<string>();
 
   for (let i = 0; i < songs.length; i++) {
     const playlistSong = songs[i]!;
     const match = resolved[i];
+    const label = `${playlistSong.song_name} – ${playlistSong.artist}`;
 
-    if (!match?.raw) {
-      unresolvedCatalog.push(`${playlistSong.song_name} – ${playlistSong.artist}`);
+    if (match?.alternatives?.length && (!match.raw || !Object.keys(match.raw).length)) {
+      unresolvedCatalog.push({
+        label,
+        suggestions: match.alternatives.map(formatSuggestionLine),
+      });
+      continue;
+    }
+
+    if (!match?.raw || !Object.keys(match.raw).length) {
+      unresolvedCatalog.push({ label, suggestions: [] });
+      continue;
+    }
+
+    const catalog = msHitLikeFromMeiliRecord(match.raw);
+    if (
+      !isExportResolveAcceptable(playlistSong, catalog, match.confidence)
+    ) {
+      unresolvedCatalog.push({
+        label,
+        suggestions: match.alternatives?.map(formatSuggestionLine) ?? [],
+      });
       continue;
     }
 
     const row = lomdaatRowFromMeiliRecord(match.raw);
 
     if (!row.song_name.trim() || !row.artist.trim()) {
-      skipped.push(`${playlistSong.song_name} – ${playlistSong.artist}`);
+      skipped.push(label);
       continue;
     }
 
     const dedupeKey = canonicalSongKey({
-      id: '',
+      id: catalog.id,
       song_name: row.song_name,
       artist: row.artist,
     });
     if (seen.has(dedupeKey)) {
-      skipped.push(`${playlistSong.song_name} – ${playlistSong.artist} (כפילות)`);
+      skipped.push(`${label} (כפילות)`);
       continue;
     }
     seen.add(dedupeKey);
@@ -107,7 +135,12 @@ export async function exportPlaylistToCsv(
   }
 
   if (!rows.length) {
-    throw new Error('לא ניתן לייצא — אין שורות עם שם שיר ואמן בעברית.');
+    const hint = unresolvedCatalog[0]?.suggestions.length
+      ? `\nהצעות: ${unresolvedCatalog[0].suggestions.slice(0, 3).join(' | ')}`
+      : '';
+    throw new Error(
+      `לא ניתן לייצא — אין שורות עם התאמה מדויקת במאגר Meilisearch.${hint}`,
+    );
   }
 
   const safePlaylistName = trimLomdaatField(playlistName) || 'פלייליסט חדש';
@@ -120,9 +153,18 @@ export async function exportPlaylistToCsv(
   void savePlaylistToServer({ name: playlistName, songs, parasha });
 
   if (unresolvedCatalog.length) {
+    const sample = unresolvedCatalog
+      .slice(0, 3)
+      .map((u) => {
+        const sug = u.suggestions.length
+          ? ` (הצעות: ${u.suggestions.slice(0, 2).join(' · ')})`
+          : '';
+        return `${u.label}${sug}`;
+      })
+      .join('\n');
     toast.warning(
-      `${unresolvedCatalog.length} שירים לא נכללו בקובץ — לא נמצאה התאמה במאגר.`,
-      { duration: 10000 },
+      `${unresolvedCatalog.length} שירים לא נכללו — אין התאמה מדויקת במאגר.\n${sample}`,
+      { duration: 14000 },
     );
   }
 
@@ -132,7 +174,7 @@ export async function exportPlaylistToCsv(
     });
   }
 
-  toast.success(`הורד ${filename} — ${rows.length} שירים`);
+  toast.success(`הורד ${filename} — ${rows.length} שירים מהמאגר`);
 }
 
 /** @deprecated Use exportPlaylistToCsv */

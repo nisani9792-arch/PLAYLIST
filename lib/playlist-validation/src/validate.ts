@@ -57,8 +57,8 @@ export type ParashaValidationContext = {
 
 export const AUTO_MATCH_THRESHOLD = 0.68;
 export const REVIEW_THRESHOLD = 0.38;
-/** Lomdaat/Odoo export — accept catalog matches at review confidence (not only auto-match). */
-export const LOMDAAT_EXPORT_THRESHOLD = REVIEW_THRESHOLD;
+/** Lomdaat/Odoo export — strict catalog match only (no fuzzy review-tier guesses). */
+export const LOMDAAT_EXPORT_THRESHOLD = AUTO_MATCH_THRESHOLD;
 
 /** Normalized song+artist equality (nikud / final letters ignored). */
 export function isExactSongArtistMatch(
@@ -537,9 +537,39 @@ export function validateStagingMatch(
   };
 }
 
+/** True when `id` is a stable Meilisearch uid (not a client-local hash). */
+export function isCatalogUid(id: string | undefined | null): boolean {
+  const t = String(id ?? "").trim();
+  return /^\d+$/.test(t) || /^SON-\d+$/i.test(t);
+}
+
+/** Export may only use a resolve hit that truly matches the playlist row. */
+export function isExportResolveAcceptable(
+  source: MsHitLike,
+  catalog: MsHitLike,
+  confidence: number,
+): boolean {
+  const srcUid = String(source.id ?? "").trim();
+  const catUid = String(catalog.id ?? "").trim();
+  if (isCatalogUid(srcUid) && isCatalogUid(catUid) && srcUid === catUid) {
+    return true;
+  }
+
+  const line = `${source.artist} - ${source.song_name}`.trim();
+  if (line && queryMatchesHit(line, catalog)) return true;
+  if (isExactSongArtistMatch(source, catalog)) return true;
+
+  if (confidence < LOMDAAT_EXPORT_THRESHOLD) return false;
+  return (
+    matchConfidence(source.song_name, source.artist, catalog) >=
+    LOMDAAT_EXPORT_THRESHOLD
+  );
+}
+
 export function validatePlaylistForExport(
   songs: MsHitLike[],
   parashaContext?: ParashaValidationContext | null,
+  options?: { blockParashaReview?: boolean },
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const seen = new Set<string>();
@@ -576,7 +606,15 @@ export function validatePlaylistForExport(
         song.song_name,
         parashaContext,
       );
-      if (titleParasha) issues.push(titleParasha);
+      if (titleParasha) {
+        issues.push(
+          issue(
+            titleParasha.code,
+            titleParasha.message,
+            options?.blockParashaReview ? "block" : titleParasha.severity,
+          ),
+        );
+      }
 
       const pshRow = findPshRowForLine(
         line,
@@ -585,7 +623,16 @@ export function validatePlaylistForExport(
         global,
       );
       const parashaIssue = validateParashaMembership(pshRow, parashaContext);
-      if (parashaIssue) issues.push(parashaIssue);
+      if (parashaIssue) {
+        issues.push(
+          issue(
+            parashaIssue.code,
+            parashaIssue.message,
+            options?.blockParashaReview ? "block" : parashaIssue.severity,
+          ),
+        );
+      }
+
     }
   }
 

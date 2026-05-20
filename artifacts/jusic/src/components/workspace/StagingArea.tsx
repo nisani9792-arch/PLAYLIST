@@ -217,8 +217,8 @@ function bestMatchForQuery(
   const ranked = rankHitsForQuery(query, hits);
   const best = ranked[0];
   const alternatives = ranked
-    .slice(0, 5)
-    .filter((r) => r.confidence >= 0.28)
+    .slice(0, 8)
+    .filter((r) => r.confidence >= 0.22)
     .map((r) => r.hit);
   return {
     hit: best?.hit ?? null,
@@ -326,7 +326,7 @@ function AlternativesPicker({
       <span className="text-[10px] text-muted-foreground">
         הצעות מהמאגר — לחץ לבחירה:
       </span>
-      {alternatives.slice(0, 4).map((alt) => (
+      {alternatives.slice(0, 6).map((alt) => (
         <Button
           key={alt.id}
           type="button"

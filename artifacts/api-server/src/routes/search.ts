@@ -4,6 +4,7 @@ import { searchTopicBatch } from "../lib/meilisearch-service";
 import {
   isExactSongArtistMatch,
   isExactSongTitleMatch,
+  isExportResolveAcceptable,
   isPlaceholderExportArtist,
   LOMDAAT_EXPORT_THRESHOLD,
   matchConfidence,
@@ -169,8 +170,41 @@ function hitLooksLikeSong(hit: MeiliHit): boolean {
   );
 }
 
+type ResolveSongQuery = {
+  id?: string;
+  song_name?: string;
+  artist?: string;
+};
+
+function scoreResolveHit(
+  query: ResolveSongQuery,
+  hit: MeiliHit,
+): number {
+  const song = String(query.song_name ?? "").trim();
+  const artist = String(query.artist ?? "").trim();
+  const like = msHitLikeFromMeiliRecord(hit);
+  let score = matchConfidence(song, artist, like);
+
+  const songExact = song && isExactSongTitleMatch(song, like.song_name);
+  const pairExact =
+    song &&
+    artist &&
+    isExactSongArtistMatch(
+      { song_name: song, artist },
+      { song_name: like.song_name, artist: like.artist },
+    );
+  if (pairExact) return 1;
+  if (songExact && (!artist || isPlaceholderExportArtist(artist))) {
+    return Math.max(score, 0.92);
+  }
+  if (songExact) {
+    return Math.max(score, matchConfidence(song, artist, like));
+  }
+  return score;
+}
+
 function pickResolveHit(
-  query: { song_name?: string; artist?: string },
+  query: ResolveSongQuery,
   hits: MeiliHit[] | undefined,
   minScore: number,
   exportMode = false,
@@ -183,25 +217,15 @@ function pickResolveHit(
   let best: MeiliHit | undefined;
   let bestScore = 0;
   for (const hit of hits) {
-    const like = msHitLikeFromMeiliRecord(hit);
-    let score = matchConfidence(song, artist, like);
+    let score = scoreResolveHit(query, hit);
 
-    const songExact = song && isExactSongTitleMatch(song, like.song_name);
-    const pairExact =
-      song &&
-      artist &&
-      isExactSongArtistMatch(
+    if (exportMode && song && artist && !isPlaceholderExportArtist(artist)) {
+      const like = msHitLikeFromMeiliRecord(hit);
+      const pairExact = isExactSongArtistMatch(
         { song_name: song, artist },
         { song_name: like.song_name, artist: like.artist },
       );
-    if (pairExact) score = 1;
-    else if (songExact && (!artist || isPlaceholderExportArtist(artist))) {
-      score = Math.max(score, 0.92);
-    } else if (songExact) {
-      score = Math.max(score, matchConfidence(song, artist, like));
-    }
-
-    if (exportMode && song && artist && !isPlaceholderExportArtist(artist)) {
+      const songExact = isExactSongTitleMatch(song, like.song_name);
       const artistScore = matchConfidence("", artist, like);
       if (!pairExact && artistScore < 0.42 && !songExact) continue;
     }
@@ -212,7 +236,41 @@ function pickResolveHit(
     }
   }
   if (!best || bestScore < minScore) return null;
+
+  if (exportMode) {
+    const catalog = msHitLikeFromMeiliRecord(best);
+    const source = {
+      id: String(query.id ?? "").trim(),
+      song_name: song,
+      artist,
+    };
+    if (!isExportResolveAcceptable(source, catalog, bestScore)) return null;
+  }
+
   return { hit: best, score: bestScore };
+}
+
+function rankResolveAlternatives(
+  query: ResolveSongQuery,
+  hits: MeiliHit[] | undefined,
+  minSuggestScore = REVIEW_THRESHOLD,
+): MeiliHit[] {
+  if (!hits?.length) return [];
+  const ranked = hits
+    .map((hit) => ({ hit, score: scoreResolveHit(query, hit) }))
+    .filter((r) => r.score >= minSuggestScore)
+    .sort((a, b) => b.score - a.score);
+  const seen = new Set<string>();
+  const out: MeiliHit[] = [];
+  for (const { hit } of ranked) {
+    const uid = String(hit.uid ?? hit.id ?? "").trim();
+    const key = uid || JSON.stringify(msHitLikeFromMeiliRecord(hit));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(hit);
+    if (out.length >= 5) break;
+  }
+  return out;
 }
 
 function hitMatchesGenre(hit: MeiliHit, genre: string | undefined): boolean {
@@ -387,21 +445,34 @@ router.post("/resolve", async (req, res) => {
   const { baseUrl, apiKey, index } = getMeilisearchConfig();
 
   try {
+    type ResolveOutcome =
+      | { ok: true; hit: MeiliHit; score: number }
+      | { ok: false; alternatives: MeiliHit[] };
+
     const resolved = await mapWithConcurrency(
       songs,
       RESOLVE_CONCURRENCY,
-      async (song) => {
+      async (song): Promise<ResolveOutcome> => {
         const rawId = String(song.id ?? "").trim();
         const safeId = escapeFilterValue(rawId);
         const songName = String(song.song_name ?? "").trim();
         const artistName = String(song.artist ?? "").trim();
-
-        const accept = (hit: MeiliHit): { hit: MeiliHit; score: number } | null => {
-          const picked = pickResolveHit(song, [hit], minScore, exportMode);
-          return picked;
+        const query: ResolveSongQuery = {
+          id: rawId,
+          song_name: songName,
+          artist: artistName,
         };
 
-        // 1) Strict lookup by uid (database/external id equivalent in index)
+        const candidateMap = new Map<string, MeiliHit>();
+        const addCandidates = (hits: MeiliHit[] | undefined) => {
+          for (const hit of hits ?? []) {
+            const uid = String(hit.uid ?? hit.id ?? "").trim();
+            const key = uid || `t:${hit.song_name}|${hit.artist}`;
+            if (!candidateMap.has(key)) candidateMap.set(key, hit);
+          }
+        };
+
+        // 1) Strict lookup by uid (database id in Meilisearch index)
         if (safeId) {
           try {
             const byUid = await runMeiliSearch(baseUrl, index, apiKey, {
@@ -412,9 +483,13 @@ router.post("/resolve", async (req, res) => {
             const firstUid = Array.isArray(byUid.hits)
               ? byUid.hits[0]
               : undefined;
-            const uidMatch = firstUid ? accept(firstUid) : null;
-            if (uidMatch && exportMode) return uidMatch;
-            if (uidMatch) return uidMatch;
+            if (firstUid) {
+              addCandidates([firstUid]);
+              const uidMatch = pickResolveHit(query, [firstUid], minScore, exportMode);
+              if (uidMatch) {
+                return { ok: true, hit: uidMatch.hit, score: uidMatch.score };
+              }
+            }
           } catch (err) {
             if (!isRecoverableFilterError(err)) throw err;
             logger.warn(
@@ -438,7 +513,6 @@ router.post("/resolve", async (req, res) => {
           searchQs.push(fallbackQ);
         }
         const uniqueQs = [...new Set(searchQs.filter((q) => q.trim().length >= 2))];
-        if (!uniqueQs.length) return null;
 
         let best: { hit: MeiliHit; score: number } | null = null;
         for (const q of uniqueQs) {
@@ -454,25 +528,50 @@ router.post("/resolve", async (req, res) => {
             { songsOnly: true },
             exportMode ? 24 : 12,
           );
-          const picked = pickResolveHit(song, byText.hits, minScore, exportMode);
+          addCandidates(byText.hits);
+          const picked = pickResolveHit(
+            query,
+            byText.hits,
+            minScore,
+            exportMode,
+          );
           if (picked && (!best || picked.score > best.score)) {
             best = picked;
           }
         }
-        return best;
+
+        if (best) {
+          return { ok: true, hit: best.hit, score: best.score };
+        }
+
+        const allCandidates = [...candidateMap.values()];
+        const alternatives = exportMode
+          ? rankResolveAlternatives(query, allCandidates)
+          : [];
+        return { ok: false, alternatives };
       },
     );
     res.json({
-      hits: resolved.map((r) => r?.hit ?? null),
+      hits: resolved.map((r) => (r.ok ? r.hit : null)),
       results: resolved.map((r, i) => {
-        if (r) return { hit: r.hit, confidence: r.score };
+        if (r.ok) {
+          return { hit: r.hit, confidence: r.score, alternatives: [] };
+        }
         const song = songs[i];
         const songName = String(song?.song_name ?? "").trim();
         const artistName = String(song?.artist ?? "").trim();
         if (!songName && !artistName) {
-          return { hit: null, failedReason: "empty" as const };
+          return {
+            hit: null,
+            failedReason: "empty" as const,
+            alternatives: r.alternatives,
+          };
         }
-        return { hit: null, failedReason: "no_match" as const };
+        return {
+          hit: null,
+          failedReason: "no_match" as const,
+          alternatives: r.alternatives,
+        };
       }),
     });
   } catch (err) {
