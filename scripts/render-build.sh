@@ -2,7 +2,7 @@
 # Render production build: install, typecheck+build, optional Drizzle push to Neon.
 set -euo pipefail
 
-echo "=== Render build (BUILD PLAY) ==="
+echo "=== Render build (JUSIC PLAY) ==="
 echo "PWD=$(pwd)"
 
 if [[ ! -f package.json ]]; then

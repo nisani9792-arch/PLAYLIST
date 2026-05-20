@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "BUILD PLAY"
+title = "JUSIC PLAY"
 version = "1.0.0"
 id = "artifacts/jusic"
 router = "path"

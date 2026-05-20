@@ -1,6 +1,6 @@
-# Jusic Playlist Studio — Render + Neon
+# JUSIC PLAY — Render + Neon
 
-Production runs as a single **Render Web Service** that serves the Jusic Playlist Studio React app and the Express API.
+Production runs as a single **Render Web Service** that serves the JUSIC PLAY React app and the Express API.
 
 ## Stack
 

@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Api
   version: 0.2.0
-  description: Jusic Playlist Studio API
+  description: JUSIC PLAY API
 servers:
   - url: /api
     description: Base API path

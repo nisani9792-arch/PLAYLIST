@@ -61,7 +61,7 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* LIGHT — Jusic Gemini Premium canvas */
+/* LIGHT — JUSIC PLAY Gemini Premium canvas */
 :root {
   --button-outline: rgba(66, 133, 244, .12);
   --badge-outline: rgba(167, 139, 250, .08);

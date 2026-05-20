@@ -1,4 +1,4 @@
-const CACHE_NAME = "build-play-v10";
+const CACHE_NAME = "jusic-play-v11";
 const APP_SHELL = ["./"];
 const NETWORK_FIRST_ASSETS = [
   "manifest.json",

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { JusicLogo } from "@/components/ui/jusic-logo";
+import { APP_SHORT_NAME } from "@/lib/brand";
 import { Compass } from "lucide-react";
 import { fadeUpVariants, springSoft } from "@/lib/motion-presets";
 
@@ -23,7 +24,7 @@ export default function NotFound() {
             </div>
             <div className="space-y-2">
               <h1 className="font-display text-2xl font-bold tracking-tight j-text-gradient">
-                Jusic
+                {APP_SHORT_NAME}
               </h1>
               <p className="text-secondary text-sm leading-relaxed">
                 העמוד שחיפשת לא קיים או שהקישור ישן. חזרו לעמדת העריכה כדי להמשיך בעבודה.

@@ -187,7 +187,7 @@ export function buildTrainingExportPayload(): {
     signals: loadSignals(),
     history: loadHistory(),
     note:
-      'Aggregated local usage from Jusic Playlist Studio (genres/tags/history). No audio. Use for future model training only with consent.',
+      'Aggregated local usage from JUSIC PLAY (genres/tags/history). No audio. Use for future model training only with consent.',
   };
 }
 
@@ -199,7 +199,7 @@ export function downloadTrainingJson(): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `build-play-learning-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `jusic-play-learning-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }

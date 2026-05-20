@@ -1,4 +1,4 @@
-/** Canonical localStorage keys for Jusic Playlist Studio */
+/** Canonical localStorage keys for JUSIC PLAY */
 export const STORAGE_KEYS = {
   draft: 'jusic_playlist_draft',
   draftHistory: 'jusic_playlist_draft_history_v1',

@@ -1,4 +1,4 @@
-# Jusic Playlist Studio — Design System v3
+# JUSIC PLAY — Design System v3
 
 ## Principles
 

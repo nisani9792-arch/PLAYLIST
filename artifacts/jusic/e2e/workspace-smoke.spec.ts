@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Smoke test for Jusic Playlist Studio shell.
+ * Smoke test for JUSIC PLAY shell.
  * Skips when lock screen blocks workspace.
  */
-test('workspace shell renders Jusic title', async ({ page }) => {
+test('workspace shell renders JUSIC PLAY title', async ({ page }) => {
   await page.goto('/');
-  const title = page.getByText('Jusic', { exact: false }).first();
+  const title = page.getByText('JUSIC PLAY', { exact: false }).first();
   await expect(title).toBeVisible({ timeout: 15_000 });
 });
 

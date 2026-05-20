@@ -88,7 +88,7 @@ const resolvedStatic =
   process.env.STATIC_DIR?.trim() ||
   path.resolve(__dirname, "../../jusic/dist/public");
 
-/** PWA / shell files must not be cached for 1y — stale manifest kept "JUSIC" on install. */
+/** PWA / shell files must not be cached for 1y — stale manifest kept old branding on install. */
 const PWA_SHELL_FILES = new Set([
   "index.html",
   "manifest.json",

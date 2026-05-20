@@ -78,7 +78,7 @@ export function OfflinePlaylistMasterDialog() {
       </DialogTrigger>
       <DialogContent className="max-h-[92dvh] max-w-[min(48rem,calc(100vw-1rem))] overflow-y-auto p-4 sm:p-6 bp-glass-panel border-primary/18 shadow-2xl" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="text-right">Jusic Playlist Generator</DialogTitle>
+          <DialogTitle className="text-right">JUSIC PLAY Generator</DialogTitle>
           <DialogDescription className="text-right">
             העלה מאגר CSV/Excel, הזן שם פלייליסט ורשימת שירים. המערכת תסנן לשירים בלבד, תבצע התאמה עם סף 80 ותפיק CSV מוכן לאודו.
           </DialogDescription>

@@ -1,4 +1,4 @@
-# BUILD PLAY — production on Render + PostgreSQL on Neon.
+# JUSIC PLAY — production on Render + PostgreSQL on Neon.
 # Root Directory must be "." (repo root). Do not point Render at artifacts/ alone.
 #
 # Required secrets in Render Dashboard → Environment:
