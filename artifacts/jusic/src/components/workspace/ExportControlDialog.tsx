@@ -116,7 +116,7 @@ export function ExportControlDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90dvh] flex flex-col gap-0 p-0 overflow-hidden">
+      <DialogContent className="max-w-lg max-h-[90dvh] flex flex-col gap-0 p-0 overflow-hidden rounded-2xl border-border/50 bg-card/90 backdrop-blur-2xl">
         <DialogHeader className="p-4 pb-2 border-b border-border/50">
           <DialogTitle>ייצוא לאודו — בקרה מלאה</DialogTitle>
           <DialogDescription className="text-right">

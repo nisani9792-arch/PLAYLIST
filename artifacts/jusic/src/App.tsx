@@ -58,9 +58,9 @@ function AppShell() {
   if (status.state === 'loading') {
     return (
       <div className="lock-screen flex items-center justify-center min-h-[100dvh]" aria-busy="true">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-9 w-9 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-          <p className="text-muted-foreground text-sm">טוען {APP_SHORT_NAME}…</p>
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 rounded-full border-2 border-primary/25 border-t-primary animate-spin" />
+          <p className="text-secondary text-sm font-medium">טוען {APP_SHORT_NAME}…</p>
         </div>
       </div>
     );
@@ -108,14 +108,14 @@ function App() {
       <TooltipProvider>
         <AppShell />
         <Toaster
-          theme="dark"
+          theme="light"
           dir="rtl"
           toastOptions={{
             classNames: {
               toast:
-                'rounded-xl border border-white/15 bg-neutral-950/95 backdrop-blur-xl shadow-xl font-sans',
+                'rounded-2xl border border-primary/15 bg-card/90 backdrop-blur-2xl font-sans j-glow-primary',
               title: 'font-semibold',
-              description: 'text-muted-foreground',
+              description: 'text-secondary',
             },
           }}
         />

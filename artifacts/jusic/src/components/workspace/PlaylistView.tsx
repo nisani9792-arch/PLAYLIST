@@ -61,7 +61,7 @@ export function PlaylistView({
   return (
     <div
       className={cn(
-        'relative flex-1 flex flex-col min-h-0 overflow-hidden md:rounded-[1.25rem] md:ml-2 border-0 md:border border-border/50 bp-glass-panel shadow-lg',
+        'relative flex-1 flex flex-col min-h-0 overflow-hidden md:rounded-[1.35rem] md:ml-2 border-0 md:border border-border/40 bg-transparent',
         className,
       )}
       data-testid="playlist-container"
@@ -87,7 +87,7 @@ export function PlaylistView({
                 const trimmed = e.target.value.trim();
                 if (trimmed !== playlistName) setPlaylistName(trimmed || 'פלייליסט חדש');
               }}
-              className="w-full min-w-0 font-display text-[1rem] sm:text-lg font-bold bg-background border-border/60 hover:border-primary/25 focus-visible:ring-2 focus-visible:ring-primary/25 h-10 sm:h-11 px-3 rounded-xl text-foreground shadow-inner"
+              className="w-full min-w-0 font-display text-[1rem] sm:text-lg font-bold bg-background/70 border-border/55 hover:border-primary/25 focus-visible:ring-2 focus-visible:ring-primary/25 h-10 sm:h-11 px-3 rounded-2xl text-foreground"
             />
             <span
               className="font-display self-start sm:self-auto shrink-0 text-primary text-xs whitespace-nowrap bg-primary/10 border border-primary/25 px-3 py-1.5 rounded-xl tabular-nums font-semibold"
@@ -123,7 +123,7 @@ export function PlaylistView({
               size="sm"
               onClick={() => setExportOpen(true)}
               disabled={!songs.length}
-              className="w-full sm:w-auto rounded-xl shadow-md shadow-primary/20 text-xs font-semibold min-h-[2.35rem] sm:min-h-[2rem]"
+              className="w-full sm:w-auto rounded-full text-xs font-semibold min-h-[2.35rem] sm:min-h-[2rem]"
             >
               <Download className="w-3.5 h-3.5 mr-1.5" /> ייצוא לאודו
             </Button>
@@ -141,7 +141,7 @@ export function PlaylistView({
       <div className="flex-1 overflow-hidden relative bg-gradient-to-b from-transparent to-muted/[0.12]">
         {songs.length === 0 ? (
           <div className="absolute inset-6 sm:inset-10 flex flex-col items-center justify-center text-center px-6 rounded-[1.5rem] border border-dashed border-primary/22 bg-muted/30">
-            <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-indigo-500/15 text-primary border border-white/70 shadow-inner">
+            <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-violet-500/10 text-primary border border-primary/20">
               <Search className="w-7 h-7 opacity-85" />
             </span>
             <p className="text-[15px] sm:text-base font-semibold text-foreground/85 max-w-[20rem] leading-relaxed">
@@ -161,7 +161,7 @@ export function PlaylistView({
                   {...provided.draggableProps}
                   {...provided.dragHandleProps}
                   ref={provided.innerRef}
-                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 mx-2 sm:mx-3 bg-card border border-primary/30 rounded-2xl shadow-[0_12px_40px_rgba(6,182,212,0.18)] ring-2 ring-primary/15"
+                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 mx-2 sm:mx-3 bg-card/80 border border-primary/25 rounded-2xl j-glow-primary ring-1 ring-primary/15"
                   style={provided.draggableProps.style}
                 >
                   <GripVertical className="w-4 h-4 text-muted-foreground/40" />
@@ -209,8 +209,8 @@ export function PlaylistView({
                               <motion.div
                                 className={`flex items-center group h-[calc(100%-10px)] my-[5px] rounded-[0.875rem] border transition-all duration-200 ${
                                   snapshot.isDragging
-                                    ? 'bg-card border-primary/40 shadow-2xl shadow-primary/25 z-50 ring-2 ring-primary/25 scale-[1.01]'
-                                    : 'bg-card border-border/55 hover:border-primary/28 hover:shadow-[0_10px_28px_-6px_rgba(6,182,212,0.18)]'
+                                    ? 'bg-card border-primary/35 j-glow-primary z-50 ring-1 ring-primary/20 scale-[1.01]'
+                                    : 'bg-card/75 border-border/50 hover:border-primary/28 hover:bg-primary/4'
                                 }`}
                                 transition={{ duration: 0.1 }}
                               >

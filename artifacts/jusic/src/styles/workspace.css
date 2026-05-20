@@ -45,13 +45,14 @@
   height: 100%;
   gap: 0.5rem;
   padding: 0.75rem;
-  border-radius: 1rem;
-  border: 1px solid hsl(var(--primary) / 0.18);
+  border-radius: 1.25rem;
+  border: 1px solid hsl(var(--primary) / 0.2);
   background: linear-gradient(
     180deg,
-    hsl(var(--muted) / 0.45) 0%,
-    hsl(var(--card) / 0.92) 100%
+    hsl(var(--primary) / 0.05) 0%,
+    hsl(var(--card) / 0.72) 100%
   );
+  box-shadow: 0 0 32px hsl(var(--mesh-violet) / 0.08);
 }
 
 .bp-staging__header {

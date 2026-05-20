@@ -1,5 +1,7 @@
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Sparkles } from 'lucide-react';
+import { scaleTap } from '@/lib/motion-presets';
 
 export function TopicChip({
   title,
@@ -17,12 +19,13 @@ export function TopicChip({
   className?: string;
 }) {
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onClick}
+      {...scaleTap}
       className={cn(
-        'text-right rounded-xl border border-border/70 bg-card/95 p-3',
-        'hover:border-primary/40 hover:bg-primary/5 transition-all hover:shadow-md',
+        'text-right w-full rounded-2xl border border-border/55 bg-card/65 backdrop-blur-sm p-3.5',
+        'hover:border-primary/35 hover:bg-primary/6 transition-colors',
         'min-h-[var(--bp-touch-min,2.75rem)] touch-manipulation',
         className,
       )}
@@ -40,6 +43,6 @@ export function TopicChip({
       {vibe ? (
         <p className="text-[10px] text-primary/70 mt-1 font-medium">{vibe}</p>
       ) : null}
-    </button>
+    </motion.button>
   );
 }

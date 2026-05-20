@@ -126,7 +126,7 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
             enterKeyHint="search"
             autoComplete="off"
             placeholder="חיפוש שירים — שיר, אמן, אלבום, תגית…"
-            className="h-12 rounded-[1rem] pr-12 pl-12 text-base font-medium bg-card border-border/70 shadow-md focus-visible:ring-2 focus-visible:ring-primary/35"
+            className="h-12 rounded-2xl pr-12 pl-12 text-base font-medium bg-card/70 backdrop-blur-md border-border/55 focus-visible:ring-2 focus-visible:ring-primary/30 j-glow-primary"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -167,7 +167,7 @@ export function SearchBar({ onAddSong }: { onAddSong: (song: MsHit) => void }) {
             role="listbox"
             data-testid="search-results-dropdown"
             className={cn(
-              'absolute left-0 right-0 top-full mt-2 z-[100] overflow-hidden rounded-[1rem] border border-border/80 bg-card shadow-2xl',
+              'absolute left-0 right-0 top-full mt-2 z-[100] overflow-hidden rounded-2xl border border-border/55 bg-card/88 backdrop-blur-2xl j-glow-primary',
               'max-h-[min(22rem,calc(100dvh-14rem))] sm:max-h-[26rem] overflow-y-auto custom-scrollbar',
             )}
           >

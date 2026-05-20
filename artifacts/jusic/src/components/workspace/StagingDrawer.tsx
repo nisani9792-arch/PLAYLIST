@@ -37,9 +37,9 @@ export function StagingDrawer({
       <div className="md:hidden h-2 bg-gradient-to-t from-black/10 to-transparent" aria-hidden />
       <section
         className={cn(
-          'flex flex-col bp-surface-card overflow-hidden',
-          'max-h-[70dvh] md:max-h-[40vh] rounded-t-[1.25rem] md:rounded-[1.25rem]',
-          'border border-border/60 shadow-2xl md:shadow-lg',
+          'flex flex-col j-glass-panel j-gradient-border overflow-hidden',
+          'max-h-[70dvh] md:max-h-[40vh] rounded-t-[1.35rem] md:rounded-[1.35rem]',
+          'border border-border/45',
         )}
         aria-label="אזור התאמה"
       >

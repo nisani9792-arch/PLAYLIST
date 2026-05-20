@@ -2,7 +2,9 @@ import { Fingerprint, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
-import { APP_LOGO_URL, APP_SHORT_NAME } from '@/lib/brand';
+import { APP_SHORT_NAME } from '@/lib/brand';
+import { JusicLogo } from '@/components/ui/jusic-logo';
+import { springSoft } from '@/lib/motion-presets';
 import './LockScreen.css';
 
 const JUSIC_CODE = 'JUSIC';
@@ -15,7 +17,6 @@ type LockScreenProps = {
 export function LockScreen({ onUnlock, knownOperatorName }: LockScreenProps) {
   const [password, setPassword] = useState('');
   const [wrongCode, setWrongCode] = useState(false);
-  const logoUrl = APP_LOGO_URL;
   const { available: biometricAvailable, busy: biometricBusy, unlock: unlockWithBiometric } =
     useBiometricUnlock(onUnlock);
 
@@ -47,11 +48,13 @@ export function LockScreen({ onUnlock, knownOperatorName }: LockScreenProps) {
     >
       <motion.div
         className="lock-card"
-        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        initial={{ opacity: 0, y: 16, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
+        transition={springSoft}
       >
-        <img src={logoUrl} className="lock-logo" alt={APP_SHORT_NAME} width={88} height={88} />
+        <div className="lock-logo-wrap">
+          <JusicLogo size={80} />
+        </div>
 
         <motion.div
           className="lock-icon-wrap"

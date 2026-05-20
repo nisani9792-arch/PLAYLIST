@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { APP_LOGO_URL, APP_SHORT_NAME } from '@/lib/brand';
+import { JusicLogo } from '@/components/ui/jusic-logo';
+import { APP_SHORT_NAME } from '@/lib/brand';
+import { springSoft } from '@/lib/motion-presets';
 import { getOperatorName } from '@/lib/operator';
 import './LockScreen.css';
 
@@ -44,10 +46,13 @@ export function OperatorRegistration({ onComplete }: OperatorRegistrationProps) 
     >
       <motion.div
         className="lock-card"
-        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        initial={{ opacity: 0, y: 16, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={springSoft}
       >
-        <img src={APP_LOGO_URL} className="lock-logo" alt={APP_SHORT_NAME} width={88} height={88} />
+        <div className="lock-logo-wrap">
+          <JusicLogo size={80} />
+        </div>
         <div className="lock-icon-wrap" aria-hidden>
           <UserRound size={28} strokeWidth={2} />
         </div>

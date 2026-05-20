@@ -1,7 +1,8 @@
+import { motion } from 'framer-motion';
 import { StepIndicator, type WorkspaceStep } from '@/components/ui/step-indicator';
 import { cn } from '@/lib/utils';
 import { ListMusic, Search, Sparkles } from 'lucide-react';
-
+import { springSoft } from '@/lib/motion-presets';
 export type MobileWorkspaceStep = 'build' | 'match' | 'playlist';
 
 const STEPS: WorkspaceStep[] = [
@@ -24,9 +25,12 @@ export function MobileWorkspaceNav({
   className?: string;
 }) {
   return (
-    <nav
+    <motion.nav
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springSoft}
       className={cn(
-        'flex-shrink-0 border-t border-border/60 bg-card/95 backdrop-blur-md pb-[max(env(safe-area-inset-bottom,0px),0.35rem)] pt-2 px-2',
+        'flex-shrink-0 border-t border-border/45 j-glass-strip pb-[max(env(safe-area-inset-bottom,0px),0.35rem)] pt-2.5 px-2',
         className,
       )}
       aria-label="ניווט עבודה"
@@ -51,6 +55,6 @@ export function MobileWorkspaceNav({
           חיפוש בכותרת
         </span>
       </div>
-    </nav>
+    </motion.nav>
   );
 }

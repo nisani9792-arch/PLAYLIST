@@ -232,7 +232,7 @@ export function ASIComposerPanel({
   return (
     <aside
       className={cn(
-        'relative flex flex-col shrink-0 rounded-none sm:rounded-[1.25rem] md:mr-2 overflow-hidden border-0 sm:border border-border/55 bg-card shadow-lg transition-all duration-300 min-h-0',
+        'relative flex flex-col shrink-0 rounded-none sm:rounded-[1.35rem] md:mr-2 overflow-hidden border-0 sm:border border-border/45 j-glass-panel j-gradient-border transition-all duration-300 min-h-0',
         panelOpen
           ? useMobileTabs
             ? 'flex-1 min-h-0 w-full h-full'
@@ -248,7 +248,7 @@ export function ASIComposerPanel({
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.92 }}
             onClick={() => setIsOpen((v) => !v)}
-            className="absolute left-3 top-4 md:top-1/2 md:-translate-y-1/2 md:-left-[0.875rem] z-20 bp-glass-panel border-primary/22 rounded-xl p-1.5 shadow-md hover:shadow-lg hover:border-primary/40 hover:text-primary transition-all"
+            className="absolute left-3 top-4 md:top-1/2 md:-translate-y-1/2 md:-left-[0.875rem] z-20 j-glass-panel border-primary/22 rounded-xl p-1.5 hover:border-primary/40 hover:text-primary transition-all"
             title={isOpen ? 'סגור ASI' : 'פתח ASI'}
           >
             {isOpen ? (
@@ -278,12 +278,12 @@ export function ASIComposerPanel({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex gap-3 min-w-0 flex-1">
-                    <span className="relative flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-emerald-500 to-primary text-primary-foreground shadow-lg shadow-primary/35 ring-4 ring-primary/12">
+                    <span className="relative flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-violet-500 to-pink-400 text-primary-foreground j-glow-primary">
                       <Sparkles className="w-[1.125rem] h-[1.125rem]" strokeWidth={2.5} />
                     </span>
                     <div className="min-w-0">
-                      <h2 className="font-display text-sm sm:text-base font-bold tracking-tight text-foreground">
-                        {APP_SHORT_NAME} Intelligence
+                      <h2 className="font-display text-sm sm:text-base font-bold tracking-tight">
+                        <span className="j-text-gradient">{APP_SHORT_NAME} Intelligence</span>
                       </h2>
                       <p className="text-[11px] sm:text-[12px] text-muted-foreground leading-snug mt-0.5">
                         רשימה, פרשה או נושא — התאמה חכמה במאגר
@@ -293,7 +293,7 @@ export function ASIComposerPanel({
                   <Button
                     variant="secondary"
                     size="sm"
-                    className="h-9 rounded-xl text-[11px] font-semibold border border-border/60 shadow-sm shrink-0"
+                    className="h-9 rounded-full text-[11px] font-semibold border border-border/55 shrink-0"
                     onClick={onRememberDraft}
                   >
                     <BookmarkPlus className="w-3.5 h-3.5 mr-1" />
@@ -317,7 +317,7 @@ export function ASIComposerPanel({
                 <Textarea
                   data-testid="asi-composer-input"
                   placeholder="הדבק רשימה, כתוב נושא (20–50 שירים), או פרשה — למשל: פרשת שמות"
-                  className={`resize-none rounded-[1rem] border-border/65 bg-background/75 text-base sm:text-[13px] leading-relaxed shadow-inner focus-visible:ring-2 focus-visible:ring-primary/30 ${
+                  className={`resize-none rounded-2xl border-border/55 bg-background/70 text-base sm:text-[13px] leading-relaxed focus-visible:ring-2 focus-visible:ring-primary/30 ${
                     useMobileTabs ? 'h-20' : 'h-24 sm:h-40'
                   }`}
                   value={composerInput}
@@ -338,7 +338,7 @@ export function ASIComposerPanel({
                 </div>
                 <Button
                   data-testid="asi-compose-button"
-                  className="w-full rounded-xl h-11 shadow-lg shadow-primary/20 font-semibold"
+                  className="w-full rounded-full h-11 font-semibold"
                   onClick={handleASICompose}
                   disabled={
                     curatorBusy ||
@@ -402,7 +402,7 @@ export function ASIComposerPanel({
                     draftHistory.map((draft) => (
                       <div
                         key={draft.id}
-                        className="rounded-xl border border-border/55 bg-card/90 px-3 py-2.5 bp-soft-glow-primary shadow-sm"
+                        className="rounded-2xl border border-border/55 bg-card/85 backdrop-blur-sm px-3 py-2.5 j-glow-primary"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">

@@ -48,7 +48,7 @@ export function MobileSwipeReview({
         {index + 1} / {reviewItems.length}
       </p>
       <div className="flex-1 flex items-center justify-center">
-        <div className="w-full max-w-sm rounded-2xl border border-border/70 bg-card p-6 shadow-xl text-right space-y-3">
+        <div className="w-full max-w-sm rounded-2xl border border-border/55 bg-card/88 backdrop-blur-xl p-6 j-glow-primary text-right space-y-3">
           <AlertTriangle className="h-6 w-6 text-amber-500" />
           <p className="font-bold text-sm">{current.query}</p>
           {current.match ? (
