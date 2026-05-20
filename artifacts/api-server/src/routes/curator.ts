@@ -1,9 +1,15 @@
 import { Router } from "express";
 import {
+  artistCountsFromLines,
   buildCuratorPromptV2,
+  buildFillCuratorPrompt,
+  buildFillRankSelectionPrompt,
+  buildFillTopicQueries,
   buildRankSelectionPrompt,
   buildTopicQueries,
+  computeFillTarget,
   computeTargetSize,
+  excludeKeysFromLines,
   formatArtistSongLine,
   parseRankSelectionJson,
   parseVibeFromPrompt,
@@ -228,10 +234,10 @@ router.post("/build", async (req, res) => {
 });
 
 /**
- * POST /api/curator/fill — complete partial playlist to target size
+ * POST /api/curator/fill — AI-aware completion of partial playlist (20–50 songs)
  */
 router.post("/fill", async (req, res) => {
-  const { topic, targetSize = 30, existingLines = [] } = req.body as {
+  const { topic, targetSize, existingLines = [] } = req.body as {
     topic?: string;
     targetSize?: number;
     existingLines?: string[];
@@ -242,34 +248,94 @@ router.post("/fill", async (req, res) => {
     return;
   }
 
-  const excludeKeys = new Set<string>();
-  for (const line of existingLines) {
-    const [artist, title] = line.split(" - ").map((s) => s.trim());
-    if (artist && title) {
-      excludeKeys.add(`t:${artist}|${title}`.toLowerCase());
-    }
-  }
+  const lines = existingLines.map((l) => l.trim()).filter(Boolean);
+  const fillTarget = computeFillTarget(lines.length, targetSize);
+  const needed = Math.max(0, fillTarget - lines.length);
 
-  const needed = Math.max(0, targetSize - existingLines.length);
   if (needed === 0) {
-    res.json({ lines: [], items: [] });
+    res.json({
+      meta: { targetSize: fillTarget, reason: "הפלייליסט כבר במטרה" },
+      lines: [],
+      items: [],
+    });
     return;
   }
 
-  const vibe = parseVibeFromPrompt(topic);
-  const queries = buildTopicQueries(topic, vibe);
-  const candidates = await searchTopicBatch(queries, 40);
-  const { selected } = rankAndSelectCandidates(candidates, needed, excludeKeys);
+  const fillPrompt = buildFillCuratorPrompt(topic, lines, needed);
+  const excludeKeys = excludeKeysFromLines(lines);
+  const artistCounts = artistCountsFromLines(lines);
+
+  let vibe = parseVibeFromPrompt(fillPrompt);
+  const uniqueQueries = [
+    ...new Set([
+      ...buildFillTopicQueries(topic, lines),
+      ...buildTopicQueries(topic, vibe),
+    ]),
+  ].slice(0, 12);
+
+  let candidates = await searchTopicBatch(uniqueQueries, 40);
+  if (!candidates.length) {
+    candidates = await searchCatalogQuery(`${topic} ${lines.slice(0, 3).join(" ")}`, 60);
+  }
+
+  for (const hit of candidates) {
+    hit._rankingScore = scoreHitAgainstTopic(hit, fillPrompt);
+  }
+
+  let selected = rankAndSelectCandidates(
+    candidates,
+    needed,
+    excludeKeys,
+    artistCounts,
+  ).selected;
+
+  try {
+    const client = await getGeminiClientOrThrow();
+    const vibeText = await geminiGenerate(client, buildVibeAnalysisPrompt(fillPrompt));
+    vibe = parseVibeJson(vibeText, fillPrompt);
+
+    if (candidates.length >= 5) {
+      const rankPrompt = buildFillRankSelectionPrompt(
+        topic,
+        lines,
+        candidates,
+        needed,
+        vibe.reason,
+      );
+      const rankText = await geminiGenerate(client, rankPrompt);
+      const aiPicked = parseRankSelectionJson(rankText, candidates, needed, excludeKeys);
+      const minAccept = Math.min(needed, Math.max(3, Math.ceil(needed * 0.4)));
+      if (aiPicked.length >= minAccept) {
+        selected = aiPicked;
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, "Curator fill AI enrichment skipped — using catalog rank");
+  }
+
+  const items = selected.map((hit) => {
+    const line = hit._line ?? formatArtistSongLine(hit);
+    const confidence = matchConfidence(fillPrompt, hit.artist, hit);
+    return {
+      line,
+      artist: hit.artist,
+      title: hit.song_name,
+      uid: hit.id,
+      confidence,
+      blocked: false,
+    };
+  });
 
   res.json({
-    lines: selected.map((h) => h._line ?? formatArtistSongLine(h)),
-    items: selected.map((h) => ({
-      line: h._line ?? formatArtistSongLine(h),
-      artist: h.artist,
-      title: h.song_name,
-      uid: h.id,
-    })),
-  });
+    meta: {
+      vibe: vibe.mood,
+      tact: vibe.tact,
+      targetSize: fillTarget,
+      reason: vibe.reason ?? `הושלמו ${items.length} שירים ל-${fillTarget}`,
+    },
+    lines: items.map((i) => i.line),
+    items,
+  } satisfies CuratorBuildResult);
 });
 
 /**

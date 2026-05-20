@@ -37,3 +37,14 @@ export function computeTargetSize(ctx: SizeContext): number {
 export function clampSize(n: number): number {
   return Math.min(PLAYLIST_MAX, Math.max(PLAYLIST_MIN, Math.round(n)));
 }
+
+/** Smart fill target: grows toward 50 based on current playlist size. */
+export function computeFillTarget(currentCount: number, requested?: number): number {
+  if (requested != null && Number.isFinite(requested)) {
+    return clampSize(Math.max(currentCount + 1, requested));
+  }
+  if (currentCount >= 45) return PLAYLIST_MAX;
+  if (currentCount >= 35) return clampSize(Math.min(PLAYLIST_MAX, currentCount + 12));
+  if (currentCount >= PLAYLIST_MIN) return clampSize(Math.min(PLAYLIST_MAX, currentCount + 18));
+  return clampSize(Math.max(PLAYLIST_MIN, 30));
+}

@@ -56,7 +56,10 @@ function artistNamesFromArray(raw: unknown): string[] {
 }
 
 /** Artist string for Lomdaat / Odoo `imported_artist_name` (Hebrew only). */
-export function odooImportArtistFromHit(hit: Record<string, unknown>): string {
+export function odooImportArtistFromHit(
+  hit: Record<string, unknown> | null | undefined,
+): string {
+  if (!hit || typeof hit !== "object") return "";
   const artistHe = String(hit.artist_he ?? hit.artist_name_he ?? "").trim();
   const artistMain = String(hit.artist ?? hit.artist_name ?? "").trim();
 
@@ -77,7 +80,10 @@ export function odooImportArtistFromHit(hit: Record<string, unknown>): string {
 }
 
 /** Song title for Lomdaat / Odoo `imported_song_name` (Hebrew preferred). */
-export function odooImportSongNameFromHit(hit: Record<string, unknown>): string {
+export function odooImportSongNameFromHit(
+  hit: Record<string, unknown> | null | undefined,
+): string {
+  if (!hit || typeof hit !== "object") return "";
   const nameHe = String(hit.name_he ?? "").trim();
   const main = String(hit.song_name ?? hit.name ?? hit.title ?? "").trim();
 
@@ -86,7 +92,12 @@ export function odooImportSongNameFromHit(hit: Record<string, unknown>): string 
   return preferHebrewOnlyText(main);
 }
 
-export function msHitLikeFromMeiliRecord(hit: Record<string, unknown>): MsHitLike {
+export function msHitLikeFromMeiliRecord(
+  hit: Record<string, unknown> | null | undefined,
+): MsHitLike {
+  if (!hit || typeof hit !== "object") {
+    return { id: "", song_name: "", artist: "" };
+  }
   return {
     id: String(hit.uid ?? hit.id ?? "").trim(),
     song_name: odooImportSongNameFromHit(hit),

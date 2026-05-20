@@ -290,6 +290,9 @@ importers:
       '@workspace/api-client-react':
         specifier: workspace:*
         version: link:../../lib/api-client-react
+      '@workspace/curator':
+        specifier: workspace:*
+        version: link:../../lib/curator
       '@workspace/playlist-validation':
         specifier: workspace:*
         version: link:../../lib/playlist-validation

@@ -16,11 +16,18 @@ import { useSearchFilters } from '@/contexts/SearchFiltersContext';
 import { setActiveParashaExportContext } from '@/lib/parasha-export-context';
 import { APP_LOGO_URL, APP_SHORT_NAME } from '@/lib/brand';
 import { fillCuratorPlaylist } from '@/hooks/use-curator-build';
+import { computeFillTarget, PLAYLIST_MAX } from '@workspace/curator';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { MsHit } from '../lib/meilisearch';
 
-const PLAYLIST_TARGET = 35;
+function inferFillTopic(name: string, songs: MsHit[]): string {
+  const trimmed = name.trim();
+  if (trimmed && !/^פלייליסט(\s|$)/i.test(trimmed)) return trimmed;
+  const titles = songs.slice(0, 4).map((s) => s.song_name).filter(Boolean);
+  if (titles.length) return `פלייליסט במתכונת: ${titles.join(', ')}`;
+  return 'מוזיקה חרדית מגוונת';
+}
 
 type WorkspaceProps = {
   operatorName: string;
@@ -70,27 +77,35 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
     setFillBusy(true);
     try {
       const existingLines = playlist.songs.map((s) => `${s.artist} - ${s.song_name}`);
-      const topic = playlist.playlistName.trim() || 'פלייליסט מוזיקה חרדית';
-      const { lines } = await fillCuratorPlaylist({
+      const fillTarget = computeFillTarget(existingLines.length);
+      const topic = inferFillTopic(playlist.playlistName, playlist.songs);
+      const { lines, meta } = await fillCuratorPlaylist({
         topic,
-        targetSize: PLAYLIST_TARGET,
+        targetSize: fillTarget,
         existingLines,
       });
       if (!lines.length) {
-        toast.info('לא נמצאו שירים נוספים להשלמה');
+        toast.info(
+          meta?.reason ??
+            (existingLines.length >= PLAYLIST_MAX
+              ? 'הפלייליסט הגיע למקסימום'
+              : 'לא נמצאו שירים נוספים מתאימים'),
+        );
         return;
       }
       startStaging(
         lines.map((line) => ({ id: crypto.randomUUID(), query: line, status: 'pending' as const })),
         null,
       );
-      toast.success(`נוספו ${lines.length} שירים להתאמה`);
+      toast.success(`נוספו ${lines.length} שירים להתאמה (מטרה: ${meta?.targetSize ?? fillTarget})`);
     } catch {
       toast.error('שגיאה בהשלמת פלייליסט');
     } finally {
       setFillBusy(false);
     }
   };
+
+  const fillTarget = computeFillTarget(playlist.songs.length);
 
   const showStagingDrawer = stagingActive && !isMobile;
 
@@ -142,7 +157,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
             removeSong={playlist.removeSong}
             reorderSongs={playlist.reorderSongs}
             clearPlaylist={playlist.clearPlaylist}
-            targetSize={PLAYLIST_TARGET}
+            targetSize={fillTarget}
             onSmartFill={handleSmartFill}
             smartFillBusy={fillBusy}
             className={cn(

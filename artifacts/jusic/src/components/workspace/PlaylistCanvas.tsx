@@ -19,7 +19,7 @@ type PlaylistCanvasProps = {
 };
 
 export function PlaylistCanvas({
-  targetSize = 35,
+  targetSize = 50,
   onSmartFill,
   smartFillBusy,
   songs,

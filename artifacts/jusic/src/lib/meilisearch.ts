@@ -146,7 +146,7 @@ export async function resolveSongsForOdoo(
   const results = data.results;
   if (results?.length) {
     return results.map((r) =>
-      r
+      r?.hit && typeof r.hit === "object"
         ? {
             raw: r.hit,
             confidence: r.confidence,
@@ -158,7 +158,7 @@ export async function resolveSongsForOdoo(
   }
 
   return (data.hits || []).map((h) =>
-    h
+    h && typeof h === "object"
       ? {
           raw: h,
           confidence: 1,

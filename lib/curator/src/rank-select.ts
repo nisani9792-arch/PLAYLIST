@@ -8,6 +8,27 @@ export type RankCandidate = MsHitLike & { _line?: string };
 
 const MAX_PER_ARTIST = 3;
 
+export function artistCountsFromLines(lines: string[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const line of lines) {
+    const artist = line.split(" - ")[0]?.trim().toLowerCase();
+    if (!artist) continue;
+    counts.set(artist, (counts.get(artist) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export function excludeKeysFromLines(lines: string[]): Set<string> {
+  const keys = new Set<string>();
+  for (const line of lines) {
+    const [artist, title] = line.split(" - ").map((s) => s.trim());
+    if (artist && title) {
+      keys.add(`t:${artist}|${title}`.toLowerCase());
+    }
+  }
+  return keys;
+}
+
 export function formatArtistSongLine(hit: MsHitLike): string {
   return `${hit.artist.trim()} - ${hit.song_name.trim()}`;
 }
@@ -16,9 +37,10 @@ export function rankAndSelectCandidates(
   candidates: RankCandidate[],
   targetSize: number,
   excludeKeys: Set<string> = new Set(),
+  initialArtistCounts: Map<string, number> = new Map(),
 ): { selected: RankCandidate[]; blocked: Array<{ hit: RankCandidate; reason: string }> } {
   const blocked: Array<{ hit: RankCandidate; reason: string }> = [];
-  const artistCounts = new Map<string, number>();
+  const artistCounts = new Map(initialArtistCounts);
   const selected: RankCandidate[] = [];
   const seen = new Set<string>();
 
@@ -53,6 +75,7 @@ export function parseRankSelectionJson(
   text: string,
   candidates: RankCandidate[],
   targetSize: number,
+  excludeKeys: Set<string> = new Set(),
 ): RankCandidate[] {
   const byLine = new Map<string, RankCandidate>();
   for (const c of candidates) {
@@ -80,7 +103,7 @@ export function parseRankSelectionJson(
       const hit = byLine.get(line.toLowerCase());
       if (!hit) continue;
       const key = canonicalSongKey(hit);
-      if (seen.has(key)) continue;
+      if (seen.has(key) || excludeKeys.has(key)) continue;
       seen.add(key);
       picked.push({ ...hit, _line: line });
     }

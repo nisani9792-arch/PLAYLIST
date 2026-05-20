@@ -3,6 +3,7 @@ export * from "./vibe-analysis";
 export * from "./topic-queries";
 export * from "./rank-select";
 export * from "./curator-prompt";
+export * from "./fill-prompt";
 
 export type CuratorBuildMeta = {
   vibe: string;

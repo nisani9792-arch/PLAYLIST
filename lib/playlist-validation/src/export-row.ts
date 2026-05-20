@@ -127,8 +127,11 @@ export function repairMsHitForExport(hit: MsHitLike): LomdaatPlaylistRow {
  * Lomdaat/Odoo row from a Meilisearch catalog record — exact import field mapping, no heuristics.
  */
 export function lomdaatRowFromMeiliRecord(
-  hit: Record<string, unknown>,
+  hit: Record<string, unknown> | null | undefined,
 ): LomdaatPlaylistRow {
+  if (!hit || typeof hit !== "object") {
+    return { song_name: "", artist: "" };
+  }
   return {
     song_name: odooImportSongNameFromHit(hit),
     artist: odooImportArtistFromHit(hit),

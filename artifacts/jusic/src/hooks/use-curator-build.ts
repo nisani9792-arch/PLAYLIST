@@ -178,14 +178,20 @@ export async function buildCuratorPlaylist(input: {
 
 export async function fillCuratorPlaylist(input: {
   topic: string;
-  targetSize: number;
+  targetSize?: number;
   existingLines: string[];
-}): Promise<{ lines: string[] }> {
+}): Promise<{
+  lines: string[];
+  meta?: { vibe?: string; targetSize?: number; reason?: string };
+}> {
   const res = await fetch('/api/curator/fill', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
   if (!res.ok) throw new Error('Fill failed');
-  return (await res.json()) as { lines: string[] };
+  return (await res.json()) as {
+    lines: string[];
+    meta?: { vibe?: string; targetSize?: number; reason?: string };
+  };
 }
