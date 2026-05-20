@@ -23,10 +23,15 @@ import { fadeUpVariants, staggerContainer } from '@/lib/motion-presets';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { MsHit } from '../lib/meilisearch';
+import {
+  inferPlaylistDisplayName,
+  isDefaultPlaylistName,
+  resolveAutoPlaylistName,
+} from '@/lib/playlist-name';
 
 function inferFillTopic(name: string, songs: MsHit[]): string {
   const trimmed = name.trim();
-  if (trimmed && !/^פלייליסט(\s|$)/i.test(trimmed)) return trimmed;
+  if (trimmed && !isDefaultPlaylistName(trimmed)) return trimmed;
   const titles = songs.slice(0, 4).map((s) => s.song_name).filter(Boolean);
   if (titles.length) return `פלייליסט במתכונת: ${titles.join(', ')}`;
   return 'מוזיקה חרדית מגוונת';
@@ -47,6 +52,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
     stagingBatchId,
     parashaContext,
     stagingActive,
+    stagingBuildLabel,
     clearStaging,
     startStaging,
   } = useStagingSession();
@@ -68,8 +74,19 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
     }
   }, [stagingActive, isMobile]);
 
+  const applyAutoPlaylistName = (label: string | null) => {
+    const suggested =
+      label ??
+      inferPlaylistDisplayName({
+        parasha: parashaContext?.targetParasha ?? null,
+      });
+    const next = resolveAutoPlaylistName(playlist.playlistName, suggested);
+    if (next !== playlist.playlistName) playlist.setPlaylistName(next);
+  };
+
   const handleApproveStaging = (songs: MsHit[]) => {
     playlist.addSongs(songs);
+    applyAutoPlaylistName(stagingBuildLabel);
     clearStaging();
     setActiveParashaExportContext(null, null, null);
     if (isMobile) setMobileStep('playlist');
@@ -99,6 +116,9 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
       startStaging(
         lines.map((line) => ({ id: crypto.randomUUID(), query: line, status: 'pending' as const })),
         null,
+        isDefaultPlaylistName(playlist.playlistName)
+          ? inferPlaylistDisplayName({ prompt: topic })
+          : playlist.playlistName.trim(),
       );
       toast.success(`נוספו ${lines.length} שירים להתאמה (מטרה: ${meta?.targetSize ?? fillTarget})`);
     } catch {
@@ -190,6 +210,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
           >
             <SmartComposer
               onAddSongs={playlist.addSongs}
+              onApplyAutoPlaylistName={applyAutoPlaylistName}
               draftHistory={playlist.draftHistory}
               onRememberDraft={playlist.rememberCurrentDraft}
               onLoadDraft={playlist.loadDraft}
@@ -227,7 +248,10 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
                 <MobileSwipeReview
                   items={stagingItems}
                   onApprove={(item) => {
-                    if (item.match) playlist.addSong(item.match);
+                    if (item.match) {
+                      playlist.addSong(item.match);
+                      applyAutoPlaylistName(stagingBuildLabel);
+                    }
                   }}
                   onSkip={() => undefined}
                   onDone={() => setMobileStep('playlist')}

@@ -93,7 +93,7 @@ export function PlaylistView({
               data-testid="playlist-name-input"
               type="text"
               aria-label="שם הפלייליסט"
-              placeholder="שם הפלייליסט"
+              placeholder="שם הפלייליסט (ריק = לפי נושא/פרשה)"
               value={playlistName}
               onChange={(e) => setPlaylistName(e.target.value)}
               onBlur={(e) => {

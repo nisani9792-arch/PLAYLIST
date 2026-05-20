@@ -17,9 +17,15 @@ type StagingSessionContextValue = {
   bumpStagingBatch: () => void;
   parashaContext: StagingParashaContext | null;
   setParashaContext: (ctx: StagingParashaContext | null) => void;
+  /** Suggested playlist title when operator did not set one (topic / parasha). */
+  stagingBuildLabel: string | null;
   stagingActive: boolean;
   clearStaging: () => void;
-  startStaging: (items: StagingItem[], parasha?: StagingParashaContext | null) => void;
+  startStaging: (
+    items: StagingItem[],
+    parasha?: StagingParashaContext | null,
+    buildLabel?: string | null,
+  ) => void;
 };
 
 const StagingSessionContext = createContext<StagingSessionContextValue | null>(null);
@@ -28,6 +34,7 @@ export function StagingSessionProvider({ children }: { children: ReactNode }) {
   const [stagingItems, setStagingItems] = useState<StagingItem[]>([]);
   const [stagingBatchId, setStagingBatchId] = useState(0);
   const [parashaContext, setParashaContext] = useState<StagingParashaContext | null>(null);
+  const [stagingBuildLabel, setStagingBuildLabel] = useState<string | null>(null);
 
   const bumpStagingBatch = useCallback(() => {
     setStagingBatchId((b) => b + 1);
@@ -36,11 +43,13 @@ export function StagingSessionProvider({ children }: { children: ReactNode }) {
   const clearStaging = useCallback(() => {
     setStagingItems([]);
     setParashaContext(null);
+    setStagingBuildLabel(null);
   }, []);
 
   const startStaging = useCallback(
-    (items: StagingItem[], parasha?: StagingParashaContext | null) => {
+    (items: StagingItem[], parasha?: StagingParashaContext | null, buildLabel?: string | null) => {
       setParashaContext(parasha ?? null);
+      setStagingBuildLabel(buildLabel ?? null);
       setStagingBatchId((b) => b + 1);
       setStagingItems(items);
     },
@@ -57,6 +66,7 @@ export function StagingSessionProvider({ children }: { children: ReactNode }) {
       bumpStagingBatch,
       parashaContext,
       setParashaContext,
+      stagingBuildLabel,
       stagingActive,
       clearStaging,
       startStaging,
@@ -66,6 +76,7 @@ export function StagingSessionProvider({ children }: { children: ReactNode }) {
       stagingBatchId,
       bumpStagingBatch,
       parashaContext,
+      stagingBuildLabel,
       stagingActive,
       clearStaging,
       startStaging,

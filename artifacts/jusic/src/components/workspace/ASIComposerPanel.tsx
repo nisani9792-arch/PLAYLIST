@@ -20,6 +20,10 @@ import type { MsHit } from '../../lib/meilisearch';
 import { newClientId } from '../../lib/ids';
 import type { PlaylistDraftSnapshot } from '../../lib/playlist-draft';
 import { promptLooksLikeParasha, resolveParashaFromPdf } from '../../lib/parasha';
+import {
+  formatParashaPlaylistName,
+  inferPlaylistDisplayName,
+} from '../../lib/playlist-name';
 import { cn } from '@/lib/utils';
 import { fetchSuggestions } from '@/lib/memory-api';
 
@@ -36,6 +40,7 @@ function formatDraftTime(ts: number): string {
 
 export function ASIComposerPanel({
   onAddSongs,
+  onApplyAutoPlaylistName,
   draftHistory,
   onRememberDraft,
   onLoadDraft,
@@ -48,6 +53,7 @@ export function ASIComposerPanel({
   className,
 }: {
   onAddSongs: (songs: MsHit[]) => void;
+  onApplyAutoPlaylistName?: (label: string | null) => void;
   draftHistory: PlaylistDraftSnapshot[];
   onRememberDraft: () => void;
   onLoadDraft: (draftId: string) => void;
@@ -71,6 +77,7 @@ export function ASIComposerPanel({
     parashaContext,
     setParashaContext,
     stagingActive,
+    stagingBuildLabel,
   } = useStagingSession();
   const [isOpen, setIsOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
@@ -117,6 +124,7 @@ export function ASIComposerPanel({
           startStaging(
             res.lines.map((line) => createStagingItem(line)),
             null,
+            inferPlaylistDisplayName({ prompt }),
           );
         } else if (!curatorStream.lines.length) {
           toast.error('לא התקבלו תוצאות');
@@ -188,7 +196,11 @@ export function ASIComposerPanel({
         });
       }
 
-      startStaging(stagingItemsNext, ctx);
+      startStaging(
+        stagingItemsNext,
+        ctx,
+        formatParashaPlaylistName(data.parasha),
+      );
       toast.success(
         `פרשת ${data.parasha}: ${data.parashaOnlyCount} שירי פרשה` +
           (data.haftarahCount ? ` + ${data.haftarahCount} הפטרה` : '') +
@@ -218,6 +230,7 @@ export function ASIComposerPanel({
 
   const handleApprove = (songs: MsHit[]) => {
     onAddSongs(songs);
+    onApplyAutoPlaylistName?.(stagingBuildLabel);
     clearStaging();
     setComposerInput('');
     toast.success(`נוספו ${songs.length} שירים`);
