@@ -1,3 +1,7 @@
+.lock-screen .text-secondary {
+  color: hsl(210 12% 72%);
+}
+
 .lock-screen {
   position: fixed;
   inset: 0;
@@ -6,10 +10,9 @@
   place-items: center;
   padding: 24px;
   background:
-    radial-gradient(circle at 50% 18%, hsl(217 89% 61% / 0.18), transparent 52%),
-    radial-gradient(circle at 80% 80%, hsl(262 83% 58% / 0.14), transparent 45%),
-    radial-gradient(circle at 12% 72%, hsl(340 82% 62% / 0.08), transparent 42%),
-    linear-gradient(165deg, hsl(232 38% 7%) 0%, hsl(232 34% 9%) 48%, hsl(232 36% 7%) 100%);
+    radial-gradient(circle at 50% 18%, hsl(var(--mesh-blue) / 0.14), transparent 52%),
+    radial-gradient(circle at 82% 82%, hsl(var(--mesh-grey) / 0.1), transparent 45%),
+    linear-gradient(165deg, hsl(215 28% 9%) 0%, hsl(215 26% 11%) 48%, hsl(215 28% 8%) 100%);
 }
 
 .lock-card {
@@ -20,12 +23,12 @@
   width: min(360px, 100%);
   padding: 32px 28px 28px;
   border-radius: 1.5rem;
-  background: hsl(232 34% 10% / 0.72);
-  border: 1px solid hsl(232 28% 22% / 0.75);
+  background: hsl(215 26% 13% / 0.88);
+  border: 1px solid hsl(215 22% 22% / 0.85);
   box-shadow:
-    0 0 0 1px hsl(217 89% 61% / 0.08) inset,
-    0 0 48px hsl(262 83% 58% / 0.12),
-    0 0 96px hsl(217 89% 61% / 0.06);
+    0 0 0 1px hsl(var(--mesh-blue) / 0.1) inset,
+    0 8px 24px hsl(0 0% 0% / 0.28),
+    0 20px 48px hsl(var(--mesh-blue) / 0.08);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
 }
@@ -35,9 +38,11 @@
   place-items: center;
   padding: 4px;
   border-radius: 1.25rem;
-  background: hsl(232 34% 12% / 0.55);
-  border: 1px solid hsl(217 89% 61% / 0.18);
-  box-shadow: 0 0 32px hsl(217 89% 61% / 0.14);
+  background: hsl(215 24% 15% / 0.7);
+  border: 1px solid hsl(var(--mesh-blue) / 0.22);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 28px hsl(var(--mesh-blue) / 0.12);
 }
 
 .lock-icon-wrap {
@@ -47,16 +52,18 @@
   height: 52px;
   margin-top: -4px;
   border-radius: 50%;
-  color: hsl(217 89% 72%);
-  background: hsl(217 89% 61% / 0.12);
-  border: 1px solid hsl(217 89% 61% / 0.28);
+  color: hsl(var(--mesh-blue) / 0.95);
+  filter: brightness(1.15);
+  background: hsl(var(--mesh-blue) / 0.14);
+  border: 1px solid hsl(var(--mesh-blue) / 0.32);
+  box-shadow: var(--shadow-xs);
 }
 
 .lock-prompt {
   margin: 0;
   font-size: 16px;
   font-weight: 700;
-  color: hsl(225 25% 94%);
+  color: hsl(210 18% 93%);
   text-align: center;
 }
 
@@ -68,25 +75,28 @@
   width: 100%;
   height: 46px;
   padding: 0 14px;
-  border: 1px solid hsl(232 26% 22%);
+  border: 1px solid hsl(215 20% 24%);
   border-radius: 0.875rem;
-  background: hsl(232 26% 14% / 0.85);
-  color: hsl(225 25% 94%);
+  background: hsl(215 22% 14% / 0.9);
+  color: hsl(210 18% 93%);
   font-size: 15px;
   letter-spacing: 0.12em;
   text-align: center;
   outline: none;
+  box-shadow: var(--shadow-xs);
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .lock-input::placeholder {
-  color: hsl(225 14% 62% / 0.55);
+  color: hsl(210 12% 68% / 0.65);
   letter-spacing: 0.08em;
 }
 
 .lock-input:focus {
-  border-color: hsl(217 89% 61% / 0.55);
-  box-shadow: 0 0 0 3px hsl(217 89% 61% / 0.15), 0 0 24px hsl(262 83% 58% / 0.1);
+  border-color: hsl(var(--mesh-blue) / 0.55);
+  box-shadow:
+    0 0 0 3px hsl(var(--mesh-blue) / 0.16),
+    var(--shadow-sm);
 }
 
 .lock-biometric {
@@ -97,19 +107,21 @@
   width: 100%;
   height: 46px;
   margin-top: 4px;
-  border: 1px solid hsl(217 89% 61% / 0.35);
+  border: 1px solid hsl(var(--mesh-blue) / 0.38);
   border-radius: 0.875rem;
-  background: hsl(217 89% 61% / 0.1);
-  color: hsl(217 89% 78%);
+  background: hsl(var(--mesh-blue) / 0.12);
+  color: hsl(192 65% 78%);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+  box-shadow: var(--shadow-xs);
+  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
 }
 
 .lock-biometric:hover:not(:disabled) {
-  background: hsl(217 89% 61% / 0.18);
-  border-color: hsl(217 89% 61% / 0.55);
+  background: hsl(var(--mesh-blue) / 0.2);
+  border-color: hsl(var(--mesh-blue) / 0.55);
+  box-shadow: var(--shadow-sm);
   transform: translateY(-1px);
 }
 

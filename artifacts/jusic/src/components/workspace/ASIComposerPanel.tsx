@@ -278,7 +278,7 @@ export function ASIComposerPanel({
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex gap-3 min-w-0 flex-1">
-                    <span className="relative flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-violet-500 to-pink-400 text-primary-foreground j-glow-primary">
+                    <span className="relative flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-[hsl(var(--mesh-coral))] to-[hsl(var(--mesh-teal))] text-primary-foreground j-glow-primary shadow-md">
                       <Sparkles className="w-[1.125rem] h-[1.125rem]" strokeWidth={2.5} />
                     </span>
                     <div className="min-w-0">

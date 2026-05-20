@@ -41,7 +41,7 @@ export function InspirationPanel({ onPickTopic, className }: InspirationPanelPro
       )}
       aria-label="השראה"
     >
-      <div className="shrink-0 px-4 py-3.5 border-b border-border/40 bg-gradient-to-l from-violet-500/8 via-transparent to-primary/6">
+      <div className="shrink-0 px-4 py-3.5 border-b border-border/50 bg-gradient-to-l from-primary/8 via-transparent to-[hsl(var(--mesh-grey)/0.05)] shadow-sm">
         <div className="flex items-center gap-2">
           <div className="grid place-items-center h-8 w-8 rounded-full bg-primary/10 text-primary">
             <Lightbulb className="h-4 w-4" />

@@ -113,7 +113,7 @@ function App() {
           toastOptions={{
             classNames: {
               toast:
-                'rounded-2xl border border-primary/15 bg-card/90 backdrop-blur-2xl font-sans j-glow-primary',
+                'rounded-2xl border border-primary/20 bg-card shadow-lg font-sans text-foreground',
               title: 'font-semibold',
               description: 'text-secondary',
             },

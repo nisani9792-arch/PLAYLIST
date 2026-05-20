@@ -141,7 +141,7 @@ export function PlaylistView({
       <div className="flex-1 overflow-hidden relative bg-gradient-to-b from-transparent to-muted/[0.12]">
         {songs.length === 0 ? (
           <div className="absolute inset-6 sm:inset-10 flex flex-col items-center justify-center text-center px-6 rounded-[1.5rem] border border-dashed border-primary/22 bg-muted/30">
-            <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-violet-500/10 text-primary border border-primary/20">
+            <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-[hsl(var(--mesh-grey)/0.12)] text-primary border border-primary/25 shadow-sm">
               <Search className="w-7 h-7 opacity-85" />
             </span>
             <p className="text-[15px] sm:text-base font-semibold text-foreground/85 max-w-[20rem] leading-relaxed">

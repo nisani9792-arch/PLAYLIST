@@ -18,7 +18,7 @@ export default function SettingsPage({ operatorName }: { operatorName: string })
             חזרה לעבודה
           </Button>
         </Link>
-        <JusicLogo size={34} />
+        <JusicLogo size={48} framed />
         <div className="min-w-0">
           <h1 className="text-sm font-bold font-display">הגדרות</h1>
           <p className="text-[10px] text-secondary truncate">{operatorName}</p>

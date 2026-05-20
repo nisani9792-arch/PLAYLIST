@@ -115,19 +115,19 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
   return (
     <div className="app-shell-bg flex flex-col h-[100dvh] w-full overflow-hidden text-foreground selection:bg-primary/20">
       <header className="j-glass-strip bp-glass-strip flex-shrink-0 flex flex-col z-40 overflow-visible pt-[max(env(safe-area-inset-top,0px),0.625rem)] sm:pt-3.5">
-        <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 lg:px-7 py-2 sm:py-2.5">
+        <div className="bp-brand-row flex flex-wrap md:flex-nowrap items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 lg:px-7 py-2.5 sm:py-3.5">
           <motion.div
-            className="flex items-center gap-3 min-w-0 shrink-0"
+            className="flex items-center gap-3.5 sm:gap-4 min-w-0 shrink-0"
             initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ type: 'spring', stiffness: 320, damping: 28 }}
           >
-            <JusicLogo size={42} />
-            <div className="flex flex-col leading-tight min-w-0 gap-0.5">
-              <span className="font-display text-sm sm:text-base font-bold tracking-tight">
+            <JusicLogo framed markClassName="bp-brand-logo" />
+            <div className="flex flex-col leading-tight min-w-0 gap-0.5 sm:gap-1">
+              <span className="font-display text-base sm:text-lg font-bold tracking-tight">
                 <span className="j-text-gradient">{APP_SHORT_NAME}</span>
               </span>
-              <span className="text-[10px] text-secondary truncate max-w-[12rem] sm:max-w-[18rem]" title={operatorName}>
+              <span className="text-[11px] sm:text-xs text-secondary truncate max-w-[12rem] sm:max-w-[20rem]" title={operatorName}>
                 {operatorName}
                 {offline ? ' · לא מקוון' : ''}
               </span>

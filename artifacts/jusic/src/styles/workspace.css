@@ -1,7 +1,43 @@
 /* JUSIC PLAY workspace layout — responsive shell & staging */
 
+.bp-brand-row {
+  min-height: var(--bp-brand-row-min-h);
+}
+
+.bp-brand-row .j-logo-mark.bp-brand-logo {
+  width: 3.75rem;
+  height: 3.75rem;
+  padding: 0.45rem;
+  border-radius: 1.2rem;
+}
+
+.bp-brand-row .j-logo-mark.bp-brand-logo .j-logo-mark__img {
+  border-radius: 0.7rem;
+}
+
+@media (min-width: 640px) {
+  .bp-brand-row {
+    --bp-brand-row-min-h: 5.25rem;
+  }
+
+  .bp-brand-row .j-logo-mark.bp-brand-logo {
+    width: 4.375rem;
+    height: 4.375rem;
+    padding: 0.5rem;
+    border-radius: 1.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .bp-brand-row .j-logo-mark.bp-brand-logo {
+    width: 4.625rem;
+    height: 4.625rem;
+  }
+}
+
 :root {
   --bp-header-compact: 3.5rem;
+  --bp-brand-row-min-h: 4.75rem;
   --bp-tab-bar-h: 3.25rem;
   --bp-staging-dock-h: 4.5rem;
   --bp-touch-min: 2.75rem;
@@ -52,7 +88,7 @@
     hsl(var(--primary) / 0.05) 0%,
     hsl(var(--card) / 0.72) 100%
   );
-  box-shadow: 0 0 32px hsl(var(--mesh-violet) / 0.08);
+  box-shadow: var(--shadow-md), 0 0 24px hsl(var(--mesh-blue) / 0.08);
 }
 
 .bp-staging__header {

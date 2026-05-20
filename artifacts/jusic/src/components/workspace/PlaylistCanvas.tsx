@@ -32,7 +32,7 @@ export function PlaylistCanvas({
 
   return (
     <section className={cn('flex flex-col min-h-0 j-glass-panel j-gradient-border rounded-[1.35rem] overflow-hidden', className)}>
-      <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-3.5 border-b border-border/40 bg-gradient-to-l from-primary/6 via-transparent to-violet-500/5">
+      <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-3.5 border-b border-border/50 bg-gradient-to-l from-primary/7 via-transparent to-[hsl(var(--mesh-grey)/0.06)] shadow-sm">
         <div className="flex items-center gap-3">
           <PlaylistProgressRing current={songs.length} target={targetSize} />
           <div>

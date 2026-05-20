@@ -2,7 +2,7 @@
 
 ## Principles
 
-- **Aurora Studio UI**: calm light surfaces, teal accent, warm gold highlights, subtle aurora mesh background.
+- **Brand UI**: soft grey-blue surfaces, logo cyan accent, neutral grey highlights, readable contrast and clear card shadows.
 - **RTL-first**: Hebrew copy, logical spacing, `dir="rtl"` on shell.
 - **Touch**: minimum target `2.75rem` (`--bp-touch-min`).
 - **Responsive**: mobile-first wizard; desktop 3-column studio layout.
