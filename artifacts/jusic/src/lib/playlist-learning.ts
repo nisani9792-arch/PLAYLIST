@@ -1,7 +1,8 @@
 import type { MsHit } from './meilisearch';
+import { STORAGE_KEYS } from './storage-keys';
 
-const SIGNALS_KEY = 'jusic_build_signals_v1';
-const HISTORY_KEY = 'jusic_playlist_history_v1';
+const SIGNALS_KEY = STORAGE_KEYS.buildSignals;
+const HISTORY_KEY = STORAGE_KEYS.playlistHistory;
 const MAX_HISTORY = 40;
 
 export type BuildSignals = {
@@ -186,7 +187,7 @@ export function buildTrainingExportPayload(): {
     signals: loadSignals(),
     history: loadHistory(),
     note:
-      'Aggregated local usage from BUILD PLAY (genres/tags/history). No audio. Use for future model training only with consent.',
+      'Aggregated local usage from Jusic Playlist Studio (genres/tags/history). No audio. Use for future model training only with consent.',
   };
 }
 

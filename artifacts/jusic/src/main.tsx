@@ -1,6 +1,10 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { APP_SHORT_NAME } from "./lib/brand";
+import { migrateStorageKeysOnce } from "./lib/storage-keys";
+
+migrateStorageKeysOnce();
 
 createRoot(document.getElementById("root")!).render(<App />);
 
@@ -15,7 +19,7 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
         registration.update().catch(() => undefined);
       })
       .catch((error) => {
-        console.warn("BUILD PLAY service worker registration failed", error);
+        console.warn(`${APP_SHORT_NAME} service worker registration failed`, error);
       });
   });
 }

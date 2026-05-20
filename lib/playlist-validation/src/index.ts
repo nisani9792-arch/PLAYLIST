@@ -8,3 +8,4 @@ export * from "./psh-types";
 export * from "./psh-repair";
 export * from "./ms-hit";
 export * from "./validate";
+export * from "./hashkafa-prefilter";

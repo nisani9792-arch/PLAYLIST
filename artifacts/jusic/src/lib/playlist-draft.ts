@@ -1,8 +1,9 @@
 import type { MsHit } from './meilisearch';
 import { getOperatorName } from './operator';
+import { STORAGE_KEYS } from './storage-keys';
 
-const CURRENT_STORAGE_KEY = 'jusic_playlist_draft';
-const HISTORY_STORAGE_KEY = 'jusic_playlist_draft_history_v1';
+const CURRENT_STORAGE_KEY = STORAGE_KEYS.draft;
+const HISTORY_STORAGE_KEY = STORAGE_KEYS.draftHistory;
 const MAX_DRAFT_HISTORY = 10;
 
 export type PlaylistDraftSnapshot = {

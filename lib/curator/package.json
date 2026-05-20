@@ -1,0 +1,19 @@
+{
+  "name": "@workspace/curator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "tsx src/self-test.ts"
+  },
+  "dependencies": {
+    "@workspace/playlist-validation": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:"
+  }
+}

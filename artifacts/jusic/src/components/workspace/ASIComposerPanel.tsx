@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { dedupePlaylistLines, sanitizePlaylistLine } from '@workspace/playlist-validation';
+import { APP_SHORT_NAME } from '@/lib/brand';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { setActiveParashaExportContext } from '@/lib/parasha-export-context';
 import type { StagingParashaContext } from '@/lib/staging-context';
-import { useGeneratePlaylist } from '@workspace/api-client-react';
+import { buildCuratorPlaylist, useCuratorStream } from '@/hooks/use-curator-build';
+import { PlaylistProgressRing } from '@/components/ui/playlist-progress-ring';
+import { VibeBadge } from '@/components/ui/vibe-badge';
 import { Sparkles, Loader2, History, BookmarkPlus, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -41,6 +44,7 @@ export function ASIComposerPanel({
   mobileVisible = true,
   hideStaging = false,
   onMatchStepRequest,
+  seedPrompt = '',
   className,
 }: {
   onAddSongs: (songs: MsHit[]) => void;
@@ -52,6 +56,7 @@ export function ASIComposerPanel({
   mobileVisible?: boolean;
   hideStaging?: boolean;
   onMatchStepRequest?: () => void;
+  seedPrompt?: string;
   className?: string;
 }) {
   const { filters } = useSearchFilters();
@@ -74,7 +79,12 @@ export function ASIComposerPanel({
   const [parashaBusy, setParashaBusy] = useState(false);
   const [showDrafts, setShowDrafts] = useState(!useMobileTabs);
   const [styleHint, setStyleHint] = useState('');
-  const generatePlaylist = useGeneratePlaylist();
+  const [curatorBusy, setCuratorBusy] = useState(false);
+  const curatorStream = useCuratorStream();
+
+  useEffect(() => {
+    if (seedPrompt.trim()) setComposerInput(seedPrompt.trim());
+  }, [seedPrompt]);
 
   useEffect(() => {
     void fetchSuggestions().then((s) => {
@@ -96,28 +106,32 @@ export function ASIComposerPanel({
   const inputLooksLikeList = listLinesCount >= 3;
 
   const handleGenerateFromAI = (prompt: string) => {
-    generatePlaylist.mutate(
-      { data: { prompt } },
-      {
-        onSuccess: (res) => {
-          if (res.lines?.length) {
-            startStaging(
-              res.lines.map((line) => createStagingItem(line)),
-              null,
-            );
-          } else {
-            toast.error('לא התקבלו תוצאות');
-          }
-        },
-        onError: (err) => {
+    setCuratorBusy(true);
+    curatorStream.reset();
+    curatorStream.startStream(prompt, 35);
+    void buildCuratorPlaylist({ prompt, mode: 'topic', targetSize: 35 })
+      .then((res) => {
+        curatorStream.cancel();
+        if (res.lines?.length) {
+          if (res.meta?.reason) toast.info(res.meta.reason);
+          startStaging(
+            res.lines.map((line) => createStagingItem(line)),
+            null,
+          );
+        } else if (!curatorStream.lines.length) {
+          toast.error('לא התקבלו תוצאות');
+        }
+      })
+      .catch((err) => {
+        if (!curatorStream.lines.length) {
           const msg =
             err instanceof Error
               ? err.message
-              : 'שגיאה ביצירת פלייליסט. בדוק שה-Gemini מוגדר בשרת.';
+              : 'שגיאה ביצירת פלייליסט. בדוק שה-Gemini/Meilisearch מוגדרים בשרת.';
           toast.error(msg);
-        },
-      },
-    );
+        }
+      })
+      .finally(() => setCuratorBusy(false));
   };
 
   const handleMatchFromList = (lines: string[]) => {
@@ -269,7 +283,7 @@ export function ASIComposerPanel({
                     </span>
                     <div className="min-w-0">
                       <h2 className="font-display text-sm sm:text-base font-bold tracking-tight text-foreground">
-                        BUILD PLAY Intelligence
+                        {APP_SHORT_NAME} Intelligence
                       </h2>
                       <p className="text-[11px] sm:text-[12px] text-muted-foreground leading-snug mt-0.5">
                         רשימה, פרשה או נושא — התאמה חכמה במאגר
@@ -302,7 +316,7 @@ export function ASIComposerPanel({
                 ) : null}
                 <Textarea
                   data-testid="asi-composer-input"
-                  placeholder="הדבק רשימה, כתוב נושא (22–30 שירים), או פרשה — למשל: פרשת שמות"
+                  placeholder="הדבק רשימה, כתוב נושא (20–50 שירים), או פרשה — למשל: פרשת שמות"
                   className={`resize-none rounded-[1rem] border-border/65 bg-background/75 text-base sm:text-[13px] leading-relaxed shadow-inner focus-visible:ring-2 focus-visible:ring-primary/30 ${
                     useMobileTabs ? 'h-20' : 'h-24 sm:h-40'
                   }`}
@@ -314,7 +328,7 @@ export function ASIComposerPanel({
                     ? `זוהתה רשימה (${listLinesCount} שורות) — מתבצעת התאמה מדויקת`
                     : promptLooksLikeParasha(composerInput)
                       ? 'זוהתה פרשת שבוע — שירים יילקחו מקובץ PSH ויותאמו במאגר'
-                      : 'זוהתה בקשת נושא — הפלייליסט ייווצר (22–30 שירים)'}
+                      : 'זוהתה בקשת נושא — הפלייליסט ייווצר (20–50 שירים)'}
                   {styleHint && !inputLooksLikeList && !promptLooksLikeParasha(composerInput) ? (
                     <span className="block mt-1 text-[10px] text-primary/80">
                       זיכרון: {styleHint.slice(0, 80)}
@@ -327,15 +341,16 @@ export function ASIComposerPanel({
                   className="w-full rounded-xl h-11 shadow-lg shadow-primary/20 font-semibold"
                   onClick={handleASICompose}
                   disabled={
-                    generatePlaylist.isPending ||
+                    curatorBusy ||
+                    curatorStream.isStreaming ||
                     parashaBusy ||
                     !composerInput.trim() ||
                     stagingBusy
                   }
                 >
-                  {generatePlaylist.isPending || parashaBusy ? (
+                  {curatorBusy || curatorStream.isStreaming || parashaBusy ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ASI מייצר...
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> יוצר פלייליסט...
                     </>
                   ) : (
                     <>
@@ -344,10 +359,25 @@ export function ASIComposerPanel({
                         ? `ASI התאם רשימה (${listLinesCount})`
                         : promptLooksLikeParasha(composerInput)
                           ? 'חפש פרשה ב-PSH'
-                          : 'ASI צור פלייליסט (22–30)'}
+                          : 'צור פלייליסט חכם (20–50)'}
                     </>
                   )}
                 </Button>
+                {(curatorStream.isStreaming || curatorStream.lines.length > 0) ? (
+                  <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-primary/5 border border-primary/15">
+                    <PlaylistProgressRing
+                      current={curatorStream.lines.length}
+                      target={curatorStream.progress?.targetSize ?? 35}
+                    />
+                    <div className="min-w-0 flex-1 text-right">
+                      {curatorStream.vibe ? <VibeBadge vibe={curatorStream.vibe} className="mb-1" /> : null}
+                      <p className="text-[10px] text-muted-foreground truncate">
+                        {curatorStream.progress?.message ??
+                          (curatorStream.isStreaming ? 'בונה פלייליסט...' : `${curatorStream.lines.length} שירים`)}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div
@@ -437,7 +467,7 @@ export function ASIComposerPanel({
             >
               <span className="md:-rotate-90 whitespace-nowrap text-muted-foreground font-semibold tracking-[0.26em] flex flex-col md:flex-row items-center gap-2 text-[10px] uppercase md:normal-case md:text-[11px]">
                 <Sparkles className="w-4 h-4 md:w-3.5 md:h-3.5 md:rotate-90 text-primary shrink-0" />
-                BUILD PLAY AI
+                {APP_SHORT_NAME} AI
               </span>
             </motion.div>
           )}

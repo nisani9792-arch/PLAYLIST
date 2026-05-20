@@ -235,4 +235,17 @@ router.post("/admin/psh/import", async (req, res) => {
   }
 });
 
+router.get("/metrics", async (_req, res) => {
+  const { getSearchCacheStats } = await import("../lib/search-cache");
+  res.json({
+    checkedAt: new Date().toISOString(),
+    searchCache: getSearchCacheStats(),
+    curator: {
+      pipeline: "v2",
+      playlistMin: 20,
+      playlistMax: 50,
+    },
+  });
+});
+
 export default router;

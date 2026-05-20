@@ -1,6 +1,6 @@
 /** Options sent to POST /api/search — kept in sync with api-server routes/search.ts */
 export type SearchFilterOptions = {
-  /** Always true — only songs are searchable in BUILD PLAY */
+  /** Always true — only songs are searchable in Jusic */
   songsOnly: true;
   /** Optional exact genre filter if your index exposes `genres` */
   genre?: string;

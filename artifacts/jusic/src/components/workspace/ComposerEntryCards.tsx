@@ -19,7 +19,7 @@ const CARDS = [
   {
     id: 'ai',
     title: 'תאר נושא (AI)',
-    description: '22–30 שירים בסגנון שתבחר',
+    description: '20–50 שירים לפי נושא',
     icon: Sparkles,
     example: 'שירי אמונה לפני חתונה',
   },

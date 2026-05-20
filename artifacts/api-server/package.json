@@ -13,6 +13,7 @@
     "@google/genai": "^1.52.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/playlist-validation": "workspace:*",
+    "@workspace/curator": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/integrations-gemini-ai": "workspace:*",
     "cookie-parser": "^1.4.7",

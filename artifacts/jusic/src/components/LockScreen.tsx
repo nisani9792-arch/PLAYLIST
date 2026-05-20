@@ -2,7 +2,7 @@ import { Fingerprint, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { useBiometricUnlock } from '@/hooks/useBiometricUnlock';
-import { APP_LOGO_URL } from '@/lib/brand';
+import { APP_LOGO_URL, APP_SHORT_NAME } from '@/lib/brand';
 import './LockScreen.css';
 
 const JUSIC_CODE = 'JUSIC';
@@ -51,7 +51,7 @@ export function LockScreen({ onUnlock, knownOperatorName }: LockScreenProps) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
       >
-        <img src={logoUrl} className="lock-logo" alt="BUILD PLAY" width={88} height={88} />
+        <img src={logoUrl} className="lock-logo" alt={APP_SHORT_NAME} width={88} height={88} />
 
         <motion.div
           className="lock-icon-wrap"

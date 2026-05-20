@@ -1,5 +1,11 @@
 /** Bump when replacing /public/logo.png so browsers drop cached icons */
-export const LOGO_ASSET_VERSION = '7';
+export const LOGO_ASSET_VERSION = '8';
 
-/** Canonical BUILD PLAY logo — header, lock screen */
+/** Full product name */
+export const APP_NAME = 'Jusic Playlist Studio';
+
+/** Short name for headers, PWA, lock screen */
+export const APP_SHORT_NAME = 'Jusic';
+
+/** Canonical Jusic logo — header, lock screen */
 export const APP_LOGO_URL = `${import.meta.env.BASE_URL}logo.png?v=${LOGO_ASSET_VERSION}`;

@@ -61,7 +61,7 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* LIGHT — BUILD PLAY aurora canvas */
+/* LIGHT — Jusic Aurora Studio canvas */
 :root {
   --button-outline: rgba(0,0,0, .085);
   --badge-outline: rgba(0,0,0, .04);
@@ -123,6 +123,7 @@
   --surface-1: 0 0% 100%;
   --surface-2: 214 42% 96%;
   --text-secondary: 215 17% 45%;
+  --accent-gold: 38 92% 50%;
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-accent-border: hsl(var(--sidebar-accent));
@@ -225,11 +226,11 @@
 
   .app-shell-bg {
     background-color: hsl(var(--surface-0));
-    background-image: linear-gradient(
-      180deg,
-      hsl(var(--surface-0)) 0%,
-      hsl(var(--surface-2) / 0.65) 100%
-    );
+    background-image:
+      radial-gradient(ellipse 80% 50% at 100% 0%, hsl(188 94% 40% / 0.08), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 0% 100%, hsl(258 90% 60% / 0.06), transparent 50%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, hsl(var(--accent-gold) / 0.04), transparent 60%),
+      linear-gradient(180deg, hsl(var(--surface-0)) 0%, hsl(var(--surface-2) / 0.65) 100%);
   }
 
   .bp-surface-card {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { APP_LOGO_URL } from '@/lib/brand';
+import { APP_LOGO_URL, APP_SHORT_NAME } from '@/lib/brand';
 import { getOperatorName } from '@/lib/operator';
 import './LockScreen.css';
 
@@ -47,7 +47,7 @@ export function OperatorRegistration({ onComplete }: OperatorRegistrationProps) 
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
       >
-        <img src={APP_LOGO_URL} className="lock-logo" alt="BUILD PLAY" width={88} height={88} />
+        <img src={APP_LOGO_URL} className="lock-logo" alt={APP_SHORT_NAME} width={88} height={88} />
         <div className="lock-icon-wrap" aria-hidden>
           <UserRound size={28} strokeWidth={2} />
         </div>

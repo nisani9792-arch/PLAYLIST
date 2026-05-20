@@ -190,7 +190,7 @@ export default function AdminSettingsPage() {
               <h1 className="font-display text-lg font-black tracking-tight truncate bg-gradient-to-l from-primary to-indigo-400 bg-clip-text text-transparent">
                 אבחון ותצורת מערכת
               </h1>
-              <p className="text-xs text-muted-foreground hidden sm:block">BUILD PLAY Admin — בריאות שירותים, API והנחיות AI</p>
+              <p className="text-xs text-muted-foreground hidden sm:block">Jusic Admin — בריאות שירותים, API והנחיות AI</p>
             </div>
           </div>
           <Button

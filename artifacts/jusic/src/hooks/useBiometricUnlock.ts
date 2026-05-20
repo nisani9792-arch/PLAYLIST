@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { APP_SHORT_NAME } from '@/lib/brand';
 
 const CREDENTIAL_KEY = 'buildplay-biometric-id';
 
@@ -54,11 +55,11 @@ export const useBiometricUnlock = (onSuccess: () => void) => {
     const credential = (await navigator.credentials.create({
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rp: { name: 'BUILD PLAY', id: window.location.hostname },
+        rp: { name: APP_SHORT_NAME, id: window.location.hostname },
         user: {
           id: crypto.getRandomValues(new Uint8Array(16)),
-          name: 'buildplay',
-          displayName: 'BUILD PLAY',
+          name: 'jusic',
+          displayName: APP_SHORT_NAME,
         },
         pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
         authenticatorSelection: {

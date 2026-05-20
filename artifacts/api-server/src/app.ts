@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import express, { type Express, type Request, type Response } from "express";
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
@@ -71,6 +72,7 @@ app.use(
 app.use(cors(getCorsOptions()));
 app.use(express.json({ limit: "512kb" }));
 app.use(express.urlencoded({ extended: true, limit: "512kb" }));
+app.use(cookieParser());
 
 // ── API routes ─────────────────────────────────────────────────────────────
 app.use("/api", router);

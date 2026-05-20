@@ -11,6 +11,9 @@ import SettingsPage from '@/pages/SettingsPage';
 import { StagingSessionProvider } from '@/contexts/StagingSessionContext';
 import { useEffect } from 'react';
 import { Route, Switch } from 'wouter';
+import { APP_SHORT_NAME } from '@/lib/brand';
+import { flushSyncQueue } from '@/stores/workspace-store';
+import { savePlaylistToServer, postStagingEvents, saveOperatorPreferences } from '@/lib/memory-api';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,6 +31,22 @@ function AppShell() {
   useUnlockGate({ enabled: locked, onUnlock: () => void afterUnlock() });
 
   useEffect(() => {
+    if (status.state === 'ready') {
+      void flushSyncQueue({
+        'playlist-save': async (payload) => {
+          await savePlaylistToServer(payload as Parameters<typeof savePlaylistToServer>[0]);
+        },
+        'staging-events': async (payload) => {
+          await postStagingEvents(payload as Parameters<typeof postStagingEvents>[0]);
+        },
+        preferences: async (payload) => {
+          await saveOperatorPreferences(payload as Parameters<typeof saveOperatorPreferences>[0]);
+        },
+      });
+    }
+  }, [status.state]);
+
+  useEffect(() => {
     if (status.state === 'offline') {
       toast.warning('אין חיבור לשרת — עובדים במצב מקומי עם השם השמור', {
         id: 'offline-mode',
@@ -41,7 +60,7 @@ function AppShell() {
       <div className="lock-screen flex items-center justify-center min-h-[100dvh]" aria-busy="true">
         <div className="flex flex-col items-center gap-3">
           <div className="h-9 w-9 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-          <p className="text-muted-foreground text-sm">טוען BUILD PLAY…</p>
+          <p className="text-muted-foreground text-sm">טוען {APP_SHORT_NAME}…</p>
         </div>
       </div>
     );

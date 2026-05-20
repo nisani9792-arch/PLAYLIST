@@ -1,10 +1,11 @@
-# BUILD PLAY — Design System v2
+# Jusic Playlist Studio — Design System v3
 
 ## Principles
 
-- **Hybrid light UI**: calm surfaces, single teal accent, minimal gradients.
+- **Aurora Studio UI**: calm light surfaces, teal accent, warm gold highlights, subtle aurora mesh background.
 - **RTL-first**: Hebrew copy, logical spacing, `dir="rtl"` on shell.
 - **Touch**: minimum target `2.75rem` (`--bp-touch-min`).
+- **Responsive**: mobile-first wizard; desktop 3-column studio layout.
 
 ## Tokens (`index.css`)
 
@@ -14,27 +15,34 @@
 | `--surface-1` | Cards, panels |
 | `--surface-2` | Subtle sections |
 | `--text-secondary` | Meta labels |
-| `--primary` | Actions, links |
+| `--primary` | Actions, links (teal) |
+| `--accent-gold` | Parasha, success highlights |
 
 ## Utilities
 
-- `app-shell-bg` — page background (soft gradient)
-- `bp-surface-card` — standard card without heavy glass
-- `bp-glass-strip` — header only
+- `app-shell-bg` — aurora page background
+- `bp-surface-card` — standard card
+- `bp-glass-strip` — header strip
 - `text-secondary` — muted body text
 
 ## Components
 
-- `StatusChip` — status pills (matched / warning / danger)
-- `StepIndicator` — mobile wizard steps (בנה → התאם → פלייליסט)
-- `EmptyState` — empty lists / no results
-- `TouchBar` / `TouchBarButton` — mobile footer actions (min touch height)
+- `StatusChip` — matched / warning / danger
+- `StepIndicator` — mobile wizard (בנה → התאם → פלייליסט)
+- `TopicChip` — quick topic suggestions
+- `VibeBadge` — mood/tact indicator
+- `PlaylistProgressRing` — song count progress
+- `SongCard` — song row with artist + genre
+- `HashkafaShield` — kosher filter indicator
+- `EmptyState`, `TouchBar`
 
 ## Breakpoints
 
-- Mobile: `< 768px` (`useIsMobile`, `md:` in Tailwind)
-- Desktop: `≥ 768px`
+- Compact: `< 640px`
+- Mobile: `< 768px`
+- Studio: `≥ 1024px`
+- Wide: `≥ 1280px`
 
 ## Motion
 
-Respect `prefers-reduced-motion: reduce` (global in `index.css`).
+Respect `prefers-reduced-motion: reduce`.

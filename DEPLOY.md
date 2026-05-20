@@ -1,6 +1,6 @@
-# BUILD PLAY — Render + Neon
+# Jusic Playlist Studio — Render + Neon
 
-Production runs as a single **Render Web Service** (`workspace-api`) that serves the React app and the Express API.
+Production runs as a single **Render Web Service** that serves the Jusic Playlist Studio React app and the Express API.
 
 ## Stack
 
@@ -29,6 +29,7 @@ Production runs as a single **Render Web Service** (`workspace-api`) that serves
 | `MEILISEARCH_INDEX` | No | Default `music` |
 | `AI_INTEGRATIONS_GEMINI_BASE_URL` | Yes | e.g. `https://generativelanguage.googleapis.com` |
 | `AI_INTEGRATIONS_GEMINI_API_KEY` | Yes | Gemini API key |
+| `OPERATOR_PIN` | No | Operator session PIN (default `JUSIC`) |
 | `TRUST_PROXY` | Recommended | `1` (set in blueprint) |
 | `CORS_ORIGINS` | No | Only if frontend is on another origin |
 

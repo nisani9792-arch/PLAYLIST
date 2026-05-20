@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { APP_SHORT_NAME } from "@/lib/brand";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Music2, Compass } from "lucide-react";
@@ -15,7 +16,7 @@ export default function NotFound() {
           </div>
           <div className="space-y-2">
             <h1 className="font-display text-2xl font-black tracking-[0.14em] bg-gradient-to-l from-primary via-emerald-500 to-indigo-500 bg-clip-text text-transparent uppercase">
-              BUILD PLAY
+              {APP_SHORT_NAME}
             </h1>
             <p className="text-muted-foreground text-sm leading-relaxed">
               העמוד שחיפשת לא קיים או שהקישור ישן. חזרו לעמדת העריכה כדי להמשיך בעבודה.

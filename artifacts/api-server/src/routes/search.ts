@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { buildTopicQueries, parseVibeFromPrompt } from "@workspace/curator";
+import { searchTopicBatch } from "../lib/meilisearch-service";
 import {
   isExactSongArtistMatch,
   isExactSongTitleMatch,
@@ -477,6 +479,35 @@ router.post("/resolve", async (req, res) => {
     const msg = err instanceof Error ? err.message : "Unknown error";
     res.status(502).json({ error: `Resolve search proxy error: ${msg}` });
   }
+});
+
+router.post("/topic", async (req, res) => {
+  const { topic, vibe: vibeInput, limit: rawLimit = 40, excludeIds, genre } = req.body as {
+    topic?: string;
+    vibe?: string;
+    limit?: number;
+    excludeIds?: string[];
+    genre?: string;
+  };
+
+  if (!topic?.trim()) {
+    res.status(400).json({ error: "Missing topic" });
+    return;
+  }
+
+  const limit = Math.min(Math.max(1, Math.floor(Number(rawLimit)) || 40), MAX_LIMIT);
+  const vibe = parseVibeFromPrompt(vibeInput ? `${topic} ${vibeInput}` : topic);
+  const queries = buildTopicQueries(topic, vibe);
+  const hits = await searchTopicBatch(queries, Math.ceil(limit / queries.length) + 5, genre);
+
+  const exclude = new Set((excludeIds ?? []).map((id) => String(id).toLowerCase()));
+  const filtered = hits.filter((h) => !exclude.has(String(h.id).toLowerCase())).slice(0, limit);
+
+  res.json({
+    hits: filtered,
+    totalAvailable: hits.length,
+    facets: { genre: vibe.genreHints, mood: vibe.mood },
+  });
 });
 
 export default router;

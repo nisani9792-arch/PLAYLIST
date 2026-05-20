@@ -1,4 +1,5 @@
 import { getBuildSignals, type BuildSignals } from './playlist-learning';
+import { STORAGE_KEYS } from './storage-keys';
 
 export type OperatorPreferencesJson = {
   exportStrict?: boolean;
@@ -11,15 +12,19 @@ export async function fetchSuggestions(): Promise<{
   recentPlaylists: Array<{ id: string; name: string; parasha?: string | null }>;
   preferredGenres: string[];
   styleNotes: string;
+  topics?: Array<{ id: string; title: string; description?: string; estimatedCount?: number; vibe?: string }>;
+  parasha?: { id: string; title: string; description?: string; estimatedCount?: number; vibe?: string };
 }> {
   const res = await fetch('/api/playlists/suggestions');
   if (!res.ok) {
-    return { recentPlaylists: [], preferredGenres: [], styleNotes: '' };
+    return { recentPlaylists: [], preferredGenres: [], styleNotes: '', topics: [] };
   }
   return (await res.json()) as {
     recentPlaylists: Array<{ id: string; name: string; parasha?: string | null }>;
     preferredGenres: string[];
     styleNotes: string;
+    topics?: Array<{ id: string; title: string; description?: string; estimatedCount?: number; vibe?: string }>;
+    parasha?: { id: string; title: string; description?: string; estimatedCount?: number; vibe?: string };
   };
 }
 
@@ -33,7 +38,7 @@ export async function fetchOperatorPreferences(): Promise<OperatorPreferencesJso
 export async function saveOperatorPreferences(
   preferences: OperatorPreferencesJson,
 ): Promise<void> {
-  localStorage.setItem('jusic_operator_preferences_v1', JSON.stringify(preferences));
+  localStorage.setItem(STORAGE_KEYS.operatorPreferences, JSON.stringify(preferences));
   await fetch('/api/playlists/preferences', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -43,7 +48,7 @@ export async function saveOperatorPreferences(
 
 function loadLocalPreferences(): OperatorPreferencesJson {
   try {
-    const raw = localStorage.getItem('jusic_operator_preferences_v1');
+    const raw = localStorage.getItem(STORAGE_KEYS.operatorPreferences);
     if (!raw) return { exportStrict: true };
     return JSON.parse(raw) as OperatorPreferencesJson;
   } catch {
@@ -89,7 +94,7 @@ export function localBuildSignals(): BuildSignals {
 }
 
 export async function migrateLocalLearningOnce(): Promise<void> {
-  const key = 'jusic_learning_migrated_v1';
+  const key = STORAGE_KEYS.learningMigrated;
   if (localStorage.getItem(key)) return;
   const signals = getBuildSignals();
   const genres = Object.entries(signals.genreHistogram)

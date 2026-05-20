@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
+import { APP_SHORT_NAME } from '@/lib/brand';
 import { Button } from '@/components/ui/button';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -57,7 +58,7 @@ export function InstallAppButton() {
       size="sm"
       className="rounded-full text-[11px] font-semibold border-primary/35 bg-gradient-to-bl from-white to-primary/8 shadow-sm hover:shadow-md hover:border-primary/50"
       onClick={handleInstall}
-      aria-label="התקן את BUILD PLAY"
+      aria-label={`התקן את ${APP_SHORT_NAME}`}
     >
       <Download className="w-3.5 h-3.5 mr-1.5" />
       <span className="hidden sm:inline">התקן אפליקציה</span>

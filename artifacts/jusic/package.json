@@ -78,6 +78,7 @@
     "@hello-pangea/dnd": "^18.0.1",
     "@tanstack/react-virtual": "^3.13.24",
     "fuzzball": "^2.2.6",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zustand": "^5.0.8"
   }
 }

@@ -1,5 +1,9 @@
 import { Router } from "express";
 import {
+  buildCuratorPromptV2,
+  computeTargetSize,
+} from "@workspace/curator";
+import {
   fetchSettingsKeys,
   resolveGeminiConnection,
   SETTINGS_KEYS,
@@ -161,57 +165,18 @@ function buildCuratorPrompt(input: {
   operatorMemory?: string;
 }): string {
   const modeList = promptLooksLikeSongList(input.prompt);
-
-  const listModeInstructions = modeList
-    ? `
-מצב בקשה: "פלייליסט מתוך רשימה".
-- חובה להיצמד לשירים שהמשתמש נתן בלבד.
-- מותר רק תיקוני איות קלים אם ברור שזה אותו שיר (למשל יעקב/יעקוב).
-- אסור להוסיף שירים חדשים שלא הופיעו ברשימה.`
-    : `
-מצב בקשה: "פלייליסט עצמאי".
-- צור רשימה איכותית ומדויקת לפי הוייב וההקשר.
-- שמור גיוון: גם מוכר וגם Tier-2, לא רק הלהיטים הכי שחוקים.`;
-
-  const pshInstructions = input.includePshPdf
-    ? `
-מצורף קובץ PDF בשם PSH.
-- אם הבקשה קשורה לפרשת שבוע: השתמש קודם כל בשירים מתוך הקובץ.
-- סמן שירים שנלקחו מהקובץ ע"י הוספת " (PSH)" בסוף המחרוזת.`
-    : "";
-
-  return `# System Role: Jusic AI Content Curator (Alpha Master)
-
-תפקיד: עורך תוכן ראשי והיסטוריון מוזיקלי לאפליקציית Jusic (מוזיקה חרדית).
-מטרה: תוכן מדויק, כשר למהדרין, מותאם הקשר, ללא הזיות.
-
-## חוקי ברזל
-1) גבולות גזרה:
-- מאושר: חסידי, מזרחי-חרדי, חזנות, ישיבתי, אינסטרומנטלי.
-- אסור: קול אישה, זמרים חילוניים, פופ דתי-לאומי, ותוכן שאינו הולם בן תורה.
-2) אמינות:
-- עדיף קצר ואמין על פני רשימה ארוכה עם טעות.
-- אסור להמציא שירים.
-3) אימות:
-- לפני החזרה, בצע בדיקה עצמית: שם שיר ושם מבצע סבירים ומוכרים.
-
-${listModeInstructions}
-${pshInstructions}
-
-${input.customInstructions ? `## הנחיות מערכת נוספות\n${input.customInstructions}\n` : ""}
-${input.operatorMemory ? `${input.operatorMemory}\n` : ""}
-
-## פלט חובה
-החזר אך ורק JSON תקין, ללא markdown וללא טקסט מסביב, במבנה:
-{"songs":["אמן - שם שיר","אמן - שם שיר", "..."]}
-
-כללים:
-- 22 עד 30 שורות (לא פחות מ-22 אלא אם מצב רשימה קיימת).
-- כל שורה בפורמט "אמן - שם שיר".
-- עברית בלבד ככל האפשר.
-
-בקשת המשתמש:
-"${input.prompt}"`;
+  const targetSize = computeTargetSize({
+    isListMode: modeList,
+    isParasha: promptIsParashaRelated(input.prompt),
+  });
+  return buildCuratorPromptV2({
+    prompt: input.prompt,
+    customInstructions: input.customInstructions,
+    includePshPdf: input.includePshPdf,
+    operatorMemory: input.operatorMemory,
+    modeList,
+    targetSize,
+  });
 }
 
 async function buildOperatorMemoryBlock(operatorName: string): Promise<string> {

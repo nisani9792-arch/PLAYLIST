@@ -3,17 +3,24 @@ import { migrateLocalLearningOnce } from '@/lib/memory-api';
 import { usePlaylist } from '../hooks/use-playlist';
 import { useIsMobile } from '../hooks/use-mobile';
 import { SearchBar } from '../components/workspace/SearchBar';
-import { PlaylistView } from '../components/workspace/PlaylistView';
-import { ASIComposerPanel } from '../components/workspace/ASIComposerPanel';
+import { InspirationPanel } from '../components/workspace/InspirationPanel';
+import { PlaylistCanvas } from '../components/workspace/PlaylistCanvas';
+import { SmartComposer } from '../components/workspace/SmartComposer';
+import { StagingDrawer } from '../components/workspace/StagingDrawer';
 import { StagingArea } from '../components/workspace/StagingArea';
+import { MobileSwipeReview } from '../components/workspace/MobileSwipeReview';
 import { MobileWorkspaceNav, type MobileWorkspaceStep } from '../components/workspace/MobileWorkspaceNav';
 import { WorkspaceToolsMenu } from '../components/workspace/WorkspaceToolsMenu';
 import { useStagingSession } from '@/contexts/StagingSessionContext';
 import { useSearchFilters } from '@/contexts/SearchFiltersContext';
 import { setActiveParashaExportContext } from '@/lib/parasha-export-context';
-import { APP_LOGO_URL } from '@/lib/brand';
+import { APP_LOGO_URL, APP_SHORT_NAME } from '@/lib/brand';
+import { fillCuratorPlaylist } from '@/hooks/use-curator-build';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import type { MsHit } from '../lib/meilisearch';
+
+const PLAYLIST_TARGET = 35;
 
 type WorkspaceProps = {
   operatorName: string;
@@ -31,9 +38,12 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
     parashaContext,
     stagingActive,
     clearStaging,
+    startStaging,
   } = useStagingSession();
 
   const [mobileStep, setMobileStep] = useState<MobileWorkspaceStep>('build');
+  const [composerSeed, setComposerSeed] = useState('');
+  const [fillBusy, setFillBusy] = useState(false);
   const memoryMigrated = useRef(false);
 
   useEffect(() => {
@@ -55,7 +65,34 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
     if (isMobile) setMobileStep('playlist');
   };
 
-  const showDesktopStaging = !isMobile && stagingActive;
+  const handleSmartFill = async () => {
+    if (!playlist.songs.length) return;
+    setFillBusy(true);
+    try {
+      const existingLines = playlist.songs.map((s) => `${s.artist} - ${s.song_name}`);
+      const topic = playlist.playlistName.trim() || 'פלייליסט מוזיקה חרדית';
+      const { lines } = await fillCuratorPlaylist({
+        topic,
+        targetSize: PLAYLIST_TARGET,
+        existingLines,
+      });
+      if (!lines.length) {
+        toast.info('לא נמצאו שירים נוספים להשלמה');
+        return;
+      }
+      startStaging(
+        lines.map((line) => ({ id: crypto.randomUUID(), query: line, status: 'pending' as const })),
+        null,
+      );
+      toast.success(`נוספו ${lines.length} שירים להתאמה`);
+    } catch {
+      toast.error('שגיאה בהשלמת פלייליסט');
+    } finally {
+      setFillBusy(false);
+    }
+  };
+
+  const showStagingDrawer = stagingActive && !isMobile;
 
   return (
     <div className="app-shell-bg flex flex-col h-[100dvh] w-full overflow-hidden text-foreground selection:bg-primary/20">
@@ -64,12 +101,12 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
           <div className="flex items-center gap-2.5 min-w-0 shrink-0">
             <img
               src={APP_LOGO_URL}
-              alt="BUILD PLAY"
+              alt={APP_SHORT_NAME}
               className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl object-cover ring-1 ring-border/60"
             />
             <div className="flex flex-col leading-tight min-w-0 gap-0.5">
               <span className="font-display text-sm sm:text-base font-bold tracking-tight text-foreground">
-                BUILD PLAY
+                {APP_SHORT_NAME}
               </span>
               <span className="text-[10px] text-secondary truncate max-w-[12rem] sm:max-w-[18rem]" title={operatorName}>
                 {operatorName}
@@ -87,50 +124,35 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
       <main className="flex-1 flex flex-col overflow-hidden min-h-0 relative z-10 touch-manipulation">
         <div
           className={cn(
-            'bp-workspace-split flex flex-1 min-h-0 gap-0 md:gap-2 p-0 md:p-2',
-            isMobile && 'pb-0',
+            'flex flex-1 min-h-0 gap-2 p-2 lg:p-3',
+            isMobile && 'p-0 gap-0',
           )}
         >
-          {/* Playlist column */}
-          <PlaylistView
+          {!isMobile ? (
+            <InspirationPanel
+              className="hidden lg:flex lg:flex-[2] min-w-[14rem] max-w-[18rem]"
+              onPickTopic={(title) => setComposerSeed(title)}
+            />
+          ) : null}
+
+          <PlaylistCanvas
             playlistName={playlist.playlistName}
             setPlaylistName={playlist.setPlaylistName}
             songs={playlist.songs}
             removeSong={playlist.removeSong}
             reorderSongs={playlist.reorderSongs}
             clearPlaylist={playlist.clearPlaylist}
+            targetSize={PLAYLIST_TARGET}
+            onSmartFill={handleSmartFill}
+            smartFillBusy={fillBusy}
             className={cn(
-              'bp-playlist-main min-h-0',
+              'min-h-0 flex-1',
               isMobile && mobileStep !== 'playlist' && 'hidden',
-              !isMobile && showDesktopStaging && 'md:flex-[4]',
-              !isMobile && !showDesktopStaging && 'md:flex-[5]',
+              !isMobile && 'lg:flex-[5]',
             )}
           />
 
-          {/* Staging column (desktop) */}
-          {showDesktopStaging ? (
-            <section
-              className="hidden md:flex md:flex-[3.5] min-w-0 min-h-0 flex-col bp-surface-card rounded-[1.25rem] overflow-hidden"
-              aria-label="אזור התאמה"
-            >
-              <StagingArea
-                key={stagingBatchId}
-                items={stagingItems}
-                setItems={setStagingItems}
-                onApproveAll={handleApproveStaging}
-                onCancel={() => {
-                  clearStaging();
-                  setActiveParashaExportContext(null, null, null);
-                }}
-                searchFilters={filters}
-                parashaContext={parashaContext}
-                mobileLayout={false}
-              />
-            </section>
-          ) : null}
-
-          {/* Composer column */}
-          <ASIComposerPanel
+          <SmartComposer
             onAddSongs={playlist.addSongs}
             draftHistory={playlist.draftHistory}
             onRememberDraft={playlist.rememberCurrentDraft}
@@ -139,35 +161,60 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
             mobileFullScreen={isMobile}
             mobileVisible={!isMobile || mobileStep === 'build'}
             hideStaging
+            seedPrompt={composerSeed}
             onMatchStepRequest={() => setMobileStep('match')}
             className={cn(
               isMobile && mobileStep !== 'build' && 'hidden',
-              !isMobile && showDesktopStaging && 'md:flex-[2.5]',
-              !isMobile && !showDesktopStaging && 'md:flex-[4]',
+              !isMobile && 'lg:flex-[3] min-w-[16rem] max-w-[24rem]',
             )}
           />
         </div>
 
-        {/* Mobile staging full screen */}
+        {showStagingDrawer ? (
+          <StagingDrawer
+            open
+            key={stagingBatchId}
+            items={stagingItems}
+            setItems={setStagingItems}
+            onApproveAll={handleApproveStaging}
+            onCancel={() => {
+              clearStaging();
+              setActiveParashaExportContext(null, null, null);
+            }}
+            searchFilters={filters}
+            parashaContext={parashaContext}
+          />
+        ) : null}
+
         {isMobile && mobileStep === 'match' ? (
           <section className="flex-1 min-h-0 flex flex-col p-2 pb-0">
             {stagingActive ? (
-              <StagingArea
-                key={stagingBatchId}
-                items={stagingItems}
-                setItems={setStagingItems}
-                onApproveAll={handleApproveStaging}
-                onCancel={() => {
-                  clearStaging();
-                  setMobileStep('build');
-                }}
-                searchFilters={filters}
-                parashaContext={parashaContext}
-                mobileLayout
-              />
+              <>
+                <MobileSwipeReview
+                  items={stagingItems}
+                  onApprove={(item) => {
+                    if (item.match) playlist.addSong(item.match);
+                  }}
+                  onSkip={() => undefined}
+                  onDone={() => setMobileStep('playlist')}
+                />
+                <StagingArea
+                  key={stagingBatchId}
+                  items={stagingItems}
+                  setItems={setStagingItems}
+                  onApproveAll={handleApproveStaging}
+                  onCancel={() => {
+                    clearStaging();
+                    setMobileStep('build');
+                  }}
+                  searchFilters={filters}
+                  parashaContext={parashaContext}
+                  mobileLayout
+                />
+              </>
             ) : (
               <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground p-6 text-center">
-                אין התאמה פעילה. חזור לשלב &quot;בנה&quot; והדבק רשימה או פרשה.
+                אין התאמה פעילה. חזור לשלב &quot;בנה&quot; ובחר נושא או הדבק רשימה.
               </div>
             )}
           </section>

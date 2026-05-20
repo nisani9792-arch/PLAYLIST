@@ -1,24 +1,25 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: Jusic Playlist Studio API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
   - name: gemini
-    description: Gemini AI operations
+  - name: curator
+  - name: search
+  - name: playlists
+  - name: parasha
+  - name: access
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -30,8 +31,7 @@ paths:
     post:
       operationId: generatePlaylist
       tags: [gemini]
-      summary: Generate a playlist using Gemini AI
-      description: Takes a Hebrew music prompt and returns a list of song names
+      summary: Generate playlist lines via Gemini
       requestBody:
         required: true
         content:
@@ -40,40 +40,191 @@ paths:
               $ref: "#/components/schemas/GeneratePlaylistBody"
       responses:
         "200":
-          description: Generated playlist song lines
+          description: Generated lines
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GeneratePlaylistResponse"
         "400":
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
+          $ref: "#/components/responses/BadRequest"
         "500":
-          description: Server error
+          $ref: "#/components/responses/ServerError"
+  /curator/build:
+    post:
+      operationId: buildCuratorPlaylist
+      tags: [curator]
+      summary: Catalog-first curator build
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CuratorBuildBody"
+      responses:
+        "200":
+          description: Curator result
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/CuratorBuildResponse"
+  /curator/fill:
+    post:
+      operationId: fillCuratorPlaylist
+      tags: [curator]
+      summary: Fill partial playlist to target size
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CuratorFillBody"
+      responses:
+        "200":
+          description: Fill result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CuratorFillResponse"
+  /search:
+    post:
+      operationId: searchSongs
+      tags: [search]
+      summary: Search Meilisearch catalog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchBody"
+      responses:
+        "200":
+          description: Search hits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+  /search/topic:
+    post:
+      operationId: searchTopic
+      tags: [search]
+      summary: Topic-based catalog search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TopicSearchBody"
+      responses:
+        "200":
+          description: Topic hits
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TopicSearchResponse"
+  /playlists/suggestions:
+    get:
+      operationId: getPlaylistSuggestions
+      tags: [playlists]
+      summary: Inspiration suggestions for operator
+      responses:
+        "200":
+          description: Suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuggestionsResponse"
+  /playlists/preferences:
+    get:
+      operationId: getOperatorPreferences
+      tags: [playlists]
+      summary: Get operator preferences
+      responses:
+        "200":
+          description: Preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreferencesResponse"
+    put:
+      operationId: setOperatorPreferences
+      tags: [playlists]
+      summary: Save operator preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreferencesBody"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PreferencesResponse"
+  /access/status:
+    get:
+      operationId: getAccessStatus
+      tags: [access]
+      summary: Access gate status
+      responses:
+        "200":
+          description: Status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessStatus"
+  /access/register:
+    post:
+      operationId: registerOperator
+      tags: [access]
+      summary: Register operator name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterOperatorBody"
+      responses:
+        "200":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessStatus"
 components:
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServerError:
+      description: Server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
     GeneratePlaylistBody:
       type: object
       properties:
         prompt:
           type: string
-          description: The music prompt in Hebrew
-      required:
-        - prompt
+      required: [prompt]
     GeneratePlaylistResponse:
       type: object
       properties:
@@ -81,13 +232,197 @@ components:
           type: array
           items:
             type: string
-          description: List of song names returned by Gemini
-      required:
-        - lines
-    ErrorResponse:
+      required: [lines]
+    CuratorBuildBody:
       type: object
       properties:
-        error:
+        prompt:
           type: string
-      required:
-        - error
+        targetSize:
+          type: integer
+        mode:
+          type: string
+          enum: [topic, parasha, list]
+        excludeIds:
+          type: array
+          items:
+            type: string
+      required: [prompt]
+    CuratorBuildItem:
+      type: object
+      properties:
+        line:
+          type: string
+        artist:
+          type: string
+        title:
+          type: string
+        uid:
+          type: string
+        confidence:
+          type: number
+        blocked:
+          type: boolean
+        blockReason:
+          type: string
+    CuratorBuildResponse:
+      type: object
+      properties:
+        meta:
+          type: object
+          properties:
+            vibe:
+              type: string
+            tact:
+              type: string
+            targetSize:
+              type: integer
+            reason:
+              type: string
+        lines:
+          type: array
+          items:
+            type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CuratorBuildItem"
+      required: [meta, lines, items]
+    CuratorFillBody:
+      type: object
+      properties:
+        topic:
+          type: string
+        targetSize:
+          type: integer
+        existingLines:
+          type: array
+          items:
+            type: string
+      required: [topic]
+    CuratorFillResponse:
+      type: object
+      properties:
+        lines:
+          type: array
+          items:
+            type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CuratorBuildItem"
+    SearchBody:
+      type: object
+      properties:
+        q:
+          type: string
+        limit:
+          type: integer
+        songsOnly:
+          type: boolean
+        genre:
+          type: string
+      required: [q]
+    SearchResponse:
+      type: object
+      properties:
+        hits:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TopicSearchBody:
+      type: object
+      properties:
+        topic:
+          type: string
+        vibe:
+          type: string
+        limit:
+          type: integer
+        excludeIds:
+          type: array
+          items:
+            type: string
+        genre:
+          type: string
+      required: [topic]
+    TopicSearchResponse:
+      type: object
+      properties:
+        hits:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        totalAvailable:
+          type: integer
+        facets:
+          type: object
+          additionalProperties: true
+    SuggestionsResponse:
+      type: object
+      properties:
+        recentPlaylists:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              parasha:
+                type: string
+                nullable: true
+        preferredGenres:
+          type: array
+          items:
+            type: string
+        styleNotes:
+          type: string
+        topics:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopicSuggestion"
+        parasha:
+          $ref: "#/components/schemas/TopicSuggestion"
+    TopicSuggestion:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        estimatedCount:
+          type: integer
+        vibe:
+          type: string
+    PreferencesBody:
+      type: object
+      properties:
+        preferences:
+          type: object
+          additionalProperties: true
+    PreferencesResponse:
+      type: object
+      properties:
+        preferences:
+          type: object
+          additionalProperties: true
+    AccessStatus:
+      type: object
+      properties:
+        registered:
+          type: boolean
+        operatorName:
+          type: string
+          nullable: true
+    RegisterOperatorBody:
+      type: object
+      properties:
+        operatorName:
+          type: string
+      required: [operatorName]
