@@ -43,9 +43,9 @@ export function WorkspaceHelpPopover() {
             </p>
           </div>
           <div>
-            <p className="font-semibold text-foreground mb-1.5">ייצוא לאודו</p>
+            <p className="font-semibold text-foreground mb-1.5">ייצוא CSV</p>
             <p className="text-[13px] text-muted-foreground leading-relaxed">
-              רק שורות עם resolve מוצלח במאגר נכנסות ל-CSV (ברירת מחדל). בדיאלוג הייצוא רואים מה ייכנס ומה נפל.
+              לחיצה אחת מורידה קובץ בשם הפלייליסט (למשל <span dir="ltr">שם-פלייליסט.csv</span>) — רק שירים עם התאמה במאגר.
             </p>
           </div>
           <div>

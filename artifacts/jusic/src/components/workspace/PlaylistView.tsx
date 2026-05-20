@@ -2,12 +2,11 @@ import { useRef, useState } from 'react';
 import { MsHit } from '../../lib/meilisearch';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { GripVertical, X, Download, Trash2, Search, Music } from 'lucide-react';
+import { GripVertical, X, Download, Trash2, Search, Music, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { ExportControlDialog } from './ExportControlDialog';
 import { cn } from '@/lib/utils';
-import { recordPlaylistExport } from '../../lib/playlist-learning';
+import { exportPlaylistToCsv } from '@/lib/export';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 
@@ -31,8 +30,22 @@ export function PlaylistView({
   className,
 }: PlaylistViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [filter, setFilter] = useState('');
+
+  const handleExportCsv = () => {
+    if (!songs.length || exporting) return;
+    setExporting(true);
+    const toastId = toast.loading('מייצא CSV...');
+    void exportPlaylistToCsv(playlistName, songs)
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'שגיאה בייצוא');
+      })
+      .finally(() => {
+        toast.dismiss(toastId);
+        setExporting(false);
+      });
+  };
 
   const filteredSongs = filter.trim()
     ? songs.filter((s) => {
@@ -121,22 +134,20 @@ export function PlaylistView({
             <Button
               data-testid="export-csv-button"
               size="sm"
-              onClick={() => setExportOpen(true)}
-              disabled={!songs.length}
+              onClick={handleExportCsv}
+              disabled={!songs.length || exporting}
               className="w-full sm:w-auto rounded-full text-xs font-semibold min-h-[2.35rem] sm:min-h-[2rem]"
             >
-              <Download className="w-3.5 h-3.5 mr-1.5" /> ייצוא לאודו
+              {exporting ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5 mr-1.5" />
+              )}
+              ייצוא CSV
             </Button>
           </motion.div>
         </div>
       </div>
-
-      <ExportControlDialog
-        open={exportOpen}
-        onOpenChange={setExportOpen}
-        playlistName={playlistName}
-        songs={songs}
-      />
 
       <div className="flex-1 overflow-hidden relative bg-gradient-to-b from-transparent to-muted/[0.12]">
         {songs.length === 0 ? (
