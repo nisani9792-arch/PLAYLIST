@@ -14,6 +14,7 @@ type StagingDrawerProps = {
   onCancel: () => void;
   searchFilters: SearchFilterOptions;
   parashaContext: StagingParashaContext | null;
+  topicContext?: string | null;
   mobileLayout?: boolean;
   className?: string;
 };

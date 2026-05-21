@@ -1,16 +1,18 @@
 import type { VibeAnalysis } from "./vibe-analysis";
+import { expandTopicFacets } from "./topic-facets";
 
 export function buildTopicQueries(topic: string, vibe: VibeAnalysis): string[] {
-  const queries = new Set<string>();
-  queries.add(topic.trim());
+  const facets = expandTopicFacets(topic, vibe);
+  const queries = new Set<string>(facets.searchQueries);
 
   if (vibe.moodHint) queries.add(`${topic} ${vibe.moodHint}`.trim());
-  for (const genre of vibe.genreHints.slice(0, 2)) {
+  for (const tag of facets.tagHints.slice(0, 6)) {
+    queries.add(tag);
+    queries.add(`${tag} ${topic}`.trim());
+  }
+  for (const genre of facets.genreHints.slice(0, 3)) {
     queries.add(`${genre} ${topic}`.trim());
   }
-  for (const kw of vibe.keywords.slice(0, 4)) {
-    if (kw.length >= 2) queries.add(kw);
-  }
 
-  return [...queries].filter(Boolean).slice(0, 8);
+  return [...queries].filter(Boolean).slice(0, 12);
 }

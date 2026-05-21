@@ -1,6 +1,13 @@
 import { Router } from "express";
-import { buildTopicQueries, parseVibeFromPrompt } from "@workspace/curator";
-import { searchTopicBatch } from "../lib/meilisearch-service";
+import {
+  buildTopicQueries,
+  expandTopicFacets,
+  parseVibeFromPrompt,
+} from "@workspace/curator";
+import {
+  scoreHitAgainstTopic,
+  searchTopicBatch,
+} from "../lib/meilisearch-service";
 import {
   isExactSongArtistMatch,
   isExactSongTitleMatch,
@@ -597,7 +604,17 @@ router.post("/topic", async (req, res) => {
   const limit = Math.min(Math.max(1, Math.floor(Number(rawLimit)) || 40), MAX_LIMIT);
   const vibe = parseVibeFromPrompt(vibeInput ? `${topic} ${vibeInput}` : topic);
   const queries = buildTopicQueries(topic, vibe);
-  const hits = await searchTopicBatch(queries, Math.ceil(limit / queries.length) + 5, genre);
+  const topicFacets = expandTopicFacets(topic, vibe);
+  const hits = await searchTopicBatch(
+    [...new Set([...queries, ...topicFacets.searchQueries])].slice(0, 14),
+    Math.ceil(limit / queries.length) + 5,
+    topicFacets.genreHints.length ? topicFacets.genreHints : genre,
+  );
+
+  for (const hit of hits) {
+    hit._rankingScore = scoreHitAgainstTopic(hit, topic);
+  }
+  hits.sort((a, b) => (b._rankingScore ?? 0) - (a._rankingScore ?? 0));
 
   const exclude = new Set((excludeIds ?? []).map((id) => String(id).toLowerCase()));
   const filtered = hits.filter((h) => !exclude.has(String(h.id).toLowerCase())).slice(0, limit);
@@ -605,7 +622,7 @@ router.post("/topic", async (req, res) => {
   res.json({
     hits: filtered,
     totalAvailable: hits.length,
-    facets: { genre: vibe.genreHints, mood: vibe.mood },
+    facets: { genre: topicFacets.genreHints, mood: vibe.mood, tags: topicFacets.tagHints },
   });
 });
 

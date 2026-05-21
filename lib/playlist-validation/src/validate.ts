@@ -107,22 +107,116 @@ export function queryMatchesHit(query: string, hit: MsHitLike): boolean {
   return false;
 }
 
-function wordsSimilarity(query: string, candidate: string): number {
-  const qWords = normalizeHebrew(query)
-    .split(" ")
-    .filter((w) => w.length >= 2);
-  const cWords = normalizeHebrew(candidate)
-    .split(" ")
-    .filter((w) => w.length >= 2);
-  if (!qWords.length || !cWords.length) return 0;
+/** Common Hebrew tokens that must not alone drive a multi-word title match. */
+const WEAK_MATCH_TOKENS = new Set([
+  "לפני",
+  "אחרי",
+  "עם",
+  "של",
+  "על",
+  "את",
+  "אל",
+  "זה",
+  "שיר",
+  "הוא",
+  "היא",
+  "כל",
+  "גם",
+  "כי",
+  "לא",
+  "כן",
+]);
 
-  let hits = 0;
-  for (const qw of qWords) {
-    if (cWords.some((cw) => qw === cw || qw.includes(cw) || cw.includes(qw))) {
-      hits += 1;
+function tokenizeForMatch(text: string): string[] {
+  return normalizeHebrew(text)
+    .split(" ")
+    .filter((w) => w.length >= 2);
+}
+
+function tokenMatches(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (a.length >= 4 && b.length >= 4 && (a.includes(b) || b.includes(a))) {
+    return true;
+  }
+  return false;
+}
+
+function maxConsecutiveTokenRun(
+  queryTokens: string[],
+  candidateTokens: string[],
+): number {
+  let best = 0;
+  for (let i = 0; i < queryTokens.length; i += 1) {
+    for (let j = 0; j < candidateTokens.length; j += 1) {
+      let run = 0;
+      while (
+        i + run < queryTokens.length &&
+        j + run < candidateTokens.length &&
+        tokenMatches(queryTokens[i + run]!, candidateTokens[j + run]!)
+      ) {
+        run += 1;
+      }
+      if (run > best) best = run;
     }
   }
-  return hits / qWords.length;
+  return best;
+}
+
+function wordsSimilarity(query: string, candidate: string): number {
+  const qNorm = normalizeHebrew(query);
+  const cNorm = normalizeHebrew(candidate);
+  if (!qNorm || !cNorm) return 0;
+  if (qNorm === cNorm) return 1;
+  if (qNorm.length >= 5 && cNorm.includes(qNorm)) return 0.96;
+  if (cNorm.length >= 5 && qNorm.includes(cNorm)) {
+    return Math.min(0.94, 0.82 + (cNorm.length / qNorm.length) * 0.12);
+  }
+
+  const qTokens = tokenizeForMatch(query);
+  const cTokens = tokenizeForMatch(candidate);
+  if (!qTokens.length || !cTokens.length) return 0;
+
+  const phraseRun = maxConsecutiveTokenRun(qTokens, cTokens);
+  const phraseScore =
+    phraseRun >= 2
+      ? Math.min(1, phraseRun / qTokens.length + 0.08)
+      : phraseRun === qTokens.length
+        ? 1
+        : phraseRun / qTokens.length;
+
+  const significant = qTokens.filter((t) => !WEAK_MATCH_TOKENS.has(t));
+  const matchAgainst = significant.length ? significant : qTokens;
+  let hits = 0;
+  for (const qw of matchAgainst) {
+    if (cTokens.some((cw) => tokenMatches(qw, cw))) hits += 1;
+  }
+  const wordScore = hits / matchAgainst.length;
+
+  if (qTokens.length >= 2 && phraseRun < 2 && hits < 2) {
+    return Math.min(wordScore * 0.4, 0.32);
+  }
+  if (matchAgainst.length >= 2 && hits < 2 && phraseRun < 2) {
+    return Math.min(wordScore * 0.55, 0.42);
+  }
+
+  return Math.min(
+    1,
+    Math.max(phraseScore, wordScore * (phraseRun >= 2 ? 1 : 0.78)),
+  );
+}
+
+/** Score a pasted staging line against a catalog hit (artist/song orientations). */
+export function scoreStagingQueryHit(query: string, hit: MsHitLike): number {
+  const cleaned = applyInputTitleAliases(sanitizePlaylistLine(query));
+  let best = 0;
+  for (const parsed of parseLineBothWays(cleaned)) {
+    best = Math.max(best, matchConfidence(parsed.song, parsed.artist, hit));
+  }
+  const ranking = hit._rankingScore;
+  if (typeof ranking === "number" && ranking > 0.75) {
+    best = Math.min(1, best + 0.08);
+  }
+  return best;
 }
 
 export function matchConfidence(

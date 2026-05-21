@@ -1,6 +1,8 @@
 import { computeTargetSize, PLAYLIST_MIN, PLAYLIST_MAX } from "./size-engine";
 import { parseVibeFromPrompt } from "./vibe-analysis";
 import { buildTopicQueries } from "./topic-queries";
+import { expandTopicFacets } from "./topic-facets";
+import { scoreHitForTopic, TOPIC_STAGING_MIN_SCORE } from "./topic-match";
 import { rankAndSelectCandidates, formatArtistSongLine } from "./rank-select";
 import type { MsHitLike } from "@workspace/playlist-validation";
 
@@ -17,6 +19,28 @@ assert(computeTargetSize({ isNiche: true, availableHits: 30 }) >= PLAYLIST_MIN, 
 const vibe = parseVibeFromPrompt("גשם בחורף שקט");
 assert(vibe.mood === "quiet", "winter quiet vibe");
 assert(vibe.avoidUpbeat === true, "avoid upbeat");
+
+const chupaVibe = parseVibeFromPrompt("לפני החופה");
+assert(chupaVibe.mood === "celebratory", "chupa celebratory");
+const chupaFacets = expandTopicFacets("לפני החופה", chupaVibe);
+assert(chupaFacets.tagHints.includes("חופה"), "chupa tag hint");
+
+const chupaBad = scoreHitForTopic(
+  { id: "1", song_name: "לפני השם", artist: "ירמיה דמן", tags: [] },
+  "לפני החופה",
+);
+const chupaGood = scoreHitForTopic(
+  {
+    id: "2",
+    song_name: "ריקודי חופה",
+    artist: "אמן",
+    tags: ["חתונה", "חופה"],
+    genre: "חסידי",
+  },
+  "לפני החופה",
+);
+assert(chupaBad < TOPIC_STAGING_MIN_SCORE, "chupa rejects לפני השם");
+assert(chupaGood >= TOPIC_STAGING_MIN_SCORE, "chupa accepts wedding tags");
 
 // topic queries
 const queries = buildTopicQueries("אמונה", vibe);

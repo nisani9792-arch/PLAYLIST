@@ -49,7 +49,6 @@ export function ASIComposerPanel({
   mobileVisible = true,
   hideStaging = false,
   onMatchStepRequest,
-  seedPrompt = '',
   className,
 }: {
   onAddSongs: (songs: MsHit[]) => void;
@@ -62,7 +61,6 @@ export function ASIComposerPanel({
   mobileVisible?: boolean;
   hideStaging?: boolean;
   onMatchStepRequest?: () => void;
-  seedPrompt?: string;
   className?: string;
 }) {
   const { filters } = useSearchFilters();
@@ -78,6 +76,7 @@ export function ASIComposerPanel({
     setParashaContext,
     stagingActive,
     stagingBuildLabel,
+    stagingTopic,
   } = useStagingSession();
   const [isOpen, setIsOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
@@ -88,10 +87,6 @@ export function ASIComposerPanel({
   const [styleHint, setStyleHint] = useState('');
   const [curatorBusy, setCuratorBusy] = useState(false);
   const curatorStream = useCuratorStream();
-
-  useEffect(() => {
-    if (seedPrompt.trim()) setComposerInput(seedPrompt.trim());
-  }, [seedPrompt]);
 
   useEffect(() => {
     void fetchSuggestions().then((s) => {
@@ -125,6 +120,7 @@ export function ASIComposerPanel({
             res.lines.map((line) => createStagingItem(line)),
             null,
             inferPlaylistDisplayName({ prompt }),
+            prompt.trim(),
           );
         } else if (!curatorStream.lines.length) {
           toast.error('לא התקבלו תוצאות');
@@ -299,7 +295,7 @@ export function ASIComposerPanel({
                         <span className="j-text-gradient">{APP_SHORT_NAME} Intelligence</span>
                       </h2>
                       <p className="text-[11px] sm:text-[12px] text-muted-foreground leading-snug mt-0.5">
-                        רשימה, פרשה או נושא — התאמה חכמה במאגר
+                        נושא, תגיות ואווירה — לא התאמה מילולית לשם שיר
                       </p>
                     </div>
                   </div>
@@ -341,7 +337,7 @@ export function ASIComposerPanel({
                     ? `זוהתה רשימה (${listLinesCount} שורות) — מתבצעת התאמה מדויקת`
                     : promptLooksLikeParasha(composerInput)
                       ? 'זוהתה פרשת שבוע — שירים יילקחו מקובץ PSH ויותאמו במאגר'
-                      : 'זוהתה בקשת נושא — הפלייליסט ייווצר (20–50 שירים)'}
+                      : 'זוהתה בקשת נושא — חיפוש לפי תגיות, ז\'אנר ואווירה + השראה מפלייליסטים'}
                   {styleHint && !inputLooksLikeList && !promptLooksLikeParasha(composerInput) ? (
                     <span className="block mt-1 text-[10px] text-primary/80">
                       זיכרון: {styleHint.slice(0, 80)}
@@ -351,7 +347,7 @@ export function ASIComposerPanel({
                 </div>
                 <Button
                   data-testid="asi-compose-button"
-                  className="w-full rounded-full h-11 font-semibold"
+                  className="w-full rounded-full h-10 md:h-9 text-sm font-semibold"
                   onClick={handleASICompose}
                   disabled={
                     curatorBusy ||
@@ -406,7 +402,7 @@ export function ASIComposerPanel({
                   <History className="w-3.5 h-3.5 text-primary" />
                   טיוטות שמורות
                 </div>
-                <div className="space-y-2 max-h-[32vh] overflow-y-auto pr-1 custom-scrollbar">
+                <div className="space-y-1.5 max-h-[28vh] md:max-h-[22vh] overflow-y-auto pr-1 custom-scrollbar">
                   {draftHistory.length === 0 ? (
                     <div className="text-xs font-medium text-muted-foreground rounded-[1rem] border border-dashed border-border/65 bg-muted/35 p-4 leading-relaxed">
                       עדיין אין טיוטות שמורות. לחץ "זכור טיוטה" כדי לשמור מצב עבודה.
@@ -415,20 +411,20 @@ export function ASIComposerPanel({
                     draftHistory.map((draft) => (
                       <div
                         key={draft.id}
-                        className="rounded-2xl border border-border/55 bg-card/85 backdrop-blur-sm px-3 py-2.5 j-glow-primary"
+                        className="rounded-xl border border-border/55 bg-card/85 backdrop-blur-sm px-2.5 py-2"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">{draft.name || 'טיוטה ללא שם'}</div>
-                            <div className="text-[11px] text-muted-foreground">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs md:text-[13px] font-medium truncate">{draft.name || 'טיוטה ללא שם'}</div>
+                            <div className="text-[10px] text-muted-foreground">
                               {draft.songs.length} שירים · {formatDraftTime(draft.savedAt)}
                             </div>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-0.5 shrink-0">
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
-                              className="h-8 rounded-lg text-xs"
+                              className="h-7 px-2.5 rounded-md text-[11px] font-medium"
                               onClick={() => onLoadDraft(draft.id)}
                             >
                               טען
@@ -436,7 +432,7 @@ export function ASIComposerPanel({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive"
+                              className="h-7 w-7 rounded-md text-muted-foreground hover:text-destructive"
                               onClick={() => onDeleteDraft(draft.id)}
                               title="מחק טיוטה"
                             >
@@ -464,6 +460,7 @@ export function ASIComposerPanel({
                     }}
                     searchFilters={filters}
                     parashaContext={parashaContext}
+                    topicContext={stagingTopic}
                     mobileLayout={useMobileTabs}
                   />
                 </div>

@@ -5,22 +5,26 @@ import {
   buildFillCuratorPrompt,
   buildFillRankSelectionPrompt,
   buildFillTopicQueries,
+  buildPlaylistResearchPrompt,
   buildRankSelectionPrompt,
   buildTopicQueries,
+  buildVibeAnalysisPrompt,
   computeFillTarget,
   computeTargetSize,
   excludeKeysFromLines,
+  expandTopicFacets,
   formatArtistSongLine,
+  mergeVibeWithResearch,
+  parsePlaylistResearchJson,
   parseRankSelectionJson,
   parseVibeFromPrompt,
   parseVibeJson,
   rankAndSelectCandidates,
-  buildVibeAnalysisPrompt,
+  researchToVibePatch,
+  scoreHitForTopic,
   type CuratorBuildResult,
 } from "@workspace/curator";
-import {
-  matchConfidence,
-} from "@workspace/playlist-validation";
+import { matchConfidence } from "@workspace/playlist-validation";
 import { createGeminiClient } from "../lib/gemini-client-factory";
 import {
   fetchSettingsKeys,
@@ -137,15 +141,42 @@ router.post("/build", async (req, res) => {
   const isParasha = mode === "parasha" || promptIsParashaRelated(prompt);
 
   let vibe = parseVibeFromPrompt(prompt);
-  const queries = buildTopicQueries(prompt, vibe);
-  let candidates = await searchTopicBatch(queries, 30);
+  let facets = expandTopicFacets(prompt, vibe);
+
+  try {
+    const client = await getGeminiClientOrThrow();
+    const researchText = await geminiGenerate(
+      client,
+      buildPlaylistResearchPrompt(prompt),
+    );
+    const research = parsePlaylistResearchJson(researchText, prompt);
+    if (research) {
+      vibe = mergeVibeWithResearch(vibe, researchToVibePatch(research));
+      facets = expandTopicFacets(prompt, vibe);
+      for (const q of research.searchQueries.slice(0, 6)) {
+        if (q.length >= 2) facets.searchQueries.push(q);
+      }
+      for (const t of research.tagHints) facets.tagHints.push(t);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Playlist research skipped — using rule-based facets");
+  }
+
+  const queries = [
+    ...new Set([...buildTopicQueries(prompt, vibe), ...facets.searchQueries]),
+  ].slice(0, 14);
+  let candidates = await searchTopicBatch(
+    queries,
+    28,
+    facets.genreHints.length ? facets.genreHints : undefined,
+  );
 
   if (!candidates.length) {
     candidates = await searchCatalogQuery(prompt, 60);
   }
 
   for (const hit of candidates) {
-    hit._rankingScore = scoreHitAgainstTopic(hit, prompt);
+    hit._rankingScore = scoreHitForTopic(hit, { topic: prompt, vibe, facets });
   }
 
   const size = computeTargetSize({
@@ -166,6 +197,12 @@ router.post("/build", async (req, res) => {
     const client = await getGeminiClientOrThrow();
     const vibeText = await geminiGenerate(client, buildVibeAnalysisPrompt(prompt));
     vibe = parseVibeJson(vibeText, prompt);
+    facets = expandTopicFacets(prompt, vibe);
+    for (const hit of candidates) {
+      hit._rankingScore = scoreHitForTopic(hit, { topic: prompt, vibe, facets });
+    }
+    candidates.sort((a, b) => (b._rankingScore ?? 0) - (a._rankingScore ?? 0));
+    selected = rankAndSelectCandidates(candidates, size, excludeKeys).selected;
 
     if (candidates.length >= 5) {
       const rankPrompt = buildRankSelectionPrompt(prompt, candidates, size, vibe.reason);
@@ -266,21 +303,28 @@ router.post("/fill", async (req, res) => {
   const artistCounts = artistCountsFromLines(lines);
 
   let vibe = parseVibeFromPrompt(fillPrompt);
+  let facets = expandTopicFacets(topic, vibe);
   const uniqueQueries = [
     ...new Set([
       ...buildFillTopicQueries(topic, lines),
       ...buildTopicQueries(topic, vibe),
+      ...facets.searchQueries,
     ]),
-  ].slice(0, 12);
+  ].slice(0, 14);
 
-  let candidates = await searchTopicBatch(uniqueQueries, 40);
+  let candidates = await searchTopicBatch(
+    uniqueQueries,
+    36,
+    facets.genreHints.length ? facets.genreHints : undefined,
+  );
   if (!candidates.length) {
     candidates = await searchCatalogQuery(`${topic} ${lines.slice(0, 3).join(" ")}`, 60);
   }
 
   for (const hit of candidates) {
-    hit._rankingScore = scoreHitAgainstTopic(hit, fillPrompt);
+    hit._rankingScore = scoreHitForTopic(hit, { topic, vibe, facets });
   }
+  candidates.sort((a, b) => (b._rankingScore ?? 0) - (a._rankingScore ?? 0));
 
   let selected = rankAndSelectCandidates(
     candidates,
@@ -359,13 +403,25 @@ router.post("/build/stream", async (req, res) => {
   };
 
   try {
-    const vibe = parseVibeFromPrompt(prompt);
+    let vibe = parseVibeFromPrompt(prompt);
+    let facets = expandTopicFacets(prompt, vibe);
     send({ stage: "vibe", vibe });
 
-    const queries = buildTopicQueries(prompt, vibe);
-    send({ stage: "progress", message: "מחפש במאגר...", queries: queries.length });
+    const queries = [
+      ...new Set([...buildTopicQueries(prompt, vibe), ...facets.searchQueries]),
+    ].slice(0, 14);
+    send({ stage: "progress", message: "מחפש במאגר לפי נושא ותגיות...", queries: queries.length });
 
-    const candidates = await searchTopicBatch(queries, 30);
+    let candidates = await searchTopicBatch(
+      queries,
+      28,
+      facets.genreHints.length ? facets.genreHints : undefined,
+    );
+    for (const hit of candidates) {
+      hit._rankingScore = scoreHitForTopic(hit, { topic: prompt, vibe, facets });
+    }
+    candidates.sort((a, b) => (b._rankingScore ?? 0) - (a._rankingScore ?? 0));
+
     const size = computeTargetSize({
       availableHits: candidates.length,
       requestedTarget: targetSize,

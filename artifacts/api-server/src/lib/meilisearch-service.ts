@@ -1,5 +1,9 @@
 import {
-  matchConfidence,
+  expandTopicFacets,
+  parseVibeFromPrompt,
+  scoreHitForTopic,
+} from "@workspace/curator";
+import {
   msHitLikeFromMeiliRecord,
   type MsHitLike,
 } from "@workspace/playlist-validation";
@@ -85,16 +89,24 @@ export async function searchCatalogQuery(
 export async function searchTopicBatch(
   queries: string[],
   limitPerQuery = 25,
-  genre?: string,
+  genre?: string | string[],
 ): Promise<MsHitLike[]> {
   const merged = new Map<string, MsHitLike>();
+  const genres = Array.isArray(genre)
+    ? genre.filter(Boolean)
+    : genre?.trim()
+      ? [genre.trim()]
+      : [undefined];
+
   for (const q of queries) {
-    const hits = await searchCatalogQuery(q, limitPerQuery, genre);
-    for (const hit of hits) {
-      const key = `${hit.artist}|${hit.song_name}`.toLowerCase();
-      const existing = merged.get(key);
-      if (!existing || (hit._rankingScore ?? 0) > (existing._rankingScore ?? 0)) {
-        merged.set(key, hit);
+    for (const g of genres) {
+      const hits = await searchCatalogQuery(q, limitPerQuery, g);
+      for (const hit of hits) {
+        const key = `${hit.artist}|${hit.song_name}`.toLowerCase();
+        const existing = merged.get(key);
+        if (!existing || (hit._rankingScore ?? 0) > (existing._rankingScore ?? 0)) {
+          merged.set(key, hit);
+        }
       }
     }
   }
@@ -102,7 +114,7 @@ export async function searchTopicBatch(
 }
 
 export function scoreHitAgainstTopic(hit: MsHitLike, topic: string): number {
-  const base = hit._rankingScore ?? 0.5;
-  const topicScore = matchConfidence(topic, "", hit);
-  return base * 0.4 + topicScore * 0.6;
+  const vibe = parseVibeFromPrompt(topic);
+  const facets = expandTopicFacets(topic, vibe);
+  return scoreHitForTopic(hit, { topic, vibe, facets });
 }

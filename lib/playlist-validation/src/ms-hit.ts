@@ -98,11 +98,20 @@ export function msHitLikeFromMeiliRecord(
   if (!hit || typeof hit !== "object") {
     return { id: "", song_name: "", artist: "" };
   }
+  const genres = Array.isArray(hit.genres)
+    ? (hit.genres as unknown[]).map(String).filter(Boolean)
+    : [];
+  const genre =
+    String(hit.genre ?? "").trim() ||
+    genres[0]?.trim() ||
+    undefined;
+
   return {
     id: String(hit.uid ?? hit.id ?? "").trim(),
     song_name: odooImportSongNameFromHit(hit),
     artist: odooImportArtistFromHit(hit),
     album: String(hit.album ?? "").trim() || undefined,
+    genre,
     tags: Array.isArray(hit.tags) ? (hit.tags as string[]) : undefined,
   };
 }

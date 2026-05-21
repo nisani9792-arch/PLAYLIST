@@ -21,8 +21,12 @@ import { buildStagingSearchQuery } from "./staging-query.js";
 import { dedupePlaylistLines } from "./sanitize";
 import { assertHashkafaClean } from "./secular-artists";
 import {
+  AUTO_MATCH_THRESHOLD,
   findPshRowForLine,
+  matchConfidence,
   queryMatchesHit,
+  REVIEW_THRESHOLD,
+  scoreStagingQueryHit,
   validateHashkafa,
   validateStagingMatch,
 } from "./validate";
@@ -266,6 +270,32 @@ assert(
     artist: "ישראל עמר",
   }),
   "queryMatchesHit accepts exact artist-song pairing",
+);
+
+const lifneyChupa = scoreStagingQueryHit("לפני החופה", {
+  song_name: "לפני השם",
+  artist: "ירמיה דמן",
+});
+assert(
+  lifneyChupa < REVIEW_THRESHOLD,
+  "לפני החופה must not match לפני השם (partial token only)",
+);
+
+const lifneyChupaExact = scoreStagingQueryHit("לפני החופה", {
+  song_name: "לפני החופה",
+  artist: "אמן",
+});
+assert(
+  lifneyChupaExact >= AUTO_MATCH_THRESHOLD,
+  "לפני החופה matches exact title",
+);
+
+assert(
+  matchConfidence("לפני החופה", "", {
+    song_name: "לפני נעבור",
+    artist: "ירמיה דמן",
+  }) < REVIEW_THRESHOLD,
+  "matchConfidence rejects לפני-only overlap on multi-word title",
 );
 
 console.log("playlist-validation self-test OK");

@@ -22,7 +22,11 @@ export function parseVibeFromPrompt(prompt: string): VibeAnalysis {
   const winterQuiet =
     /גשם|חורף|שקט|רגש|אבל|זיכרון|בדידות/.test(prompt) &&
     !/ריקוד|מסיבה|שמח|חגיג/.test(prompt);
+  const chupa =
+    /לפני\s*ה?חופה|כניסה\s*לחופה|ריקודי\s*חופה|חופה/i.test(prompt) &&
+    !/לפני\s*ה?שם|לפני\s*נעבור/i.test(prompt);
   const wedding =
+    chupa ||
     /חתונה|שמח|ריקוד|חגיג|simcha|סימcha/i.test(prompt) ||
     /לפני חתונה|יום החתונה/.test(prompt);
   const parasha = /פרשה|פרשת|psh/i.test(prompt);
@@ -43,12 +47,14 @@ export function parseVibeFromPrompt(prompt: string): VibeAnalysis {
   if (wedding) {
     return {
       mood: "celebratory",
-      tact: "avoid-sad",
-      keywords,
+      tact: chupa ? "chupa-wedding" : "avoid-sad",
+      keywords: chupa ? [...keywords, "חופה", "חתונה", "כלה", "חתן"] : keywords,
       genreHints: ["חסידי", "מזרחי"],
-      moodHint: "שמח חגיגי",
+      moodHint: chupa ? "לפני החופה — שמחה וריקוד" : "שמח חגיגי",
       avoidSad: true,
-      reason: "אירוע שמח — סינון שירים עצובים מדי",
+      reason: chupa
+        ? "חופה — התאמה לפי תגיות חתונה/חופה, לא מילת 'לפני' בשם שיר"
+        : "אירוע שמח — סינון שירים עצובים מדי",
     };
   }
 

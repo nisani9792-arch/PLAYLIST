@@ -4,7 +4,6 @@ import { migrateLocalLearningOnce } from '@/lib/memory-api';
 import { usePlaylist } from '../hooks/use-playlist';
 import { useIsMobile } from '../hooks/use-mobile';
 import { SearchBar } from '../components/workspace/SearchBar';
-import { InspirationPanel } from '../components/workspace/InspirationPanel';
 import { PlaylistCanvas } from '../components/workspace/PlaylistCanvas';
 import { SmartComposer } from '../components/workspace/SmartComposer';
 import { StagingDrawer } from '../components/workspace/StagingDrawer';
@@ -53,12 +52,12 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
     parashaContext,
     stagingActive,
     stagingBuildLabel,
+    stagingTopic,
     clearStaging,
     startStaging,
   } = useStagingSession();
 
   const [mobileStep, setMobileStep] = useState<MobileWorkspaceStep>('build');
-  const [composerSeed, setComposerSeed] = useState('');
   const [fillBusy, setFillBusy] = useState(false);
   const memoryMigrated = useRef(false);
 
@@ -119,6 +118,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
         isDefaultPlaylistName(playlist.playlistName)
           ? inferPlaylistDisplayName({ prompt: topic })
           : playlist.playlistName.trim(),
+        topic,
       );
       toast.success(`נוספו ${lines.length} שירים להתאמה (מטרה: ${meta?.targetSize ?? fillTarget})`);
     } catch {
@@ -163,28 +163,19 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
       <main className="flex-1 flex flex-col overflow-hidden min-h-0 relative z-10 touch-manipulation">
         <motion.div
           className={cn(
-            'flex flex-1 min-h-0 gap-3 p-2 lg:p-4',
+            'bp-workspace-split flex flex-1 min-h-0 gap-2.5 p-2 lg:gap-3 lg:p-3',
             isMobile && 'p-0 gap-0',
           )}
           variants={staggerContainer}
           initial="hidden"
           animate="visible"
         >
-          {!isMobile ? (
-            <motion.div variants={fadeUpVariants} className="hidden lg:flex lg:flex-[2] min-w-[14rem] max-w-[18rem] min-h-0">
-              <InspirationPanel
-                className="w-full"
-                onPickTopic={(title) => setComposerSeed(title)}
-              />
-            </motion.div>
-          ) : null}
-
           <motion.div
             variants={fadeUpVariants}
             className={cn(
-              'min-h-0 flex-1',
+              'bp-playlist-main min-h-0',
               isMobile && mobileStep !== 'playlist' && 'hidden',
-              !isMobile && 'lg:flex-[5]',
+              !isMobile && 'lg:flex-[5] lg:min-w-0',
             )}
           >
             <PlaylistCanvas
@@ -204,8 +195,9 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
           <motion.div
             variants={fadeUpVariants}
             className={cn(
+              'min-h-0',
               isMobile && mobileStep !== 'build' && 'hidden',
-              !isMobile && 'lg:flex-[3] min-w-[16rem] max-w-[24rem] min-h-0',
+              !isMobile && 'lg:flex-[3] lg:min-w-[17rem] lg:max-w-[22rem]',
             )}
           >
             <SmartComposer
@@ -218,7 +210,6 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
               mobileFullScreen={isMobile}
               mobileVisible={!isMobile || mobileStep === 'build'}
               hideStaging
-              seedPrompt={composerSeed}
               onMatchStepRequest={() => setMobileStep('match')}
               className="h-full"
             />
@@ -238,6 +229,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
             }}
             searchFilters={filters}
             parashaContext={parashaContext}
+            topicContext={stagingTopic}
           />
         ) : null}
 
@@ -267,6 +259,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
                   }}
                   searchFilters={filters}
                   parashaContext={parashaContext}
+                  topicContext={stagingTopic}
                   mobileLayout
                 />
               </>

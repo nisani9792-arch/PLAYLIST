@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  expandTopicFacets,
+  parseVibeFromPrompt,
+  scoreHitForTopic,
+  TOPIC_STAGING_MIN_SCORE,
+} from "@workspace/curator";
+import {
   AUTO_MATCH_THRESHOLD,
   REVIEW_THRESHOLD,
   buildStagingSearchQuery,
@@ -7,6 +13,7 @@ import {
   normalizeHebrew,
   queryMatchesHit,
   sanitizePlaylistLine,
+  scoreStagingQueryHit,
   stagingSearchVariants,
   validateStagingMatch,
   type ParashaValidationContext,
@@ -48,173 +55,39 @@ export interface StagingItem {
   blockReason?: string;
   skipReason?: string;
 }
-const RANKING_BOOST = 0.1;
 const STAGING_SEARCH_LIMIT = 20;
 const STAGING_BATCH_SIZE = 10;
-
-function levenshtein(a: string, b: string): number {
-  if (a === b) return 0;
-  if (!a) return b.length;
-  if (!b) return a.length;
-  const rows = a.length + 1;
-  const cols = b.length + 1;
-  const dp: number[][] = Array.from({ length: rows }, () =>
-    Array(cols).fill(0),
-  );
-  for (let i = 0; i < rows; i += 1) dp[i]![0] = i;
-  for (let j = 0; j < cols; j += 1) dp[0]![j] = j;
-  for (let i = 1; i < rows; i += 1) {
-    for (let j = 1; j < cols; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i]![j] = Math.min(
-        (dp[i - 1]![j] ?? 0) + 1,
-        (dp[i]![j - 1] ?? 0) + 1,
-        (dp[i - 1]![j - 1] ?? 0) + cost,
-      );
-    }
-  }
-  return dp[rows - 1]![cols - 1] ?? Math.max(a.length, b.length);
-}
-
-function wordsSimilarity(query: string, candidate: string): number {
-  const qWords = normalizeHebrew(query)
-    .split(" ")
-    .filter((w) => w.length >= 2);
-  const cWords = normalizeHebrew(candidate)
-    .split(" ")
-    .filter((w) => w.length >= 2);
-  if (!qWords.length || !cWords.length) return 0;
-
-  let hits = 0;
-  for (const qw of qWords) {
-    let matched = false;
-    for (const cw of cWords) {
-      if (qw === cw) {
-        matched = true;
-        break;
-      }
-      if (qw.includes(cw) || cw.includes(qw)) {
-        matched = true;
-        break;
-      }
-      const dist = levenshtein(qw, cw);
-      if (dist <= 1 && Math.min(qw.length, cw.length) >= 4) {
-        matched = true;
-        break;
-      }
-    }
-    if (matched) hits += 1;
-  }
-  return hits / qWords.length;
-}
-
-function splitArtistSong(query: string): {
-  left: string;
-  right: string;
-  whole: string;
-} {
-  const cleaned = query.replace(/^[\d.)\-\s]+/, "").trim();
-  const sep = cleaned.match(/\s[-–—:]\s/);
-  if (!sep) return { left: "", right: cleaned, whole: cleaned };
-  const [left = "", right = ""] = cleaned.split(sep[0], 2);
-  if (!left.trim() || !right.trim())
-    return { left: "", right: cleaned, whole: cleaned };
-  return { left: left.trim(), right: right.trim(), whole: cleaned };
-}
-
-function candidateConfidence(
-  song: string,
-  artist: string,
-  whole: string,
-  hit: MsHit,
-): number {
-  const songScore = wordsSimilarity(song || whole, hit.song_name);
-  const artistScore = artist ? wordsSimilarity(artist, hit.artist) : 0;
-  const searchableHitText = [
-    hit.song_name,
-    hit.artist,
-    hit.album,
-    hit.genre,
-    ...hit.tags,
-  ].join(" ");
-  const wholeScore = wordsSimilarity(whole, searchableHitText);
-
-  const structuredScore = artist
-    ? songScore * 0.72 + artistScore * 0.28
-    : songScore;
-
-  const normalizedSong = normalizeHebrew(song || whole);
-  const normalizedCandidateSong = normalizeHebrew(hit.song_name);
-  const normalizedArtist = artist ? normalizeHebrew(artist) : "";
-  const normalizedCandidateArtist = normalizeHebrew(hit.artist);
-
-  if (
-    normalizedSong &&
-    normalizedCandidateSong &&
-    normalizedSong === normalizedCandidateSong &&
-    (!normalizedArtist ||
-      !normalizedCandidateArtist ||
-      normalizedArtist === normalizedCandidateArtist)
-  ) {
-    return 1;
-  }
-
-  const containsBoost =
-    normalizedSong &&
-    normalizedCandidateSong &&
-    (normalizedSong.includes(normalizedCandidateSong) ||
-      normalizedCandidateSong.includes(normalizedSong))
-      ? 0.08
-      : 0;
-
-  return Math.min(
-    1,
-    Math.max(structuredScore, wholeScore * 0.9) + containsBoost,
-  );
-}
-
-function calcHitConfidence(query: string, hit: MsHit): number {
-  const parsed = splitArtistSong(query);
-  const interpretations = parsed.left
-    ? [
-        { artist: parsed.left, song: parsed.right },
-        { artist: parsed.right, song: parsed.left },
-      ]
-    : [{ artist: "", song: parsed.right }];
-
-  let conf = 0;
-  for (const interpretation of interpretations) {
-    conf = Math.max(
-      conf,
-      candidateConfidence(
-        interpretation.song,
-        interpretation.artist,
-        parsed.whole,
-        hit,
-      ),
-    );
-  }
-
-  if (typeof hit._rankingScore === "number" && hit._rankingScore > 0.75) {
-    conf = Math.min(1, conf + RANKING_BOOST);
-  }
-  return conf;
-}
 
 function rankHitsForQuery(
   query: string,
   hits: MsHit[],
+  topicContext?: string | null,
 ): Array<{ hit: MsHit; confidence: number }> {
+  const vibe = topicContext ? parseVibeFromPrompt(topicContext) : undefined;
+  const facets = topicContext ? expandTopicFacets(topicContext, vibe) : undefined;
+
   return hits
-    .map((hit) => ({ hit, confidence: calcHitConfidence(query, hit) }))
+    .map((hit) => {
+      const lineConf = scoreStagingQueryHit(query, hit);
+      if (!topicContext) {
+        return { hit, confidence: lineConf };
+      }
+      const topicConf = scoreHitForTopic(hit, {
+        topic: topicContext,
+        vibe,
+        facets,
+      });
+      return { hit, confidence: Math.min(1, lineConf * 0.55 + topicConf * 0.45) };
+    })
     .sort((a, b) => b.confidence - a.confidence);
 }
 
 function bestMatchForQuery(
   query: string,
   hits: MsHit[],
+  topicContext?: string | null,
 ): { hit: MsHit | null; confidence: number; alternatives: MsHit[] } {
-  const ranked = rankHitsForQuery(query, hits);
+  const ranked = rankHitsForQuery(query, hits, topicContext);
   const best = ranked[0];
   const alternatives = ranked
     .slice(0, 8)
@@ -247,6 +120,7 @@ async function findBestMatch(
   query: string,
   filters: SearchFilterOptions,
   cache: Map<string, Promise<MsHit[]>>,
+  topicContext?: string | null,
 ): Promise<{ hit: MsHit | null; confidence: number; alternatives: MsHit[] }> {
   const allHits = new Map<string, MsHit>();
   const [primaryVariant, ...fallbackVariants] = stagingSearchVariants(query);
@@ -257,7 +131,11 @@ async function findBestMatch(
     allHits.set(hit.id, hit);
   }
 
-  const primaryBest = bestMatchForQuery(query, Array.from(allHits.values()));
+  const primaryBest = bestMatchForQuery(
+    query,
+    Array.from(allHits.values()),
+    topicContext,
+  );
   if (
     primaryBest.confidence >= AUTO_MATCH_THRESHOLD ||
     fallbackVariants.length === 0
@@ -276,7 +154,17 @@ async function findBestMatch(
     }
   }
 
-  return bestMatchForQuery(query, Array.from(allHits.values()));
+  return bestMatchForQuery(query, Array.from(allHits.values()), topicContext);
+}
+
+function passesTopicContext(
+  hit: MsHit,
+  topicContext: string | null | undefined,
+): boolean {
+  if (!topicContext?.trim()) return true;
+  const vibe = parseVibeFromPrompt(topicContext);
+  const facets = expandTopicFacets(topicContext, vibe);
+  return scoreHitForTopic(hit, { topic: topicContext, vibe, facets }) >= TOPIC_STAGING_MIN_SCORE;
 }
 
 function stagingEventFromItem(
@@ -428,7 +316,7 @@ const StagingListItem = React.memo(function StagingListItem({
             <Button
               type="button"
               size="sm"
-              className="min-h-[var(--bp-touch-min)] rounded-xl px-4 font-semibold"
+              className="h-8 md:h-7 rounded-lg px-3 text-xs font-semibold"
               onClick={() => onApproveReview(item.id)}
             >
               אשר
@@ -470,6 +358,7 @@ export function StagingArea({
   onCancel,
   searchFilters = SONGS_ONLY_FILTERS,
   parashaContext = null,
+  topicContext = null,
   mobileLayout = false,
 }: {
   items: StagingItem[];
@@ -478,6 +367,8 @@ export function StagingArea({
   onCancel: () => void;
   searchFilters?: SearchFilterOptions;
   parashaContext?: ParashaValidationContext | null;
+  /** Playlist topic — match by tags/vibe, not literal title tokens. */
+  topicContext?: string | null;
   mobileLayout?: boolean;
 }) {
   const processBatch = async (pendingItems: StagingItem[]) => {
@@ -511,6 +402,7 @@ export function StagingArea({
             searchLine,
             searchFilters,
             searchCache,
+            topicContext,
           );
           const validation = validateStagingMatch({
             query,
@@ -624,6 +516,14 @@ export function StagingArea({
           if (hit && (autoApprove || queryMatchesHit(p.query, hit))) {
             pendingApproval = false;
           }
+          if (
+            hit &&
+            topicContext &&
+            !queryMatchesHit(p.query, hit) &&
+            !passesTopicContext(hit, topicContext)
+          ) {
+            pendingApproval = true;
+          }
 
           if (pendingApproval && hit) {
             return {
@@ -636,11 +536,14 @@ export function StagingArea({
             };
           }
 
-          if (
-            conf >= AUTO_MATCH_THRESHOLD ||
-            autoApprove ||
-            (hit && queryMatchesHit(p.query, hit))
-          ) {
+          const exactLine = Boolean(hit && queryMatchesHit(p.query, hit));
+          const topicFit = Boolean(hit && passesTopicContext(hit, topicContext));
+          const canAutoMatch =
+            Boolean(hit) &&
+            (exactLine || !topicContext || topicFit) &&
+            (conf >= AUTO_MATCH_THRESHOLD || autoApprove);
+
+          if (canAutoMatch && !pendingApproval) {
             return {
               ...p,
               status: "matched" as const,
@@ -779,6 +682,14 @@ export function StagingArea({
           <span className="bp-chip bg-primary/12 text-primary border border-primary/20">
             אזור התאמה
           </span>
+          {topicContext ? (
+            <span
+              className="bp-chip bg-muted/80 text-muted-foreground border border-border/60 max-w-[14rem] truncate"
+              title={topicContext}
+            >
+              נושא: {topicContext}
+            </span>
+          ) : null}
           <span className="text-xs font-semibold text-muted-foreground tabular-nums">
             {matchedSongs.length}/{totalCount}
             {reviewCount > 0 ? (
@@ -845,21 +756,21 @@ export function StagingArea({
       <footer className="bp-staging__dock">
         <Button
           variant="outline"
-          size="lg"
+          size="sm"
           onClick={onCancel}
-          className="flex-1 min-h-[var(--bp-touch-min)] rounded-xl font-semibold"
+          className="flex-1 h-9 md:h-8 rounded-lg text-sm font-semibold"
         >
           ביטול
         </Button>
         <Button
           data-testid="approve-all-button"
-          size="lg"
+          size="sm"
           disabled={isProcessing || !matchedSongs.length}
           onClick={() => {
             flushStagingMemory(items, parashaName);
             onApproveAll(matchedSongs);
           }}
-          className="flex-[2] min-h-[var(--bp-touch-min)] rounded-xl font-semibold shadow-md shadow-primary/20"
+          className="flex-[2] h-9 md:h-8 rounded-lg text-sm font-semibold shadow-sm shadow-primary/15"
         >
           אשר הכל ({matchedSongs.length})
         </Button>
