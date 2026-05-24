@@ -40,6 +40,7 @@
   --bp-brand-row-min-h: 4.75rem;
   --bp-tab-bar-h: 3.25rem;
   --bp-staging-dock-h: 4.5rem;
+  --bp-playlist-commit-h: 4.75rem;
   --bp-touch-min: 2.75rem;
 }
 
@@ -277,4 +278,28 @@
   .bp-workspace-split {
     flex-direction: row;
   }
+}
+
+/* Sticky Commit footer for playlist workflow */
+.bp-playlist-commit {
+  border-top: 1px solid hsl(var(--border) / 0.55);
+  background: linear-gradient(
+    to top,
+    hsl(var(--card) / 0.98) 65%,
+    hsl(var(--card) / 0.88) 100%
+  );
+  backdrop-filter: blur(12px);
+}
+
+.bp-playlist-commit__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  min-height: var(--bp-playlist-commit-h);
+}
+
+.bp-playlist-commit--mobile-nav .bp-playlist-commit__inner {
+  padding-bottom: calc(var(--bp-tab-bar-h) + max(env(safe-area-inset-bottom, 0px), 0.5rem));
 }

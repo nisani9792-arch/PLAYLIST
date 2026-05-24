@@ -13,6 +13,8 @@ export interface MsHit {
   album: string;
   audio_url: string;
   tags: string[];
+  /** Album cover when available from catalog. */
+  cover_url?: string;
   /** Stable key for drag-and-drop lists (client-only). */
   _id?: string;
   /** Meilisearch ranking score when returned by the API. */
@@ -62,6 +64,9 @@ function normalizeHit(hit: Record<string, unknown>): MsHit {
     genre: String(genres || ''),
     album: String(hit.album || ''),
     audio_url: String(hit.audio_url || hit.stream_url || hit.preview_url || ''),
+    cover_url: String(
+      hit.cover_url || hit.album_art || hit.image_url || hit.thumbnail || '',
+    ) || undefined,
     tags: tags as string[],
     _rankingScore: ranking,
   };

@@ -1,23 +1,154 @@
-import { useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { AnimatePresence, motion, useMotionValue, useTransform } from 'framer-motion';
+import { Download, Loader2, Music, Search, Trash2 } from 'lucide-react';
 import { MsHit } from '../../lib/meilisearch';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { GripVertical, X, Download, Trash2, Search, Music, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { cn } from '@/lib/utils';
 import { exportPlaylistToCsv } from '@/lib/export';
-import { motion } from 'framer-motion';
 import { toast } from 'sonner';
+import { TrackCard } from './TrackCard';
+import { usePlaylistOverlap } from '@/hooks/use-playlist-overlap';
+import { useOptionalPlayer, isSongPlaying } from '@/contexts/PlayerContext';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { canonicalSongKey } from '@workspace/playlist-validation';
+
+const LONG_PRESS_MS = 480;
+const SWIPE_REMOVE_THRESHOLD = -72;
 
 interface PlaylistViewProps {
   playlistName: string;
   setPlaylistName: (name: string) => void;
   songs: MsHit[];
   removeSong: (index: number) => void;
+  removeSongsById: (ids: Set<string>) => void;
   reorderSongs: (startIndex: number, endIndex: number) => void;
   clearPlaylist: () => void;
   className?: string;
+}
+
+function SortableTrackRow({
+  song,
+  index,
+  overlap,
+  selectionMode,
+  isSelected,
+  onToggleSelect,
+  onRemove,
+  onPlay,
+  onEnterSelectionMode,
+}: {
+  song: MsHit;
+  index: number;
+  overlap?: { playlistName: string; count: number };
+  selectionMode: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
+  onRemove: () => void;
+  onPlay: () => void;
+  onEnterSelectionMode: () => void;
+}) {
+  const isMobile = useIsMobile();
+  const player = useOptionalPlayer();
+  const playing = isSongPlaying(player, song);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragX = useMotionValue(0);
+  const deleteOpacity = useTransform(dragX, [-96, -48, 0], [1, 0.6, 0]);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: song._id || song.id, disabled: selectionMode });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handlePointerDown = () => {
+    if (!isMobile || selectionMode) return;
+    clearLongPress();
+    longPressTimer.current = setTimeout(() => {
+      onEnterSelectionMode();
+      onToggleSelect();
+      if (navigator.vibrate) navigator.vibrate(12);
+    }, LONG_PRESS_MS);
+  };
+
+  const handleDragEndSwipe = (_: unknown, info: { offset: { x: number } }) => {
+    if (selectionMode) return;
+    if (info.offset.x < SWIPE_REMOVE_THRESHOLD) {
+      onRemove();
+      if (navigator.vibrate) navigator.vibrate(8);
+    }
+    dragX.set(0);
+  };
+
+  return (
+    <motion.div className="relative my-[5px]">
+      <motion.div
+        className="absolute inset-y-0 left-0 flex items-center justify-end px-4 rounded-[0.875rem] bg-destructive/15 border border-destructive/25 sm:hidden"
+        style={{ opacity: deleteOpacity }}
+        aria-hidden
+      >
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </motion.div>
+      <motion.div
+        drag={isMobile && !selectionMode ? 'x' : false}
+        dragConstraints={{ left: -120, right: 0 }}
+        dragElastic={0.12}
+        style={{ x: dragX }}
+        onDragEnd={handleDragEndSwipe}
+        onDrag={(_, info) => dragX.set(Math.min(0, info.offset.x))}
+      >
+        <TrackCard
+          ref={setNodeRef}
+          style={style}
+          song={song}
+          index={index}
+          overlap={overlap}
+          isPlaying={playing}
+          isDragging={isDragging}
+          isSelected={isSelected}
+          selectionMode={selectionMode}
+          onPlay={onPlay}
+          onRemove={onRemove}
+          onToggleSelect={onToggleSelect}
+          onLongPressStart={handlePointerDown}
+          onLongPressEnd={clearLongPress}
+          dragHandleProps={selectionMode ? undefined : { attributes, listeners }}
+        />
+      </motion.div>
+    </motion.div>
+  );
 }
 
 export function PlaylistView({
@@ -25,13 +156,48 @@ export function PlaylistView({
   setPlaylistName,
   songs,
   removeSong,
+  removeSongsById,
   reorderSongs,
   clearPlaylist,
   className,
 }: PlaylistViewProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [filter, setFilter] = useState('');
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const player = useOptionalPlayer();
+  const overlapMap = usePlaylistOverlap(songs, playlistName);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const filteredSongs = useMemo(
+    () =>
+      filter.trim()
+        ? songs.filter((s) => {
+            const q = filter.trim().toLowerCase();
+            return (
+              s.song_name.toLowerCase().includes(q) ||
+              s.artist.toLowerCase().includes(q)
+            );
+          })
+        : songs,
+    [songs, filter],
+  );
+
+  const songIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    songs.forEach((s, i) => map.set(s._id || s.id, i));
+    return map;
+  }, [songs]);
+
+  const sortableIds = useMemo(
+    () => filteredSongs.map((s) => s._id || s.id),
+    [filteredSongs],
+  );
 
   const handleExportCsv = () => {
     if (!songs.length || exporting) return;
@@ -47,28 +213,42 @@ export function PlaylistView({
       });
   };
 
-  const filteredSongs = filter.trim()
-    ? songs.filter((s) => {
-        const q = filter.trim().toLowerCase();
-        return (
-          s.song_name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q)
-        );
-      })
-    : songs;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || filter.trim()) return;
+    const oldIndex = songs.findIndex((s) => (s._id || s.id) === active.id);
+    const newIndex = songs.findIndex((s) => (s._id || s.id) === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    reorderSongs(oldIndex, newIndex);
+  };
 
-  const rowVirtualizer = useVirtualizer({
-    count: filteredSongs.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 68,
-    overscan: 8,
-  });
+  const toggleSelect = useCallback((song: MsHit) => {
+    const key = song._id || song.id;
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
-  const onDragEnd = (result: {
-    destination?: { index: number } | null;
-    source: { index: number };
-  }) => {
-    if (!result.destination) return;
-    reorderSongs(result.source.index, result.destination.index);
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedKeys(new Set());
+  };
+
+  const removeSelected = () => {
+    removeSongsById(selectedKeys);
+    exitSelectionMode();
+  };
+
+  const handlePlay = (song: MsHit) => {
+    if (!player) return;
+    if (isSongPlaying(player, song)) {
+      player.togglePlay();
+    } else {
+      player.playSong(song);
+    }
   };
 
   return (
@@ -79,16 +259,14 @@ export function PlaylistView({
       )}
       data-testid="playlist-container"
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-l from-primary/55 via-transparent to-primary/55 opacity-75" aria-hidden />
-      <div
-        className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-3 sm:px-5 pt-4 pb-3 flex-shrink-0 border-b border-border/45 bg-gradient-to-b from-card/80 to-transparent"
-      >
+      <motion.div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-l from-primary/55 via-transparent to-primary/55 opacity-75" aria-hidden />
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-3 sm:px-5 pt-4 pb-3 flex-shrink-0 border-b border-border/45 bg-gradient-to-b from-card/80 to-transparent">
         <div className="flex flex-col gap-2 w-full sm:flex-1 sm:max-w-md min-w-0">
           <div className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.12em]">
             <Music className="h-3.5 w-3.5 text-primary" />
-            <span>פלייליסט פעיל</span>
+            <span>Creative Workflow</span>
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <motion.div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <Input
               data-testid="playlist-name-input"
               type="text"
@@ -108,7 +286,7 @@ export function PlaylistView({
             >
               {songs.length} שירים · ייצוא Lomdaat
             </span>
-          </div>
+          </motion.div>
           <Input
             type="search"
             placeholder="סינון שירים..."
@@ -117,9 +295,30 @@ export function PlaylistView({
             className="h-9 rounded-xl text-sm"
             dir="rtl"
           />
+          {filter.trim() ? (
+            <p className="text-[10px] text-amber-600 dark:text-amber-400">
+              גרירה מושבתת בזמן סינון — נקו את הסינון לסידור מחדש
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center justify-stretch sm:justify-end gap-2 w-full sm:w-auto shrink-0">
-          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="flex-1 sm:flex-none">
+          {selectionMode ? (
+            <>
+              <Button variant="outline" size="sm" onClick={exitSelectionMode} className="rounded-xl text-xs">
+                ביטול
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={!selectedKeys.size}
+                onClick={removeSelected}
+                className="rounded-xl text-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5 ml-1" />
+                הסר ({selectedKeys.size})
+              </Button>
+            </>
+          ) : (
             <Button
               variant="outline"
               size="sm"
@@ -129,154 +328,65 @@ export function PlaylistView({
             >
               <Trash2 className="w-3.5 h-3.5 mr-1.5" /> נקה
             </Button>
-          </motion.div>
-          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="flex-1 sm:flex-none">
-            <Button
-              data-testid="export-csv-button"
-              size="sm"
-              onClick={handleExportCsv}
-              disabled={!songs.length || exporting}
-              className="w-full sm:w-auto rounded-full text-xs font-semibold min-h-[2.35rem] sm:min-h-[2rem]"
-            >
-              {exporting ? (
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-              ) : (
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-              )}
-              ייצוא CSV
-            </Button>
-          </motion.div>
+          )}
+          <Button
+            data-testid="export-csv-button"
+            size="sm"
+            onClick={handleExportCsv}
+            disabled={!songs.length || exporting}
+            className="w-full sm:w-auto rounded-full text-xs font-semibold min-h-[2.35rem] sm:min-h-[2rem]"
+          >
+            {exporting ? (
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            ייצוא CSV
+          </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden relative bg-gradient-to-b from-transparent to-muted/[0.12]">
+      <div className="flex-1 overflow-hidden relative bg-gradient-to-b from-transparent to-muted/[0.12] min-h-0">
         {songs.length === 0 ? (
           <div className="absolute inset-6 sm:inset-10 flex flex-col items-center justify-center text-center px-6 rounded-[1.5rem] border border-dashed border-primary/22 bg-muted/30">
             <span className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/15 to-[hsl(var(--mesh-grey)/0.12)] text-primary border border-primary/25 shadow-sm">
               <Search className="w-7 h-7 opacity-85" />
             </span>
             <p className="text-[15px] sm:text-base font-semibold text-foreground/85 max-w-[20rem] leading-relaxed">
-              התחלה קלה — חפשו למעלה, הוסיפו וגזרו לפי הסדר הנכון
+              התחלה קלה — חפשו למעלה, הוסיפו וסדרו בגרירה
             </p>
             <p className="mt-2 text-xs sm:text-[13px] text-muted-foreground max-w-[18rem] leading-relaxed">
-              גרירה לסידור, כפתור הוסף ליד כל תוצאה.
+              לחיצה ארוכה לבחירה מרובה · החלקה שמאלה להסרה
             </p>
           </div>
         ) : (
-          <DragDropContext onDragEnd={onDragEnd}>
-            <Droppable
-              droppableId="playlist"
-              mode="virtual"
-              renderClone={(provided, _snapshot, rubric) => (
-                <div
-                  {...provided.draggableProps}
-                  {...provided.dragHandleProps}
-                  ref={provided.innerRef}
-                  className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 mx-2 sm:mx-3 bg-card/80 border border-primary/25 rounded-2xl j-glow-primary ring-1 ring-primary/15"
-                  style={provided.draggableProps.style}
-                >
-                  <GripVertical className="w-4 h-4 text-muted-foreground/40" />
-                  <Music className="w-4 h-4 text-primary/60" />
-                  <div className="flex-1 truncate">
-                    <div className="font-semibold text-sm truncate">{songs[rubric.source.index].song_name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{songs[rubric.source.index].artist}</div>
-                  </div>
-                </div>
-              )}
-            >
-              {(provided) => (
-                <div
-                  ref={(node) => {
-                    parentRef.current = node;
-                    provided.innerRef(node);
-                  }}
-                  {...provided.droppableProps}
-                  className="h-full overflow-y-auto px-3 sm:px-5 py-4 custom-scrollbar"
-                >
-                  <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
-                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                      const song = filteredSongs[virtualRow.index]!;
-
-                      return (
-                        <Draggable
-                          key={song._id || song.id}
-                          draggableId={song._id || song.id}
-                          index={virtualRow.index}
-                        >
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              style={{
-                                ...provided.draggableProps.style,
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: `${virtualRow.size}px`,
-                                transform: `translateY(${virtualRow.start}px)`,
-                              }}
-                            >
-                              <motion.div
-                                className={`flex items-center group h-[calc(100%-10px)] my-[5px] rounded-[0.875rem] border transition-all duration-200 ${
-                                  snapshot.isDragging
-                                    ? 'bg-card border-primary/35 j-glow-primary z-50 ring-1 ring-primary/20 scale-[1.01]'
-                                    : 'bg-card/75 border-border/50 hover:border-primary/28 hover:bg-primary/4'
-                                }`}
-                                transition={{ duration: 0.1 }}
-                              >
-                                <div {...provided.dragHandleProps} className="px-2 sm:px-3 py-2 text-muted-foreground/50 sm:text-muted-foreground/30 hover:text-muted-foreground cursor-grab active:cursor-grabbing flex-shrink-0">
-                                  <motion.div whileHover={{ scale: 1.2 }} transition={{ duration: 0.1 }}>
-                                    <GripVertical className="w-3.5 h-3.5" />
-                                  </motion.div>
-                                </div>
-
-                                <div
-                                  className="w-7 sm:w-8 text-center text-[11px] font-display font-bold tabular-nums shrink-0 text-primary/85 bg-primary/[0.08] rounded-lg py-2 mx-0.5 border border-primary/15"
-                                  style={{ fontFamily: "'Space Grotesk', monospace" }}
-                                >
-                                  {virtualRow.index + 1}
-                                </div>
-
-                                <div className="flex-1 min-w-0 px-2 py-1 flex flex-col justify-center">
-                                  <div className="font-medium text-sm truncate text-foreground">
-                                    {song.song_name}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground/70 flex items-center gap-1.5 truncate">
-                                    <span className="truncate">{song.artist}</span>
-                                    {song.genre && (
-                                      <>
-                                        <span className="opacity-40">·</span>
-                                        <span className="truncate opacity-70">{song.genre}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1 px-1 sm:px-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
-                                  <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-7 w-7 rounded-xl text-muted-foreground/50 hover:text-destructive hover:bg-destructive/8"
-                                      onClick={() => removeSong(virtualRow.index)}
-                                      title="הסר"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </Button>
-                                  </motion.div>
-                                </div>
-                              </motion.div>
-                            </div>
-                          )}
-                        </Draggable>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+              <div className="h-full overflow-y-auto px-3 sm:px-5 py-4 custom-scrollbar">
+                <AnimatePresence initial={false}>
+                  {filteredSongs.map((song) => {
+                    const id = song._id || song.id;
+                    const fullIndex = songIndexById.get(id) ?? 0;
+                    const overlap = overlapMap.get(canonicalSongKey(song));
+                    return (
+                      <SortableTrackRow
+                        key={id}
+                        song={song}
+                        index={fullIndex}
+                        overlap={overlap}
+                        selectionMode={selectionMode}
+                        isSelected={selectedKeys.has(id)}
+                        onToggleSelect={() => toggleSelect(song)}
+                        onRemove={() => removeSong(fullIndex)}
+                        onPlay={() => handlePlay(song)}
+                        onEnterSelectionMode={() => setSelectionMode(true)}
+                      />
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
     </div>
