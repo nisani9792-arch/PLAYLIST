@@ -1,4 +1,4 @@
-const CACHE_NAME = "jusic-play-v11";
+const CACHE_NAME = "jusic-play-v12";
 const APP_SHELL = ["./"];
 const NETWORK_FIRST_ASSETS = [
   "manifest.json",
@@ -11,6 +11,11 @@ const NETWORK_FIRST_ASSETS = [
 
 function isNetworkFirstAsset(pathname) {
   return NETWORK_FIRST_ASSETS.some((asset) => pathname.includes(asset));
+}
+
+/** Bundles must be network-first — stale cache breaks Android/Samsung after deploy. */
+function isAppBundle(pathname) {
+  return /\.(js|css|mjs|wasm)(\?|$)/i.test(pathname);
 }
 
 self.addEventListener("install", (event) => {
@@ -37,6 +42,18 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+function networkFirst(request) {
+  return fetch(request, { cache: "no-store" })
+    .then((response) => {
+      if (response.ok) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+      }
+      return response;
+    })
+    .catch(() => caches.match(request));
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -60,18 +77,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (isNetworkFirstAsset(url.pathname)) {
-    event.respondWith(
-      fetch(request, { cache: "no-store" })
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match(request)),
-    );
+  if (isNetworkFirstAsset(url.pathname) || isAppBundle(url.pathname)) {
+    event.respondWith(networkFirst(request));
     return;
   }
 

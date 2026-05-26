@@ -50,8 +50,20 @@ export async function enterWithSavedOperator(cachedName: string): Promise<Access
   }
 }
 
+const ACCESS_FETCH_TIMEOUT_MS = 8_000;
+
 export async function fetchAccessStatus(): Promise<AccessStatus> {
-  const res = await fetch('/api/access/status', { credentials: 'same-origin' });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ACCESS_FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch('/api/access/status', {
+      credentials: 'same-origin',
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new Error('access status failed');
   const data = (await res.json()) as {
     state: string;
@@ -65,12 +77,20 @@ export async function fetchAccessStatus(): Promise<AccessStatus> {
 }
 
 export async function registerOperatorOnServer(operatorName: string): Promise<string> {
-  const res = await fetch('/api/access/register', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ operatorName }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ACCESS_FETCH_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch('/api/access/register', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operatorName }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(err.error ?? 'registration failed');

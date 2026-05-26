@@ -2,6 +2,16 @@
   color: hsl(210 12% 72%);
 }
 
+/* Boot spinner — not position:fixed (avoids Samsung/Chrome stuck overlay after load) */
+.app-loading {
+  min-height: 100svh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: hsl(var(--surface-0));
+}
+
 .lock-screen {
   position: fixed;
   inset: 0;

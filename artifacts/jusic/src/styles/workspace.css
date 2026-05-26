@@ -86,7 +86,7 @@
 
 .bp-staging--focus {
   flex: 1 1 0%;
-  height: 100%;
+  min-height: 0;
   gap: 0.5rem;
   padding: 0.75rem;
   border-radius: 1.25rem;

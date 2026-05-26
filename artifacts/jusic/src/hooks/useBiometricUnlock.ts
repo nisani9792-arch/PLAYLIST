@@ -36,14 +36,10 @@ export const useBiometricUnlock = (onSuccess: () => void) => {
       try {
         const platform =
           await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.();
-        if (platform) {
-          setAvailable(true);
-          return;
-        }
+        setAvailable(Boolean(platform));
       } catch {
-        /* fallback below */
+        setAvailable(false);
       }
-      setAvailable(true);
     };
 
     void detect();

@@ -57,7 +57,7 @@ function AppShell() {
 
   if (status.state === 'loading') {
     return (
-      <div className="lock-screen flex items-center justify-center min-h-[100dvh]" aria-busy="true">
+      <div className="app-loading flex items-center justify-center min-h-[100svh] min-h-[100dvh]" aria-busy="true">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 rounded-full border-2 border-primary/25 border-t-primary animate-spin" />
           <p className="text-secondary text-sm font-medium">טוען {APP_SHORT_NAME}…</p>
