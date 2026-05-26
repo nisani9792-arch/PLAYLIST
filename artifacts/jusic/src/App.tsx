@@ -2,18 +2,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster, toast } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SearchFiltersProvider } from '@/contexts/SearchFiltersContext';
-import { LockScreen } from '@/components/LockScreen';
-import { OperatorRegistration } from '@/components/OperatorRegistration';
-import { useAccessGate } from '@/hooks/useAccessGate';
-import { useUnlockGate } from '@/hooks/useUnlockGate';
 import Workspace from '@/pages/Workspace';
 import SettingsPage from '@/pages/SettingsPage';
+import NotFound from '@/pages/not-found';
 import { StagingSessionProvider } from '@/contexts/StagingSessionContext';
 import { useEffect } from 'react';
 import { Route, Switch } from 'wouter';
-import { APP_SHORT_NAME } from '@/lib/brand';
 import { flushSyncQueue } from '@/stores/workspace-store';
 import { savePlaylistToServer, postStagingEvents, saveOperatorPreferences } from '@/lib/memory-api';
+import LoginGateway from '@/pages/LoginGateway';
+import { AppContextProvider, useAppContext } from '@/context/AppContext';
+import { UnifiedShell } from '@/components/layout/UnifiedShell';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,12 +25,10 @@ const queryClient = new QueryClient({
 });
 
 function AppShell() {
-  const { status, afterUnlock, register } = useAccessGate();
-  const locked = status.state === 'locked';
-  useUnlockGate({ enabled: locked, onUnlock: () => void afterUnlock() });
+  const { auth, operatorName } = useAppContext();
 
   useEffect(() => {
-    if (status.state === 'ready') {
+    if (auth.state === 'ready') {
       void flushSyncQueue({
         'playlist-save': async (payload) => {
           await savePlaylistToServer(payload as Parameters<typeof savePlaylistToServer>[0]);
@@ -44,61 +41,51 @@ function AppShell() {
         },
       });
     }
-  }, [status.state]);
+  }, [auth.state]);
 
   useEffect(() => {
-    if (status.state === 'offline') {
+    if (auth.state === 'offline') {
       toast.warning('אין חיבור לשרת — עובדים במצב מקומי עם השם השמור', {
         id: 'offline-mode',
         duration: 6000,
       });
     }
-  }, [status.state]);
+  }, [auth.state]);
 
-  if (status.state === 'loading') {
-    return (
-      <div className="lock-screen flex items-center justify-center min-h-[100dvh]" aria-busy="true">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 rounded-full border-2 border-primary/25 border-t-primary animate-spin" />
-          <p className="text-secondary text-sm font-medium">טוען {APP_SHORT_NAME}…</p>
-        </div>
-      </div>
-    );
+  if (auth.state === 'loading' || auth.state === 'locked' || auth.state === 'register') {
+    return <LoginGateway />;
   }
 
-  if (status.state === 'locked') {
-    return (
-      <LockScreen
-        onUnlock={() => void afterUnlock()}
-        knownOperatorName={status.operatorName}
-      />
-    );
-  }
-
-  if (status.state === 'register') {
-    return <OperatorRegistration onComplete={register} />;
-  }
-
-  const operatorName =
-    status.state === 'ready'
-      ? status.operatorName
-      : status.state === 'offline'
-        ? (status.operatorName ?? '')
-        : '';
+  const opName = operatorName ?? 'מפעיל';
+  const offline = auth.state === 'offline';
 
   return (
-    <SearchFiltersProvider>
-      <StagingSessionProvider>
-        <Switch>
-          <Route path="/settings">
-            <SettingsPage operatorName={operatorName} />
-          </Route>
-          <Route>
-            <Workspace operatorName={operatorName} offline={status.state === 'offline'} />
-          </Route>
-        </Switch>
-      </StagingSessionProvider>
-    </SearchFiltersProvider>
+    <UnifiedShell>
+      <SearchFiltersProvider>
+        <StagingSessionProvider>
+          <Switch>
+            <Route path="/settings">
+              <SettingsPage operatorName={opName} />
+            </Route>
+            <Route path="/artist">
+              <NotFound />
+            </Route>
+            <Route path="/service">
+              <NotFound />
+            </Route>
+            <Route path="/dashboard">
+              <Workspace operatorName={opName} offline={offline} />
+            </Route>
+            <Route path="/playlist">
+              <Workspace operatorName={opName} offline={offline} />
+            </Route>
+            <Route>
+              <Workspace operatorName={opName} offline={offline} />
+            </Route>
+          </Switch>
+        </StagingSessionProvider>
+      </SearchFiltersProvider>
+    </UnifiedShell>
   );
 }
 
@@ -106,7 +93,9 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AppShell />
+        <AppContextProvider>
+          <AppShell />
+        </AppContextProvider>
         <Toaster
           theme="light"
           dir="rtl"
