@@ -117,11 +117,16 @@
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
-  /* Surface hierarchy */
-  --surface-0: 210 22% 93%;
-  --surface-1: 210 20% 97%;
-  --surface-2: 210 18% 90%;
+  /* Surface hierarchy — M3 Expressive pastels */
+  --surface-0: 210 24% 94%;
+  --surface-1: 210 22% 97%;
+  --surface-2: 210 20% 92%;
+  --surface-3: 192 32% 90%;
   --text-secondary: 215 14% 36%;
+  --m3-primary-container: 192 55% 88%;
+  --m3-on-primary-container: 192 70% 26%;
+  --m3-secondary-container: 215 16% 88%;
+  --m3-outline-variant: 210 14% 78%;
 
   /* Brand mesh — cyan + grey from logo */
   --mesh-blue: 192 76% 40%;
@@ -181,8 +186,13 @@
 
   --surface-0: 215 28% 10%;
   --surface-1: 215 26% 13%;
-  --surface-2: 215 24% 15%;
+  --surface-2: 215 24% 16%;
+  --surface-3: 215 22% 18%;
   --text-secondary: 210 12% 72%;
+  --m3-primary-container: 192 38% 20%;
+  --m3-on-primary-container: 192 55% 82%;
+  --m3-secondary-container: 215 20% 18%;
+  --m3-outline-variant: 215 18% 24%;
 
   --mesh-blue: 192 70% 48%;
   --mesh-violet: 215 12% 58%;

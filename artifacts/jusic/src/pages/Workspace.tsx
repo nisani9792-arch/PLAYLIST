@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import { migrateLocalLearningOnce } from '@/lib/memory-api';
 import { usePlaylist } from '../hooks/use-playlist';
 import { useIsMobile } from '../hooks/use-mobile';
 import { SearchBar } from '../components/workspace/SearchBar';
+import { CatalogPanel } from '../components/workspace/CatalogPanel';
 import { PlaylistCanvas } from '../components/workspace/PlaylistCanvas';
 import { SmartComposer } from '../components/workspace/SmartComposer';
-import { StagingDrawer } from '../components/workspace/StagingDrawer';
 import { StagingArea } from '../components/workspace/StagingArea';
 import { MobileWorkspaceNav, type MobileWorkspaceStep } from '../components/workspace/MobileWorkspaceNav';
 import { WorkspaceToolsMenu } from '../components/workspace/WorkspaceToolsMenu';
+import { WorkspaceSmartActions } from '../components/workspace/WorkspaceSmartActions';
 import { JusicLogo } from '@/components/ui/jusic-logo';
 import { useStagingSession } from '@/contexts/StagingSessionContext';
 import { useSearchFilters } from '@/contexts/SearchFiltersContext';
@@ -17,7 +17,6 @@ import { setActiveParashaExportContext } from '@/lib/parasha-export-context';
 import { APP_SHORT_NAME } from '@/lib/brand';
 import { fillCuratorPlaylist } from '@/hooks/use-curator-build';
 import { computeFillTarget, PLAYLIST_MAX } from '@workspace/curator';
-import { fadeUpVariants, staggerContainer } from '@/lib/motion-presets';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { MsHit } from '../lib/meilisearch';
@@ -43,6 +42,7 @@ type WorkspaceProps = {
 function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
   const playlist = usePlaylist();
   const isMobile = useIsMobile();
+  const isStudio = !isMobile;
   const { filters } = useSearchFilters();
   const {
     stagingItems,
@@ -93,6 +93,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
   const handleSmartFill = async () => {
     if (!playlist.songs.length) return;
     setFillBusy(true);
+    const toastId = toast.loading('משלים פלייליסט…');
     try {
       const existingLines = playlist.songs.map((s) => `${s.artist} - ${s.song_name}`);
       const fillTarget = computeFillTarget(existingLines.length);
@@ -108,6 +109,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
             (existingLines.length >= PLAYLIST_MAX
               ? 'הפלייליסט הגיע למקסימום'
               : 'לא נמצאו שירים נוספים מתאימים'),
+          { id: toastId },
         );
         return;
       }
@@ -119,9 +121,9 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
           : playlist.playlistName.trim(),
         topic,
       );
-      toast.success(`נוספו ${lines.length} שירים להתאמה (מטרה: ${meta?.targetSize ?? fillTarget})`);
+      toast.success(`נוספו ${lines.length} שירים להתאמה`, { id: toastId });
     } catch {
-      toast.error('שגיאה בהשלמת פלייליסט');
+      toast.error('שגיאה בהשלמת פלייליסט', { id: toastId });
     } finally {
       setFillBusy(false);
     }
@@ -129,139 +131,152 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
 
   const fillTarget = computeFillTarget(playlist.songs.length);
 
-  const showStagingDrawer = stagingActive && !isMobile;
+  const canvasProps = {
+    playlistName: playlist.playlistName,
+    setPlaylistName: playlist.setPlaylistName,
+    songs: playlist.songs,
+    removeSong: playlist.removeSong,
+    removeSongsById: playlist.removeSongsById,
+    reorderSongs: playlist.reorderSongs,
+    replaceSongs: playlist.replaceSongs,
+    clearPlaylist: playlist.clearPlaylist,
+    isDirty: playlist.isDirty,
+    committing: playlist.committing,
+    onCommit: playlist.commitPlaylist,
+    targetSize: fillTarget,
+    onSmartFill: handleSmartFill,
+    smartFillBusy: fillBusy,
+    className: 'h-full min-h-0',
+  };
 
   return (
-    <div className="app-shell-bg flex flex-col h-[100svh] h-[100dvh] w-full overflow-hidden text-foreground selection:bg-primary/20">
-      <header className="j-glass-strip bp-glass-strip flex-shrink-0 flex flex-col z-40 overflow-visible pt-[max(env(safe-area-inset-top,0px),0.625rem)] sm:pt-3.5">
-        <div className="bp-brand-row flex flex-wrap md:flex-nowrap items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 lg:px-7 py-2.5 sm:py-3.5">
-          <motion.div
-            className="flex items-center gap-3.5 sm:gap-4 min-w-0 shrink-0"
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-          >
-            <JusicLogo framed markClassName="bp-brand-logo" />
-            <div className="flex flex-col leading-tight min-w-0 gap-0.5 sm:gap-1">
-              <span className="font-display text-base sm:text-lg font-bold tracking-tight">
-                <span className="j-text-gradient">{APP_SHORT_NAME}</span>
-              </span>
-              <span className="text-[11px] sm:text-xs text-secondary truncate max-w-[12rem] sm:max-w-[20rem]" title={operatorName}>
+    <div
+      className="app-shell-bg flex flex-col h-[100svh] h-[100dvh] w-full overflow-hidden text-foreground selection:bg-primary/20"
+      dir="rtl"
+    >
+      <header className="ws-header flex-shrink-0 z-40">
+        <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-2 px-3 lg:px-4 py-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <JusicLogo framed markClassName="ws-header__logo" />
+            <div className="min-w-0">
+              <span className="font-display text-sm font-bold j-text-gradient">{APP_SHORT_NAME}</span>
+              <p className="text-[10px] text-secondary truncate max-w-[14rem]" title={operatorName}>
                 {operatorName}
                 {offline ? ' · לא מקוון' : ''}
-              </span>
+              </p>
             </div>
-          </motion.div>
+          </div>
           <WorkspaceToolsMenu compact={isMobile} />
         </div>
-        <div className="px-3 sm:px-5 lg:px-7 pb-2.5 sm:pb-3 relative z-[80] max-w-5xl mx-auto w-full">
-          <SearchBar onAddSong={playlist.addSong} />
-        </div>
+
+        {isMobile ? (
+          <div className="px-3 pb-2">
+            <SearchBar onAddSong={playlist.addSong} />
+          </div>
+        ) : null}
       </header>
 
-      <main className="flex-1 flex flex-col overflow-hidden min-h-0 relative z-10 touch-manipulation">
-        <motion.div
-          className={cn(
-            'bp-workspace-split flex min-h-0 gap-2.5 p-2 lg:gap-3 lg:p-3',
-            isMobile && mobileStep === 'match' ? 'hidden' : 'flex-1',
-            isMobile && 'p-0 gap-0',
-          )}
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-        >
-          <motion.div
-            variants={fadeUpVariants}
-            className={cn(
-              'bp-playlist-main min-h-0',
-              isMobile && mobileStep !== 'playlist' && 'hidden',
-              !isMobile && 'lg:flex-[5] lg:min-w-0',
-            )}
-          >
-            <PlaylistCanvas
-              playlistName={playlist.playlistName}
-              setPlaylistName={playlist.setPlaylistName}
-              songs={playlist.songs}
-              removeSong={playlist.removeSong}
-              removeSongsById={playlist.removeSongsById}
-              reorderSongs={playlist.reorderSongs}
-              replaceSongs={playlist.replaceSongs}
-              clearPlaylist={playlist.clearPlaylist}
-              isDirty={playlist.isDirty}
-              committing={playlist.committing}
-              onCommit={playlist.commitPlaylist}
-              targetSize={fillTarget}
-              onSmartFill={handleSmartFill}
-              smartFillBusy={fillBusy}
-              className="h-full"
-            />
-          </motion.div>
+      <main className="flex-1 flex flex-col overflow-hidden min-h-0 touch-manipulation">
+        {isStudio ? (
+          <div className="ws-studio flex-1 min-h-0">
+            <CatalogPanel onAddSong={playlist.addSong} className="min-h-0" />
 
-          <motion.div
-            variants={fadeUpVariants}
-            className={cn(
-              'min-h-0',
-              isMobile && mobileStep !== 'build' && 'hidden',
-              !isMobile && 'lg:flex-[3] lg:min-w-[17rem] lg:max-w-[22rem]',
-            )}
-          >
-            <SmartComposer
-              onAddSongs={playlist.addSongs}
-              onApplyAutoPlaylistName={applyAutoPlaylistName}
-              draftHistory={playlist.draftHistory}
-              onRememberDraft={playlist.rememberCurrentDraft}
-              onLoadDraft={playlist.loadDraft}
-              onDeleteDraft={playlist.deleteDraft}
-              mobileFullScreen={isMobile}
-              mobileVisible={!isMobile || mobileStep === 'build'}
-              hideStaging
-              onMatchStepRequest={() => setMobileStep('match')}
-              className="h-full"
-            />
-          </motion.div>
-        </motion.div>
-
-        {showStagingDrawer ? (
-          <StagingDrawer
-            open
-            key={stagingBatchId}
-            items={stagingItems}
-            setItems={setStagingItems}
-            onApproveAll={handleApproveStaging}
-            onCancel={() => {
-              clearStaging();
-              setActiveParashaExportContext(null, null, null);
-            }}
-            searchFilters={filters}
-            parashaContext={parashaContext}
-            topicContext={stagingTopic}
-          />
-        ) : null}
-
-        {isMobile && mobileStep === 'match' ? (
-          <section className="flex flex-1 flex-col min-h-0 overflow-hidden p-2 pb-0">
-            {stagingActive ? (
-              <StagingArea
-                key={stagingBatchId}
-                items={stagingItems}
-                setItems={setStagingItems}
-                onApproveAll={handleApproveStaging}
-                onCancel={() => {
-                  clearStaging();
-                  setMobileStep('build');
-                }}
-                searchFilters={filters}
-                parashaContext={parashaContext}
-                topicContext={stagingTopic}
-                mobileLayout
+            <section className="ws-col ws-col--stage min-h-0" aria-label="החזקה ו-AI">
+              <header className="ws-col__header">
+                <h2 className="ws-col__title">Curator</h2>
+              </header>
+              <WorkspaceSmartActions
+                songs={playlist.songs}
+                playlistName={playlist.playlistName}
+                onApplyArrangement={playlist.replaceSongs}
+                onSmartFill={handleSmartFill}
+                className="shrink-0"
               />
-            ) : (
-              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground p-6 text-center">
-                אין התאמה פעילה. חזור לשלב &quot;בנה&quot; ובחר נושא או הדבק רשימה.
-              </div>
-            )}
-          </section>
-        ) : null}
+              <SmartComposer
+                variant="studio"
+                onAddSongs={playlist.addSongs}
+                onApplyAutoPlaylistName={applyAutoPlaylistName}
+                draftHistory={playlist.draftHistory}
+                onRememberDraft={playlist.rememberCurrentDraft}
+                onLoadDraft={playlist.loadDraft}
+                onDeleteDraft={playlist.deleteDraft}
+                hideStaging
+                className="flex-1 min-h-0"
+              />
+              {stagingActive ? (
+                <div className="ws-staging-embed flex-1 min-h-0 flex flex-col border-t border-border/30">
+                  <StagingArea
+                    key={stagingBatchId}
+                    items={stagingItems}
+                    setItems={setStagingItems}
+                    onApproveAll={handleApproveStaging}
+                    onCancel={() => {
+                      clearStaging();
+                      setActiveParashaExportContext(null, null, null);
+                    }}
+                    searchFilters={filters}
+                    parashaContext={parashaContext}
+                    topicContext={stagingTopic}
+                    compact
+                  />
+                </div>
+              ) : null}
+            </section>
+
+            <PlaylistCanvas {...canvasProps} />
+          </div>
+        ) : (
+          <>
+            <div
+              className={cn(
+                'flex min-h-0 flex-1 flex-col',
+                mobileStep === 'match' && 'hidden',
+              )}
+            >
+              {mobileStep === 'build' ? (
+                <SmartComposer
+                  onAddSongs={playlist.addSongs}
+                  onApplyAutoPlaylistName={applyAutoPlaylistName}
+                  draftHistory={playlist.draftHistory}
+                  onRememberDraft={playlist.rememberCurrentDraft}
+                  onLoadDraft={playlist.loadDraft}
+                  onDeleteDraft={playlist.deleteDraft}
+                  mobileFullScreen
+                  mobileVisible
+                  hideStaging
+                  onMatchStepRequest={() => setMobileStep('match')}
+                  className="flex-1 min-h-0"
+                />
+              ) : null}
+              {mobileStep === 'playlist' ? <PlaylistCanvas {...canvasProps} /> : null}
+            </div>
+
+            {mobileStep === 'match' ? (
+              <section className="flex flex-1 flex-col min-h-0 overflow-hidden p-2 pb-0">
+                {stagingActive ? (
+                  <StagingArea
+                    key={stagingBatchId}
+                    items={stagingItems}
+                    setItems={setStagingItems}
+                    onApproveAll={handleApproveStaging}
+                    onCancel={() => {
+                      clearStaging();
+                      setMobileStep('build');
+                    }}
+                    searchFilters={filters}
+                    parashaContext={parashaContext}
+                    topicContext={stagingTopic}
+                    mobileLayout
+                  />
+                ) : (
+                  <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground p-6 text-center">
+                    אין התאמה פעילה. חזור לשלב &quot;בנה&quot;.
+                  </div>
+                )}
+              </section>
+            ) : null}
+          </>
+        )}
       </main>
 
       {isMobile ? (

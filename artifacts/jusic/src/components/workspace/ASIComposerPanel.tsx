@@ -49,6 +49,7 @@ export function ASIComposerPanel({
   mobileVisible = true,
   hideStaging = false,
   onMatchStepRequest,
+  variant = 'default',
   className,
 }: {
   onAddSongs: (songs: MsHit[]) => void;
@@ -61,6 +62,8 @@ export function ASIComposerPanel({
   mobileVisible?: boolean;
   hideStaging?: boolean;
   onMatchStepRequest?: () => void;
+  /** Edge-to-edge studio column — no glass shell or collapse rail. */
+  variant?: 'default' | 'studio';
   className?: string;
 }) {
   const { filters } = useSearchFilters();
@@ -232,7 +235,8 @@ export function ASIComposerPanel({
     toast.success(`נוספו ${songs.length} שירים`);
   };
 
-  const panelOpen = useMobileTabs ? true : isOpen;
+  const isStudio = variant === 'studio';
+  const panelOpen = useMobileTabs || isStudio ? true : isOpen;
 
   if (useMobileTabs && !mobileVisible) {
     return null;
@@ -241,17 +245,27 @@ export function ASIComposerPanel({
   return (
     <aside
       className={cn(
-        'relative flex flex-col shrink-0 rounded-none sm:rounded-[1.35rem] md:mr-2 overflow-hidden border-0 sm:border border-border/45 j-glass-panel j-gradient-border transition-all duration-300 min-h-0',
-        panelOpen
-          ? useMobileTabs
-            ? 'flex-1 min-h-0 w-full h-full'
-            : 'h-full min-w-0'
-          : 'h-12 w-full md:h-full md:w-14',
+        'relative flex flex-col shrink-0 overflow-hidden min-h-0 transition-all duration-300',
+        isStudio
+          ? 'h-full min-w-0 border-0 bg-transparent shadow-none rounded-none'
+          : 'rounded-none sm:rounded-[1.35rem] md:mr-2 border-0 sm:border border-border/45 j-glass-panel j-gradient-border',
+        !isStudio &&
+          (panelOpen
+            ? useMobileTabs
+              ? 'flex-1 min-h-0 w-full h-full'
+              : 'h-full min-w-0'
+            : 'h-12 w-full md:h-full md:w-14'),
+        isStudio && 'flex-1 min-h-0 w-full',
         className,
       )}
     >
-      <div className="flex flex-col h-full overflow-hidden rounded-[inherit] bg-card">
-        {!useMobileTabs ? (
+      <div
+        className={cn(
+          'flex flex-col h-full overflow-hidden',
+          isStudio ? 'bg-transparent' : 'rounded-[inherit] bg-card',
+        )}
+      >
+        {!useMobileTabs && !isStudio ? (
           <motion.button
             type="button"
             whileHover={{ scale: 1.08 }}
@@ -279,11 +293,19 @@ export function ASIComposerPanel({
               className={
                 useMobileTabs
                   ? `bp-workspace-pane p-3 ${mobileStagingFocus ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`
-                  : 'h-full p-3 sm:p-5 overflow-y-auto custom-scrollbar mt-12 md:mt-0 pt-4 md:pt-5'
+                  : isStudio
+                    ? 'h-full p-2 overflow-y-auto custom-scrollbar flex flex-col gap-2 min-h-0'
+                    : 'h-full p-3 sm:p-5 overflow-y-auto custom-scrollbar mt-12 md:mt-0 pt-4 md:pt-5'
               }
             >
               <div
-                className={`shrink-0 border-b border-border/45 ${useMobileTabs ? 'mb-3 pb-3' : 'mb-5 pb-4'} ${mobileStagingFocus ? 'hidden' : ''}`}
+                className={cn(
+                  'shrink-0',
+                  !isStudio && 'border-b border-border/45',
+                  useMobileTabs ? 'mb-3 pb-3' : isStudio ? 'pb-1' : 'mb-5 pb-4',
+                  mobileStagingFocus && 'hidden',
+                  isStudio && 'hidden',
+                )}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex gap-3 min-w-0 flex-1">
@@ -326,9 +348,10 @@ export function ASIComposerPanel({
                 <Textarea
                   data-testid="asi-composer-input"
                   placeholder="הדבק רשימה, כתוב נושא (20–50 שירים), או פרשה — למשל: פרשת שמות"
-                  className={`resize-none rounded-2xl border-border/55 bg-background/70 text-base sm:text-[13px] leading-relaxed focus-visible:ring-2 focus-visible:ring-primary/30 ${
-                    useMobileTabs ? 'h-20' : 'h-24 sm:h-40'
-                  }`}
+                  className={cn(
+                    'resize-none rounded-xl border-border/40 bg-[hsl(var(--surface-1))] text-[13px] leading-relaxed focus-visible:ring-2 focus-visible:ring-primary/25',
+                    useMobileTabs ? 'h-20' : isStudio ? 'h-16 min-h-[4rem]' : 'h-24 sm:h-40',
+                  )}
                   value={composerInput}
                   onChange={(e) => setComposerInput(e.target.value)}
                 />
@@ -390,13 +413,12 @@ export function ASIComposerPanel({
               </div>
 
               <div
-                className={`border-t border-border/35 ${
-                  mobileStagingFocus
-                    ? 'hidden'
-                    : useMobileTabs
-                      ? 'mt-3 pt-3'
-                      : 'mt-5 pt-4'
-                }`}
+                className={cn(
+                  'border-t border-border/35',
+                  mobileStagingFocus && 'hidden',
+                  isStudio && 'hidden',
+                  useMobileTabs ? 'mt-3 pt-3' : 'mt-5 pt-4',
+                )}
               >
                 <div className="flex items-center gap-2 text-xs font-bold mb-3 text-foreground uppercase tracking-[0.1em]">
                   <History className="w-3.5 h-3.5 text-primary" />

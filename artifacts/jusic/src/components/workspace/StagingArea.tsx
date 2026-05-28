@@ -360,6 +360,7 @@ export function StagingArea({
   parashaContext = null,
   topicContext = null,
   mobileLayout = false,
+  compact = false,
 }: {
   items: StagingItem[];
   setItems: React.Dispatch<React.SetStateAction<StagingItem[]>>;
@@ -370,6 +371,8 @@ export function StagingArea({
   /** Playlist topic — match by tags/vibe, not literal title tokens. */
   topicContext?: string | null;
   mobileLayout?: boolean;
+  /** Dense studio column embed (less chrome). */
+  compact?: boolean;
 }) {
   const processBatch = async (pendingItems: StagingItem[]) => {
     if (!pendingItems.length) return;
@@ -673,7 +676,7 @@ export function StagingArea({
     <section
       className={cn(
         "bp-staging",
-        mobileLayout ? "bp-staging--focus" : "bp-staging--embedded",
+        mobileLayout ? "bp-staging--focus" : compact ? "bp-staging--compact" : "bp-staging--embedded",
       )}
       aria-label="אזור התאמה"
     >
