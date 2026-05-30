@@ -10,12 +10,15 @@ import {
   REVIEW_THRESHOLD,
   buildStagingSearchQuery,
   formatStagingDisplayLabel,
+  isCatalogUid,
   normalizeHebrew,
+  playlistHitFromStaging,
   queryMatchesHit,
   sanitizePlaylistLine,
   scoreStagingQueryHit,
   stagingSearchVariants,
   validateStagingMatch,
+  type MsHitLike,
   type ParashaValidationContext,
   type PshSongRow,
 } from "@workspace/playlist-validation";
@@ -155,6 +158,25 @@ async function findBestMatch(
   }
 
   return bestMatchForQuery(query, Array.from(allHits.values()), topicContext);
+}
+
+function toStagingMatch(
+  hit: MsHitLike,
+  seed?: MsHit | null,
+  pshRow?: PshSongRow | null,
+): MsHit {
+  const normalized = playlistHitFromStaging(hit, pshRow) ?? hit;
+  const base = seed ?? (hit as MsHit);
+  return {
+    ...base,
+    id: normalized.id,
+    song_name: normalized.song_name,
+    artist: normalized.artist,
+    album: normalized.album ?? base.album ?? "",
+    genre: normalized.genre ?? base.genre ?? "",
+    tags: normalized.tags ?? base.tags ?? [],
+    audio_url: base.audio_url ?? "",
+  };
 }
 
 function passesTopicContext(
@@ -415,11 +437,13 @@ export function StagingArea({
             parashaContext,
           });
           const canonicalHit = validation.canonicalHit ?? best.hit;
+          const catalogHit = canonicalHit
+            ? (playlistHitFromStaging(canonicalHit, item.pshRow) ?? canonicalHit)
+            : null;
           const autoApprove =
-            Boolean(canonicalHit) &&
-            ((canonicalHit && queryMatchesHit(query, canonicalHit)) ||
-              (Boolean(parashaContext && item.pshRow) &&
-                best.confidence < REVIEW_THRESHOLD));
+            Boolean(catalogHit) &&
+            isCatalogUid(catalogHit!.id) &&
+            queryMatchesHit(query, catalogHit!);
 
           if (validation.issue) {
             const hardBlock = validation.issue.severity === "block";
@@ -433,16 +457,16 @@ export function StagingArea({
                 alternatives: best.alternatives,
               };
             }
-            if (autoApprove && canonicalHit) {
+            if (autoApprove && catalogHit) {
               return {
                 id: item.id,
-                hit: canonicalHit,
+                hit: toStagingMatch(catalogHit, best.hit, item.pshRow),
                 confidence: Math.max(best.confidence, AUTO_MATCH_THRESHOLD),
                 blocked: false,
                 alternatives: best.alternatives,
               };
             }
-            const reviewHit = validation.canonicalHit ?? best.hit;
+            const reviewHit = catalogHit ?? best.hit;
             return {
               id: item.id,
               hit: reviewHit,
@@ -453,9 +477,18 @@ export function StagingArea({
               alternatives: best.alternatives,
             };
           }
+          const storedHit = catalogHit
+            ? toStagingMatch(
+                playlistHitFromStaging(catalogHit, item.pshRow) ?? catalogHit,
+                best.hit,
+                item.pshRow,
+              )
+            : validation.canonicalHit
+              ? toStagingMatch(validation.canonicalHit, best.hit, item.pshRow)
+              : best.hit;
           return {
             id: item.id,
-            hit: validation.canonicalHit,
+            hit: storedHit,
             confidence: best.confidence,
             blocked: false,
             alternatives: best.alternatives,
@@ -541,10 +574,13 @@ export function StagingArea({
 
           const exactLine = Boolean(hit && queryMatchesHit(p.query, hit));
           const topicFit = Boolean(hit && passesTopicContext(hit, topicContext));
+          const catalogTrusted = Boolean(hit && isCatalogUid(hit.id));
           const canAutoMatch =
             Boolean(hit) &&
-            (exactLine || !topicContext || topicFit) &&
-            (conf >= AUTO_MATCH_THRESHOLD || autoApprove);
+            !pendingApproval &&
+            catalogTrusted &&
+            (exactLine || conf >= AUTO_MATCH_THRESHOLD) &&
+            (exactLine || !topicContext || topicFit);
 
           if (canAutoMatch && !pendingApproval) {
             return {
@@ -606,13 +642,14 @@ export function StagingArea({
   };
 
   const handlePickAlternative = (id: string, hit: MsHit) => {
+    const normalized = toStagingMatch(hit, hit, undefined);
     setItems((prev) => {
       const next = prev.map((i) =>
         i.id === id
           ? {
               ...i,
               status: "matched" as const,
-              match: hit,
+              match: normalized,
               confidence: 1,
               alternatives: undefined,
               blockReason: undefined,
@@ -631,8 +668,14 @@ export function StagingArea({
 
   const isProcessing = items.some((i) => i.status === "searching");
   const matchedSongs = items
-    .filter((i) => i.status === "matched" && i.match)
-    .map((i) => i.match!);
+    .filter(
+      (i) =>
+        (i.status === "matched" || i.status === "review") &&
+        i.match &&
+        isCatalogUid(i.match.id),
+    )
+    .map((i) => toStagingMatch(i.match!, i.match, i.pshRow));
+  const autoMatchedCount = items.filter((i) => i.status === "matched" && i.match).length;
   const reviewCount = items.filter((i) => i.status === "review").length;
   const blockedCount = items.filter((i) => i.status === "blocked").length;
   const skippedCount = items.filter((i) => i.status === "skipped").length;
@@ -694,7 +737,7 @@ export function StagingArea({
             </span>
           ) : null}
           <span className="text-xs font-semibold text-muted-foreground tabular-nums">
-            {matchedSongs.length}/{totalCount}
+            {autoMatchedCount}/{totalCount}
             {reviewCount > 0 ? (
               <span className="text-amber-600 mr-1"> · {reviewCount} לאישור</span>
             ) : null}
@@ -775,7 +818,8 @@ export function StagingArea({
           }}
           className="flex-[2] h-9 md:h-8 rounded-lg text-sm font-semibold shadow-sm shadow-primary/15"
         >
-          אשר הכל ({matchedSongs.length})
+          אשר לפלייליסט ({matchedSongs.length}
+          {reviewCount > 0 ? ` · ${reviewCount} לבדיקה` : ""})
         </Button>
       </footer>
     </section>

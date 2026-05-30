@@ -1,7 +1,9 @@
 import {
   buildLomdaatPlaylistCsv,
   canonicalSongKey,
+  isCatalogUid,
   isExportResolveAcceptable,
+  lomdaatRowFromHits,
   lomdaatRowFromMeiliRecord,
   LOMDAAT_PLAYLIST_FILENAME,
   LOMDAAT_PLAYLIST_HEADERS,
@@ -10,6 +12,7 @@ import {
   validatePlaylistForExport,
   type LomdaatPlaylistRow,
   type ParashaValidationContext,
+  REVIEW_THRESHOLD,
 } from '@workspace/playlist-validation';
 import { MsHit, resolveSongsForOdoo } from './meilisearch';
 import { savePlaylistToServer } from './memory-api';
@@ -82,6 +85,7 @@ export async function exportPlaylistToCsv(
   const resolved = await resolveSongsForOdoo(songs);
   const rows: LomdaatPlaylistRow[] = [];
   const unresolvedCatalog: Array<{ label: string; suggestions: string[] }> = [];
+  const autoResolved: string[] = [];
   const skipped: string[] = [];
   const seen = new Set<string>();
 
@@ -90,7 +94,23 @@ export async function exportPlaylistToCsv(
     const match = resolved[i];
     const label = `${playlistSong.song_name} – ${playlistSong.artist}`;
 
-    if (match?.alternatives?.length && (!match.raw || !Object.keys(match.raw).length)) {
+    let catalogRaw = match?.raw && Object.keys(match.raw).length ? match.raw : null;
+    let catalog = catalogRaw ? msHitLikeFromMeiliRecord(catalogRaw) : null;
+
+    if (
+      !catalogRaw &&
+      match?.alternatives?.length &&
+      isCatalogUid(match.alternatives[0]?.id)
+    ) {
+      const alt = match.alternatives[0]!;
+      if (isExportResolveAcceptable(playlistSong, alt, REVIEW_THRESHOLD)) {
+        catalog = alt;
+        catalogRaw = null;
+        autoResolved.push(label);
+      }
+    }
+
+    if (!catalog && match?.alternatives?.length && (!match.raw || !Object.keys(match.raw).length)) {
       unresolvedCatalog.push({
         label,
         suggestions: match.alternatives.map(formatSuggestionLine),
@@ -98,23 +118,41 @@ export async function exportPlaylistToCsv(
       continue;
     }
 
-    if (!match?.raw || !Object.keys(match.raw).length) {
+    if (!catalog) {
       unresolvedCatalog.push({ label, suggestions: [] });
       continue;
     }
 
-    const catalog = msHitLikeFromMeiliRecord(match.raw);
     if (
-      !isExportResolveAcceptable(playlistSong, catalog, match.confidence)
+      catalogRaw &&
+      !isExportResolveAcceptable(playlistSong, catalog, match?.confidence ?? 1)
     ) {
-      unresolvedCatalog.push({
-        label,
-        suggestions: match.alternatives?.map(formatSuggestionLine) ?? [],
-      });
-      continue;
+      if (match?.alternatives?.length) {
+        const alt = match.alternatives.find((a) =>
+          isExportResolveAcceptable(playlistSong, a, REVIEW_THRESHOLD),
+        );
+        if (alt) {
+          catalog = alt;
+          autoResolved.push(label);
+        } else {
+          unresolvedCatalog.push({
+            label,
+            suggestions: match.alternatives.map(formatSuggestionLine),
+          });
+          continue;
+        }
+      } else {
+        unresolvedCatalog.push({
+          label,
+          suggestions: match?.alternatives?.map(formatSuggestionLine) ?? [],
+        });
+        continue;
+      }
     }
 
-    const row = lomdaatRowFromMeiliRecord(match.raw);
+    const row = catalogRaw
+      ? lomdaatRowFromMeiliRecord(catalogRaw)
+      : lomdaatRowFromHits(playlistSong, catalog);
 
     if (!row.song_name.trim() || !row.artist.trim()) {
       skipped.push(label);
@@ -151,6 +189,13 @@ export async function exportPlaylistToCsv(
   recordPlaylistExport(playlistName, songs);
   const parasha = resolveParashaNameFromClient(playlistName)?.targetParasha;
   void savePlaylistToServer({ name: playlistName, songs, parasha });
+
+  if (autoResolved.length) {
+    toast.info(
+      `${autoResolved.length} שירים יוצאו לפי הצעת המאגר (שם שונה מהרשימה).`,
+      { duration: 8000 },
+    );
+  }
 
   if (unresolvedCatalog.length) {
     const sample = unresolvedCatalog

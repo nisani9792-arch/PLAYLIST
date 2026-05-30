@@ -129,8 +129,8 @@ const canonicalDemo = validateStagingMatch({
   parashaContext: ctx,
 });
 assert(
-  canonicalDemo.canonicalHit?.artist.includes("פרחי"),
-  "canonical overwrite בני אלבז → פרחי",
+  canonicalDemo.canonicalHit?.artist.includes("בני אלבז"),
+  "catalog artist preserved (Meilisearch wins over PSH spelling)",
 );
 
 const mendy = validateStagingMatch({
@@ -145,8 +145,8 @@ const mendy = validateStagingMatch({
 });
 assert(
   !mendy.issue &&
-    mendy.canonicalHit?.artist.includes("וואלד"),
-  "מנדי פיאמנטה → מנדי וואלד in נשא",
+    mendy.canonicalHit?.artist.includes("מנדי פיאמנטה"),
+  "catalog artist preserved for mendy in נשא",
 );
 
 assert(validateHashkafa(["יהודה כץ ושאנן סטריט", "בלעדיך לא אבוא"]) !== null, "hashkafa featured");

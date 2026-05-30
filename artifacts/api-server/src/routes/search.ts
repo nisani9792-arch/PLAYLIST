@@ -492,6 +492,10 @@ router.post("/resolve", async (req, res) => {
               : undefined;
             if (firstUid) {
               addCandidates([firstUid]);
+              const catId = String(firstUid.uid ?? firstUid.id ?? "").trim();
+              if (exportMode && rawId && catId && rawId === catId) {
+                return { ok: true, hit: firstUid, score: 1 };
+              }
               const uidMatch = pickResolveHit(query, [firstUid], minScore, exportMode);
               if (uidMatch) {
                 return { ok: true, hit: uidMatch.hit, score: uidMatch.score };

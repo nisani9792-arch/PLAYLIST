@@ -10,7 +10,12 @@ import {
 } from "./sanitize";
 import { assertHashkafaClean, findForbiddenFeatureViolation } from "./secular-artists";
 import type { MsHitLike } from "./ms-hit";
-import { applyPshCanonical, canonicalSongKey } from "./ms-hit";
+import {
+  applyPshCanonical,
+  canonicalSongKey,
+  isCatalogUid,
+  playlistHitFromStaging,
+} from "./ms-hit";
 import type { PshSongRow } from "./psh-types";
 import { toPlaylistLine } from "./psh-types";
 
@@ -19,6 +24,8 @@ export type ValidationIssueCode =
   | "PARASHA_MISMATCH"
   | "PSH_NOT_IN_PARASHA"
   | "MEILI_PSH_MISMATCH"
+  | "PSH_NO_CATALOG"
+  | "FUZZY_CATALOG"
   | "DUPLICATE_SONG";
 
 export type ValidationIssueSeverity = "block" | "review";
@@ -562,9 +569,23 @@ export function validateStagingMatch(
 
   if (!input.hit || input.confidence < REVIEW_THRESHOLD) {
     if (pshRow) {
+      const seeded = playlistHitFromStaging(input.hit, pshRow) ?? pshRowToHit(pshRow, input.hit);
+      if (isCatalogUid(seeded.id) && input.hit) {
+        return {
+          issue: issue("FUZZY_CATALOG", "התאמה קרובה — אשר לפני הוספה", "review"),
+          canonicalHit: seeded,
+          effectivePshRow: pshRow,
+        };
+      }
       return {
-        issue: null,
-        canonicalHit: pshRowToHit(pshRow, input.hit),
+        issue: isCatalogUid(seeded.id)
+          ? null
+          : issue(
+              "PSH_NO_CATALOG",
+              "נמצא ב-PSH — נדרשת בחירה מהמאגר",
+              "review",
+            ),
+        canonicalHit: seeded,
         effectivePshRow: pshRow,
       };
     }
@@ -572,70 +593,43 @@ export function validateStagingMatch(
   }
 
   if (input.hit && queryMatchesHit(query, input.hit)) {
-    if (pshRow) {
-      const target = input.parashaContext
-        ? normalizeParashaToken(input.parashaContext.targetParasha)
-        : "";
-      const rowInTargetParasha =
-        Boolean(target) && normalizeParashaToken(pshRow.parasha) === target;
-      if (!input.parashaContext || rowInTargetParasha) {
-        return {
-          issue: null,
-          canonicalHit: applyPshCanonical(input.hit, pshRow),
-          effectivePshRow: pshRow,
-        };
-      }
-    } else {
-      return {
-        issue: null,
-        canonicalHit: input.hit,
-        effectivePshRow: pshRow,
-      };
-    }
+    return {
+      issue: null,
+      canonicalHit: playlistHitFromStaging(input.hit, pshRow) ?? input.hit,
+      effectivePshRow: pshRow,
+    };
   }
 
   if (pshRow) {
-    const target = input.parashaContext
-      ? normalizeParashaToken(input.parashaContext.targetParasha)
-      : "";
-    const rowInTargetParasha =
-      Boolean(target) && normalizeParashaToken(pshRow.parasha) === target;
-
-    if (rowInTargetParasha) {
-      return {
-        issue: null,
-        canonicalHit: applyPshCanonical(input.hit ?? pshRowToHit(pshRow), pshRow),
-        effectivePshRow: pshRow,
-      };
-    }
-
     const mismatch = validateMeiliAgainstPsh(input.hit, pshRow);
     if (mismatch) {
       return {
         issue: mismatch,
-        canonicalHit: pshRowToHit(pshRow, input.hit),
+        canonicalHit: playlistHitFromStaging(input.hit, pshRow) ?? pshRowToHit(pshRow, input.hit),
         effectivePshRow: pshRow,
       };
     }
     return {
-      issue: null,
-      canonicalHit: applyPshCanonical(input.hit, pshRow),
+      issue: issue(
+        "FUZZY_CATALOG",
+        "התאמה קרובה — אשר לפני הוספה",
+        "review",
+      ),
+      canonicalHit: playlistHitFromStaging(input.hit, pshRow) ?? input.hit,
       effectivePshRow: pshRow,
     };
   }
 
   return {
-    issue: null,
+    issue: input.confidence >= REVIEW_THRESHOLD
+      ? issue("FUZZY_CATALOG", "התאמה קרובה — אשר לפני הוספה", "review")
+      : null,
     canonicalHit: input.hit,
     effectivePshRow: pshRow,
   };
 }
 
-/** True when `id` is a stable Meilisearch uid (not a client-local hash). */
-export function isCatalogUid(id: string | undefined | null): boolean {
-  const t = String(id ?? "").trim();
-  return /^\d+$/.test(t) || /^SON-\d+$/i.test(t);
-}
+export { isCatalogUid } from "./ms-hit";
 
 /** Export may only use a resolve hit that truly matches the playlist row. */
 export function isExportResolveAcceptable(

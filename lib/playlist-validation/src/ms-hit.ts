@@ -18,10 +18,50 @@ export type MsHitLike = {
 
 export function canonicalSongKey(hit: MsHitLike): string {
   const id = String(hit.id ?? "").trim();
-  if (/^\d+$/.test(id) || /^SON-\d+$/i.test(id)) {
+  if (isCatalogUid(id)) {
     return `id:${id.toLowerCase()}`;
   }
   return `t:${hit.artist}|${hit.song_name}`.toLowerCase();
+}
+
+/** True when `id` is a stable Meilisearch / Odoo catalog uid. */
+export function isCatalogUid(id: string | undefined | null): boolean {
+  const t = String(id ?? "").trim();
+  return /^\d+$/.test(t) || /^SON-\d+$/i.test(t);
+}
+
+/**
+ * Playlist row after staging — keep Meilisearch catalog identity (uid + DB names).
+ * PSH PDF spellings must not overwrite catalog fields used for Odoo export.
+ */
+export function playlistHitFromStaging(
+  meiliHit: MsHitLike | null | undefined,
+  pshRow?: { title: string; artist: string; album?: string } | null,
+): MsHitLike | null {
+  if (!meiliHit?.song_name && !meiliHit?.artist && !pshRow) return null;
+
+  if (meiliHit && isCatalogUid(meiliHit.id)) {
+    return {
+      ...meiliHit,
+      album: meiliHit.album?.trim() || pshRow?.album?.trim() || "",
+    };
+  }
+
+  if (meiliHit?.song_name || meiliHit?.artist) {
+    return meiliHit;
+  }
+
+  if (pshRow) {
+    return {
+      id: meiliHit?.id ?? "",
+      song_name: pshRow.title,
+      artist: pshRow.artist,
+      album: pshRow.album?.trim() || "",
+      tags: meiliHit?.tags,
+    };
+  }
+
+  return null;
 }
 
 export function applyPshCanonical(hit: MsHitLike, psh: {
