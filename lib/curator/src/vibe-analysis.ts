@@ -1,3 +1,9 @@
+import {
+  enrichVibeFromTopic,
+  buildRankConstraintBlock,
+  HOLIDAY_TITLE_PATTERNS,
+} from "./mood-filters";
+
 export type VibeMood = "quiet" | "energetic" | "mixed" | "celebratory" | "emotional";
 
 export type VibeAnalysis = {
@@ -9,7 +15,18 @@ export type VibeAnalysis = {
   avoidUpbeat?: boolean;
   avoidSad?: boolean;
   reason?: string;
+  /** Detected season for negative holiday filtering. */
+  season?: "summer" | "winter" | "spring" | "autumn" | null;
+  energy?: "low" | "medium" | "high";
+  /** Tag/title terms that must not appear unless explicitly requested. */
+  excludeTags?: string[];
+  /** Genre labels to deprioritize or block. */
+  excludeGenres?: string[];
+  /** When true, holiday tracks are excluded from candidate pool. */
+  excludeHolidays?: boolean;
 };
+
+export { buildRankConstraintBlock };
 
 export function parseVibeFromPrompt(prompt: string): VibeAnalysis {
   const lower = prompt.toLowerCase();
@@ -45,17 +62,18 @@ export function parseVibeFromPrompt(prompt: string): VibeAnalysis {
   }
 
   if (wedding) {
-    return {
+    return enrichVibeFromTopic(prompt, {
       mood: "celebratory",
       tact: chupa ? "chupa-wedding" : "avoid-sad",
       keywords: chupa ? [...keywords, "חופה", "חתונה", "כלה", "חתן"] : keywords,
       genreHints: ["חסידי", "מזרחי"],
       moodHint: chupa ? "לפני החופה — שמחה וריקוד" : "שמח חגיגי",
       avoidSad: true,
+      energy: "high",
       reason: chupa
         ? "חופה — התאמה לפי תגיות חתונה/חופה, לא מילת 'לפני' בשם שיר"
         : "אירוע שמח — סינון שירים עצובים מדי",
-    };
+    });
   }
 
   if (parasha) {
@@ -70,28 +88,49 @@ export function parseVibeFromPrompt(prompt: string): VibeAnalysis {
   }
 
   if (faith) {
-    return {
+    return enrichVibeFromTopic(prompt, {
       mood: "emotional",
       tact: "faith-inspiring",
       keywords,
       genreHints: ["ישיבתי", "חסידי"],
       moodHint: "אמונה והשראה",
-    };
+    });
   }
 
-  return {
+  return enrichVibeFromTopic(prompt, {
     mood: "mixed",
     tact: "balanced",
     keywords,
     genreHints: ["חסידי", "ישיבתי", "מזרחי"],
     moodHint: "מגוון",
-  };
+  });
 }
 
 export function buildVibeAnalysisPrompt(topic: string): string {
-  return `נתח את הנושא הבא לפני בניית פלייליסט מוזיקה חרדית.
+  return `נתח את הנושא הבא לפני בניית פלייליסט מוזיקה חרדית/ישראלית.
+
+## כללים קשיחים
+1. **עונה**: אם המשתמש מבקש קיץ — excludeHolidays=true ו-excludeTags חייבים לכלול חנוכה, פורים, פסח (אלא אם ביקש חג במפורש).
+2. **אנרגיה**: "מקפיץ"/"עדכני"/"ריקוד" = mood=energetic, energy=high, genreHints: מזרחי/פופ/דנס/אלקטרוני.
+   excludeGenres: מקהלה, choir, נאום, פרשה, אקוסטי איטי.
+3. **אל תנחש שמות שירים** — רק ניתוח vibe לסינון מאגר.
+
 החזר JSON בלבד:
-{"mood":"quiet|energetic|mixed|celebratory|emotional","tact":"...","keywords":["..."],"genreHints":["..."],"moodHint":"...","avoidUpbeat":false,"avoidSad":false,"reason":"..."}
+{
+  "mood":"quiet|energetic|mixed|celebratory|emotional",
+  "tact":"...",
+  "keywords":["..."],
+  "genreHints":["..."],
+  "moodHint":"...",
+  "avoidUpbeat":false,
+  "avoidSad":false,
+  "energy":"low|medium|high",
+  "season":"summer|winter|spring|autumn|null",
+  "excludeHolidays":false,
+  "excludeTags":["..."],
+  "excludeGenres":["..."],
+  "reason":"..."
+}
 
 נושא: "${topic}"`;
 }
@@ -101,7 +140,7 @@ export function parseVibeJson(text: string, fallbackTopic: string): VibeAnalysis
     const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
     const parsed = JSON.parse(cleaned) as Partial<VibeAnalysis>;
     if (parsed.mood && parsed.keywords) {
-      return {
+      const partial: VibeAnalysis = {
         mood: parsed.mood as VibeMood,
         tact: String(parsed.tact ?? "balanced"),
         keywords: Array.isArray(parsed.keywords) ? parsed.keywords.map(String) : [],
@@ -110,7 +149,21 @@ export function parseVibeJson(text: string, fallbackTopic: string): VibeAnalysis
         avoidUpbeat: Boolean(parsed.avoidUpbeat),
         avoidSad: Boolean(parsed.avoidSad),
         reason: parsed.reason ? String(parsed.reason) : undefined,
+        energy: parsed.energy as VibeAnalysis["energy"],
+        season: (() => {
+          const raw = parsed.season as unknown;
+          if (raw === null || raw === "null" || raw === undefined) return null;
+          return raw as VibeAnalysis["season"];
+        })(),
+        excludeTags: Array.isArray(parsed.excludeTags)
+          ? parsed.excludeTags.map(String)
+          : undefined,
+        excludeGenres: Array.isArray(parsed.excludeGenres)
+          ? parsed.excludeGenres.map(String)
+          : undefined,
+        excludeHolidays: Boolean(parsed.excludeHolidays),
       };
+      return enrichVibeFromTopic(fallbackTopic, partial);
     }
   } catch {
     // fallback

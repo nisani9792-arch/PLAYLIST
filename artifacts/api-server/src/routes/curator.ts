@@ -14,6 +14,8 @@ import {
   excludeKeysFromLines,
   expandTopicFacets,
   formatArtistSongLine,
+  enrichVibeFromTopic,
+  filterTopicCandidates,
   mergeVibeWithResearch,
   parsePlaylistResearchJson,
   parseRankSelectionJson,
@@ -152,6 +154,7 @@ router.post("/build", async (req, res) => {
     const research = parsePlaylistResearchJson(researchText, prompt);
     if (research) {
       vibe = mergeVibeWithResearch(vibe, researchToVibePatch(research));
+      vibe = enrichVibeFromTopic(prompt, vibe);
       facets = expandTopicFacets(prompt, vibe);
       for (const q of research.searchQueries.slice(0, 6)) {
         if (q.length >= 2) facets.searchQueries.push(q);
@@ -179,6 +182,16 @@ router.post("/build", async (req, res) => {
     hit._rankingScore = scoreHitForTopic(hit, { topic: prompt, vibe, facets });
   }
 
+  candidates = filterTopicCandidates(candidates, prompt, vibe);
+
+  if (!candidates.length) {
+    candidates = await searchCatalogQuery(prompt, 60);
+    for (const hit of candidates) {
+      hit._rankingScore = scoreHitForTopic(hit, { topic: prompt, vibe, facets });
+    }
+    candidates = filterTopicCandidates(candidates, prompt, vibe);
+  }
+
   const size = computeTargetSize({
     isListMode: modeList,
     isParasha,
@@ -201,11 +214,12 @@ router.post("/build", async (req, res) => {
     for (const hit of candidates) {
       hit._rankingScore = scoreHitForTopic(hit, { topic: prompt, vibe, facets });
     }
+    candidates = filterTopicCandidates(candidates, prompt, vibe);
     candidates.sort((a, b) => (b._rankingScore ?? 0) - (a._rankingScore ?? 0));
     selected = rankAndSelectCandidates(candidates, size, excludeKeys).selected;
 
     if (candidates.length >= 5) {
-      const rankPrompt = buildRankSelectionPrompt(prompt, candidates, size, vibe.reason);
+      const rankPrompt = buildRankSelectionPrompt(prompt, candidates, size, vibe.reason, vibe);
       const rankText = await geminiGenerate(client, rankPrompt);
       const aiPicked = parseRankSelectionJson(rankText, candidates, size);
       if (aiPicked.length >= Math.min(size, 10)) {
@@ -324,6 +338,7 @@ router.post("/fill", async (req, res) => {
   for (const hit of candidates) {
     hit._rankingScore = scoreHitForTopic(hit, { topic, vibe, facets });
   }
+  candidates = filterTopicCandidates(candidates, topic, vibe);
   candidates.sort((a, b) => (b._rankingScore ?? 0) - (a._rankingScore ?? 0));
 
   let selected = rankAndSelectCandidates(
@@ -345,6 +360,7 @@ router.post("/fill", async (req, res) => {
         candidates,
         needed,
         vibe.reason,
+        vibe,
       );
       const rankText = await geminiGenerate(client, rankPrompt);
       const aiPicked = parseRankSelectionJson(rankText, candidates, needed, excludeKeys);
@@ -420,6 +436,7 @@ router.post("/build/stream", async (req, res) => {
     for (const hit of candidates) {
       hit._rankingScore = scoreHitForTopic(hit, { topic: prompt, vibe, facets });
     }
+    candidates = filterTopicCandidates(candidates, prompt, vibe);
     candidates.sort((a, b) => (b._rankingScore ?? 0) - (a._rankingScore ?? 0));
 
     const size = computeTargetSize({

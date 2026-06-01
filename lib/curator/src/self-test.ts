@@ -56,4 +56,33 @@ const { selected } = rankAndSelectCandidates(candidates, 2);
 assert(selected.length === 2, "selected 2");
 assert(formatArtistSongLine(candidates[0]!).includes(" - "), "line format");
 
+// summer / upbeat
+const summerVibe = parseVibeFromPrompt("פלייליסט קיץ עדכני ומקפיץ");
+assert(summerVibe.mood === "energetic", "summer upbeat mood");
+assert(summerVibe.season === "summer", "summer season detected");
+assert(summerVibe.excludeHolidays === true, "summer excludes holidays");
+
+const hanukkahHit = scoreHitForTopic(
+  { id: "h1", song_name: "נר חנוכה", artist: "אמן", tags: ["חנוכה"], genre: "חסידי" },
+  { topic: "פלייליסט קיץ עדכני ומקפיץ", vibe: summerVibe },
+);
+const danceHit = scoreHitForTopic(
+  {
+    id: "d1",
+    song_name: "ריקודי קיץ",
+    artist: "אמן",
+    tags: ["קיץ", "ריקוד", "מזרחי"],
+    genre: "מזרחי",
+  },
+  { topic: "פלייליסט קיץ עדכני ומקפיץ", vibe: summerVibe },
+);
+assert(hanukkahHit < TOPIC_STAGING_MIN_SCORE, "summer rejects hanukkah track");
+assert(danceHit >= TOPIC_STAGING_MIN_SCORE, "summer accepts dance mizrahi");
+
+const choirHit = scoreHitForTopic(
+  { id: "c1", song_name: "שיר", artist: "Boston Choir", tags: ["מקהלה"], genre: "מקהלה" },
+  { topic: "פלייליסט קיץ עדכני ומקפיץ", vibe: summerVibe },
+);
+assert(choirHit < TOPIC_STAGING_MIN_SCORE, "summer rejects choir");
+
 console.log("curator self-test OK", { PLAYLIST_MIN, PLAYLIST_MAX, queries: queries.length });

@@ -1,4 +1,5 @@
 import type { VibeAnalysis } from "./vibe-analysis";
+import { HOLIDAY_TITLE_PATTERNS } from "./mood-filters";
 
 export type TopicFacets = {
   /** Normalized topic label */
@@ -12,6 +13,10 @@ export type TopicFacets = {
   searchQueries: string[];
   /** Title patterns that look relevant but are wrong for this topic */
   rejectTitlePatterns: RegExp[];
+  /** Tag/title terms that hard-penalize a hit */
+  excludeTagTerms: string[];
+  /** Genre labels that hard-penalize a hit */
+  excludeGenres: string[];
 };
 
 type ScenarioRule = {
@@ -60,6 +65,19 @@ const SCENARIO_RULES: ScenarioRule[] = [
     genreHints: ["ישיבתי"],
     searchQueries: ["שירי רגש שקט"],
   },
+  {
+    test: /קיץ|summer|חופש(?:ה)?|מקפיץ|עדכני\s*וק?צ/i,
+    contextPhrases: ["קיץ", "שמש", "ריקוד", "מסיבה", "חופש"],
+    tagHints: ["קיץ", "שמש", "ריקוד", "מסיבה", "דלוק", "עדכני", "מזרחי", "פופ", "דנס"],
+    genreHints: ["מזרחי", "פופ", "דנס", "רוק"],
+    searchQueries: [
+      "שירי קיץ מזרחי",
+      "פלייליסט קיץ ריקודים",
+      "מוזיקה מקפיצה חסידית",
+      "מזרחי עדכני",
+    ],
+    rejectTitlePatterns: [...HOLIDAY_TITLE_PATTERNS],
+  },
 ];
 
 export function expandTopicFacets(
@@ -72,6 +90,13 @@ export function expandTopicFacets(
   let genreHints: string[] = vibe?.genreHints?.slice() ?? [];
   let searchQueries: string[] = [trimmed];
   let rejectTitlePatterns: RegExp[] = [];
+  let excludeTagTerms: string[] = vibe?.excludeTags?.slice() ?? [];
+  let excludeGenres: string[] = vibe?.excludeGenres?.slice() ?? [];
+
+  if (vibe?.excludeHolidays) {
+    rejectTitlePatterns = [...rejectTitlePatterns, ...HOLIDAY_TITLE_PATTERNS];
+    excludeTagTerms = [...excludeTagTerms, ...(vibe.excludeTags ?? [])];
+  }
 
   for (const rule of SCENARIO_RULES) {
     if (!rule.test.test(trimmed)) continue;
@@ -121,5 +146,7 @@ export function expandTopicFacets(
     genreHints: dedupe(genreHints),
     searchQueries: dedupe(searchQueries).slice(0, 14),
     rejectTitlePatterns,
+    excludeTagTerms: dedupe(excludeTagTerms),
+    excludeGenres: dedupe(excludeGenres),
   };
 }

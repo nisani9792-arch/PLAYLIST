@@ -12,24 +12,33 @@ export type PlaylistResearch = {
   exampleThemes: string[];
   avoidUpbeat?: boolean;
   avoidSad?: boolean;
+  excludeTags?: string[];
+  excludeGenres?: string[];
+  excludeHolidays?: boolean;
+  energy?: "low" | "medium" | "high";
+  season?: VibeAnalysis["season"];
   reason?: string;
 };
 
 export function buildPlaylistResearchPrompt(topic: string): string {
-  return `אתה מומחה לפלייליסטים של מוזיקה חרדית/ישראלית (ספוטיפיי, יוטיוב, הופעות, DJ לחתונות ואירועים).
+  return `אתה מומחה לפלייליסטים של מוזיקה חרדית/ישראלית (ספוטיפיי, יוטיוב, DJ לחתונות ואירועים).
 
 נושא הפלייליסט: "${topic}"
 
-חקר איך בונים פלייליסטים אמיתיים לנושא הזה — לא לפי מילה אחת בשם שיר, אלא לפי:
-- תגיות ונושא (חופה, חתונה, שבת, אמונה…)
-- ז'אנר (חסידי, מזרחי, ישיבתי…)
-- אווירה (שמח, שקט, מרגש)
+## כללים קשיחים (Negative Prompting)
+1. **עונה**: אם הנושא הוא קיץ — excludeHolidays=true. אסור להציע שירי חנוכה, פורים, פסח, סוכות, ראש השנה.
+2. **אנרגיה**: אם הנושא "מקפיץ"/"עדכני"/"ריקוד" — mood=energetic, energy=high.
+   excludeGenres: מקהלה, choir, Boston, Alexander, נאום, פרשה, spoken, acoustic איטי.
+   genreHints: מזרחי, פופ, דנס, אלקטרוני — לא "רוק" למזרחי מקפיץ.
+3. **אל תמציא שמות שירים** — רק תגיות, ז'אנרים ושאילתות חיפוש למאגר.
+
+חקר איך בונים פלייליסטים אמיתיים לנושא — לפי תגיות, ז'אנר ואווירה, לא מילה אחת בשם שיר.
 
 החזר JSON בלבד:
 {
   "keywords": ["..."],
   "tagHints": ["תגיות טיפוסיות במאגר"],
-  "genreHints": ["חסידי","מזרחי"],
+  "genreHints": ["מזרחי","פופ","דנס"],
   "mood": "quiet|energetic|mixed|celebratory|emotional",
   "moodHint": "תיאור קצר",
   "contextPhrases": ["ביטויים שמתאימים לשירים בנושא"],
@@ -37,10 +46,15 @@ export function buildPlaylistResearchPrompt(topic: string): string {
   "exampleThemes": ["נושאי משנה לפלייליסטים דומים"],
   "avoidUpbeat": false,
   "avoidSad": false,
+  "excludeHolidays": false,
+  "excludeTags": ["חנוכה","פורים","פסח"],
+  "excludeGenres": ["מקהלה","נאום"],
+  "energy": "low|medium|high",
+  "season": "summer|winter|null",
   "reason": "משפט אחד למפעיל"
 }
 
-דוגמה: נושא "לפני החופה" — תגיות חופה/חתונה, לא שירים שרק מתחילים ב"לפני".`;
+דוגמה: "פלייליסט קיץ מקפיץ" → mood=energetic, season=summer, excludeHolidays=true, searchQueries: "מזרחי קיץ ריקוד", לא שירי חנוכה.`;
 }
 
 const MOODS: VibeMood[] = [
@@ -82,6 +96,12 @@ export function parsePlaylistResearchJson(
     const exampleThemes = Array.isArray(parsed.exampleThemes)
       ? parsed.exampleThemes.map(String).filter(Boolean)
       : [];
+    const excludeTags = Array.isArray(parsed.excludeTags)
+      ? parsed.excludeTags.map(String).filter(Boolean)
+      : [];
+    const excludeGenres = Array.isArray(parsed.excludeGenres)
+      ? parsed.excludeGenres.map(String).filter(Boolean)
+      : [];
 
     if (
       !keywords.length &&
@@ -107,6 +127,14 @@ export function parsePlaylistResearchJson(
       exampleThemes,
       avoidUpbeat: Boolean(parsed.avoidUpbeat),
       avoidSad: Boolean(parsed.avoidSad),
+      excludeTags,
+      excludeGenres,
+      excludeHolidays: Boolean(parsed.excludeHolidays),
+      energy: parsed.energy,
+      season:
+        parsed.season === null || (parsed.season as unknown) === "null"
+          ? null
+          : parsed.season,
       reason: parsed.reason ? String(parsed.reason) : undefined,
     };
   } catch {
@@ -122,6 +150,11 @@ export function researchToVibePatch(research: PlaylistResearch): {
   moodHint?: string;
   avoidUpbeat?: boolean;
   avoidSad?: boolean;
+  excludeTags?: string[];
+  excludeGenres?: string[];
+  excludeHolidays?: boolean;
+  energy?: "low" | "medium" | "high";
+  season?: VibeAnalysis["season"];
   reason?: string;
 } {
   return {
@@ -132,6 +165,11 @@ export function researchToVibePatch(research: PlaylistResearch): {
     moodHint: research.moodHint,
     avoidUpbeat: research.avoidUpbeat,
     avoidSad: research.avoidSad,
+    excludeTags: research.excludeTags,
+    excludeGenres: research.excludeGenres,
+    excludeHolidays: research.excludeHolidays,
+    energy: research.energy,
+    season: research.season,
     reason: research.reason,
   };
 }

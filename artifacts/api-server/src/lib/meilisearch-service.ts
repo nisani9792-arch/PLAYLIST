@@ -98,8 +98,16 @@ export async function searchTopicBatch(
       ? [genre.trim()]
       : [undefined];
 
+  // Prefer upbeat genre-filtered searches first when multiple genres supplied.
+  const orderedGenres = [...genres].sort((a, b) => {
+    const upbeat = /מזרחי|פופ|דנס|dance|pop|electronic|club/i;
+    const aUp = a && upbeat.test(a) ? 0 : 1;
+    const bUp = b && upbeat.test(b) ? 0 : 1;
+    return aUp - bUp;
+  });
+
   for (const q of queries) {
-    for (const g of genres) {
+    for (const g of orderedGenres) {
       const hits = await searchCatalogQuery(q, limitPerQuery, g);
       for (const hit of hits) {
         const key = `${hit.artist}|${hit.song_name}`.toLowerCase();

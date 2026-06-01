@@ -1,3 +1,5 @@
+import { buildRankConstraintBlock } from "./mood-filters";
+import type { VibeAnalysis } from "./vibe-analysis";
 import {
   assertHashkafaClean,
   canonicalSongKey,
@@ -118,26 +120,37 @@ export function buildRankSelectionPrompt(
   candidates: RankCandidate[],
   targetSize: number,
   vibeReason?: string,
+  vibe?: VibeAnalysis,
 ): string {
   const catalog = candidates
     .slice(0, 120)
-    .map((c, i) => `${i + 1}. ${formatArtistSongLine(c)}`)
+    .map((c, i) => {
+      const genre = c.genre ? ` [${c.genre}]` : "";
+      const tags = c.tags?.length ? ` {${c.tags.slice(0, 4).join(", ")}}` : "";
+      return `${i + 1}. ${formatArtistSongLine(c)}${genre}${tags}`;
+    })
     .join("\n");
+
+  const constraints = vibe
+    ? buildRankConstraintBlock(vibe, topic)
+    : vibeReason
+      ? `הקשר vibe: ${vibeReason}`
+      : "";
 
   return `# Jusic Curator — Rank & Select
 
-בחר ${targetSize} שירים מהרשימה בלבד. אסור להמציא שירים שלא ברשימה.
-${vibeReason ? `הקשר vibe: ${vibeReason}` : ""}
+בחר ${targetSize} שירים **רק** מהרשימה למטה. אסור להמציא שירים שלא ברשימה.
+${constraints}
 
 כללים:
 - 60% Tier-1 (מוכר), 40% Tier-2 (פחות ndosh)
 - מקסימום 3 שירים לאותו אמן
-- מאושר: חסידי, מזרחי-חרדי, חזנות, ישיבתי
-- אסור: קול אישה, זמרים חילוניים
+- מאושר: חסידי, מזרחי-חרדי, פופ, דנס
+- אסור: קול אישה, זמרים חילוניים, נאומים/פרשה, מקהלות איטיות כשהנושא מקפיץ
 
 נושא: "${topic}"
 
-מאגר מועמדים:
+מאגר מועמדים (כולל genre/tags):
 ${catalog}
 
 החזר JSON בלבד:

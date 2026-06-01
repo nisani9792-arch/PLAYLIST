@@ -1,6 +1,7 @@
+import { buildRankConstraintBlock } from "./mood-filters";
 import type { RankCandidate } from "./rank-select";
 import { formatArtistSongLine } from "./rank-select";
-
+import type { VibeAnalysis } from "./vibe-analysis";
 export function buildFillCuratorPrompt(
   topic: string,
   existingLines: string[],
@@ -29,6 +30,7 @@ export function buildFillRankSelectionPrompt(
   candidates: RankCandidate[],
   targetSize: number,
   vibeReason?: string,
+  vibe?: VibeAnalysis,
 ): string {
   const existingSample = existingLines
     .slice(0, 15)
@@ -36,15 +38,24 @@ export function buildFillRankSelectionPrompt(
     .join("\n");
   const catalog = candidates
     .slice(0, 120)
-    .map((c, i) => `${i + 1}. ${formatArtistSongLine(c)}`)
+    .map((c, i) => {
+      const genre = c.genre ? ` [${c.genre}]` : "";
+      return `${i + 1}. ${formatArtistSongLine(c)}${genre}`;
+    })
     .join("\n");
+
+  const constraints = vibe
+    ? buildRankConstraintBlock(vibe, topic)
+    : vibeReason
+      ? `הקשר vibe: ${vibeReason}`
+      : "";
 
   return `# Jusic Curator — השלמת פלייליסט (Rank & Select)
 
 בחר ${targetSize} שירים **חדשים** מהרשימה בלבד. אסור להמציא שירים שלא ברשימה.
 אסור לבחור שיר שכבר קיים בפלייליסט.
 
-${vibeReason ? `הקשר vibe: ${vibeReason}` : ""}
+${constraints}
 
 נושא: "${topic}"
 
@@ -55,7 +66,7 @@ ${existingSample}
 - התאמה מלאה לווייב ולנושא של השירים הקיימים
 - 60% Tier-1 (מוכר), 40% Tier-2 (פחות ndosh)
 - מקסימום 3 שירים לאותו אמן (כולל שירים שכבר בפלייליסט)
-- מאושר: חסידי, מזרחי-חרדי, חזנות, ישיבתי
+- מאושר: חסידי, מזרחי-חרדי, פופ, דנס
 
 מאגר מועמדים:
 ${catalog}
