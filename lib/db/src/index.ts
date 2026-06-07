@@ -22,10 +22,18 @@ const missingDb = new Proxy(
   },
 ) as ReturnType<typeof drizzle<typeof schema>>;
 
+function normalizeDatabaseUrl(url: string): string {
+  if (/sslmode=require/i.test(url) && !/uselibpqcompat=/i.test(url)) {
+    return `${url}${url.includes("?") ? "&" : "?"}uselibpqcompat=true`;
+  }
+  return url;
+}
+
 function poolOptions(url: string): pg.PoolConfig {
-  const config: pg.PoolConfig = { connectionString: url };
+  const connectionString = normalizeDatabaseUrl(url);
+  const config: pg.PoolConfig = { connectionString };
   // Neon (and most managed Postgres) require TLS in production.
-  if (/neon\.tech|sslmode=require/i.test(url)) {
+  if (/neon\.tech|sslmode=require/i.test(connectionString)) {
     config.ssl = { rejectUnauthorized: false };
   }
   return config;
