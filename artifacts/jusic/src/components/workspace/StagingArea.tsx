@@ -1,4 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { AnimatePresence, motion } from "framer-motion";
+import { GripVertical } from "lucide-react";
 import {
   expandTopicFacets,
   parseVibeFromPrompt,
@@ -258,15 +277,54 @@ const StagingListItem = React.memo(function StagingListItem({
   onSkip,
   onApproveReview,
   onPickAlternative,
+  sortable = false,
 }: {
   item: StagingItem;
   itemTone: string;
   onSkip: (id: string) => void;
   onApproveReview: (id: string) => void;
   onPickAlternative: (id: string, hit: MsHit) => void;
+  sortable?: boolean;
 }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id, disabled: !sortable });
+
+  const style = sortable
+    ? { transform: CSS.Transform.toString(transform), transition }
+    : undefined;
+
   return (
-    <li className={cn("bp-staging-item", itemTone)}>
+    <motion.li
+      ref={sortable ? setNodeRef : undefined}
+      style={style}
+      layout="position"
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 24, scale: 0.96 }}
+      transition={{ duration: 0.18 }}
+      className={cn(
+        "bp-staging-item",
+        itemTone,
+        isDragging && "bp-staging-item--dragging",
+      )}
+    >
+      {sortable ? (
+        <button
+          type="button"
+          className="ws-track-row__grip shrink-0 touch-none"
+          aria-label="גרור לסידור"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-3 w-3 opacity-50" />
+        </button>
+      ) : null}
       <div className="min-w-0 w-full space-y-1">
         <p
           className="text-xs font-semibold leading-snug line-clamp-2 break-words text-foreground"
@@ -369,7 +427,7 @@ const StagingListItem = React.memo(function StagingListItem({
           </>
         )}
       </div>
-    </li>
+    </motion.li>
   );
 });
 
@@ -699,6 +757,31 @@ export function StagingArea({
     );
   };
 
+  const sortableIds = useMemo(() => visibleItems.map((i) => i.id), [visibleItems]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 160, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      setItems((prev) => {
+        const oldIndex = prev.findIndex((i) => i.id === active.id);
+        const newIndex = prev.findIndex((i) => i.id === over.id);
+        if (oldIndex < 0 || newIndex < 0) return prev;
+        const next = [...prev];
+        const [moved] = next.splice(oldIndex, 1);
+        next.splice(newIndex, 0, moved!);
+        return next;
+      });
+    },
+    [setItems],
+  );
+
   const itemTone = (status: StagingItem["status"]) => {
     switch (status) {
       case "matched":
@@ -718,7 +801,7 @@ export function StagingArea({
   return (
     <section
       className={cn(
-        "bp-staging",
+        "bp-staging bp-staging--glass",
         mobileLayout ? "bp-staging--focus" : compact ? "bp-staging--compact" : "bp-staging--embedded",
       )}
       aria-label="אזור התאמה"
@@ -786,18 +869,25 @@ export function StagingArea({
         ) : null}
       </header>
 
-      <ul className="bp-staging__scroll custom-scrollbar list-none m-0 p-0">
-        {visibleItems.map((item) => (
-          <StagingListItem
-            key={item.id}
-            item={item}
-            itemTone={itemTone(item.status)}
-            onSkip={handleSkip}
-            onApproveReview={handleApproveReview}
-            onPickAlternative={handlePickAlternative}
-          />
-        ))}
-      </ul>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+          <ul className="bp-staging__scroll custom-scrollbar list-none m-0 p-0">
+            <AnimatePresence initial={false} mode="popLayout">
+              {visibleItems.map((item) => (
+                <StagingListItem
+                  key={item.id}
+                  item={item}
+                  itemTone={itemTone(item.status)}
+                  onSkip={handleSkip}
+                  onApproveReview={handleApproveReview}
+                  onPickAlternative={handlePickAlternative}
+                  sortable
+                />
+              ))}
+            </AnimatePresence>
+          </ul>
+        </SortableContext>
+      </DndContext>
 
       <footer className="bp-staging__dock">
         <Button

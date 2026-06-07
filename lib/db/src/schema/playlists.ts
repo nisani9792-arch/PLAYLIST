@@ -28,6 +28,8 @@ export const playlists = pgTable(
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (t) => [
+    index("playlists_operator_name_idx").on(t.operatorName),
+    index("playlists_operator_updated_idx").on(t.operatorName, t.updatedAt),
     index("playlists_updated_at_idx").on(t.updatedAt),
     index("playlists_deleted_at_idx").on(t.deletedAt),
   ],

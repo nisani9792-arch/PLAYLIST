@@ -176,6 +176,36 @@ export async function buildCuratorPlaylist(input: {
   return (await res.json()) as { lines: string[]; meta?: { vibe?: string; targetSize?: number; reason?: string } };
 }
 
+export type RefinementTurn = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export async function refineCuratorPlaylist(input: {
+  originalPrompt: string;
+  refinement: string;
+  currentLines: string[];
+  conversationHistory?: RefinementTurn[];
+  targetSize?: number;
+}): Promise<{
+  lines: string[];
+  meta?: { vibe?: string; targetSize?: number; reason?: string };
+}> {
+  const res = await fetch('/api/curator/refine', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Refine error ${res.status}`);
+  }
+  return (await res.json()) as {
+    lines: string[];
+    meta?: { vibe?: string; targetSize?: number; reason?: string };
+  };
+}
+
 export async function fillCuratorPlaylist(input: {
   topic: string;
   targetSize?: number;

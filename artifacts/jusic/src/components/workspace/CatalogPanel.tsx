@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertCircle, Loader2, Search, SearchX } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, CheckSquare, Layers, Loader2, Search, SearchX, Square } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useSearch } from '@/hooks/use-search';
 import { useSearchFilters } from '@/contexts/SearchFiltersContext';
 import { cn } from '@/lib/utils';
@@ -8,6 +9,8 @@ import type { MsHit } from '@/lib/meilisearch';
 import { trackRowKey } from '@/lib/track-format';
 import { TrackRow } from './TrackRow';
 import { VirtualizedTrackList } from './VirtualizedTrackList';
+import { WorkspaceFilterChips } from './WorkspaceFilterChips';
+import { createStagingItem, useStagingSession } from '@/contexts/StagingSessionContext';
 import { toast } from 'sonner';
 
 type CatalogPanelProps = {
@@ -15,13 +18,20 @@ type CatalogPanelProps = {
   className?: string;
 };
 
-export function CatalogPanel({ onAddSong, className }: CatalogPanelProps) {
+function CatalogPanelInner({ onAddSong, className }: CatalogPanelProps) {
   const { filters } = useSearchFilters();
+  const { startStaging } = useStagingSession();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { results, warning, isFetching, isError, error, debouncedQuery, enabled } = useSearch(query, 80, filters);
+  const { results, warning, isFetching, isError, error, debouncedQuery, enabled } = useSearch(
+    query,
+    80,
+    filters,
+  );
 
   const hasResults = results.length > 0;
   const showEmpty = enabled && !isFetching && !hasResults && !isError;
@@ -51,6 +61,46 @@ export function CatalogPanel({ onAddSong, className }: CatalogPanelProps) {
     [onAddSong],
   );
 
+  const toggleSelect = useCallback((song: MsHit) => {
+    const key = trackRowKey(song);
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const exitSelectionMode = useCallback(() => {
+    setSelectionMode(false);
+    setSelectedKeys(new Set());
+  }, []);
+
+  const selectedSongs = useMemo(
+    () => results.filter((hit) => selectedKeys.has(trackRowKey(hit))),
+    [results, selectedKeys],
+  );
+
+  const handleBulkToStaging = useCallback(() => {
+    if (!selectedSongs.length) return;
+    const lines = selectedSongs.map((s) => `${s.artist} - ${s.song_name}`);
+    startStaging(
+      lines.map((line) => createStagingItem(line)),
+      null,
+      null,
+      query.trim() || null,
+    );
+    toast.success(`${selectedSongs.length} שירים נשלחו לאזור התאמה`);
+    exitSelectionMode();
+  }, [selectedSongs, startStaging, query, exitSelectionMode]);
+
+  const handleBulkToPlaylist = useCallback(() => {
+    if (!selectedSongs.length) return;
+    for (const song of selectedSongs) onAddSong(song);
+    toast.success(`נוספו ${selectedSongs.length} שירים לפלייליסט`);
+    exitSelectionMode();
+  }, [selectedSongs, onAddSong, exitSelectionMode]);
+
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -60,9 +110,32 @@ export function CatalogPanel({ onAddSong, className }: CatalogPanelProps) {
       setActiveIndex((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter' && results[activeIndex]) {
       e.preventDefault();
-      handleAdd(results[activeIndex]);
+      if (selectionMode) toggleSelect(results[activeIndex]);
+      else handleAdd(results[activeIndex]);
     }
   };
+
+  const renderRow = useCallback(
+    (hit: MsHit, i: number) => {
+      const key = trackRowKey(hit);
+      const isSelected = selectedKeys.has(key);
+      return (
+        <TrackRow
+          song={hit}
+          showIndex={false}
+          isSelected={selectionMode ? isSelected : i === activeIndex}
+          selectionMode={selectionMode}
+          onToggleSelect={() => toggleSelect(hit)}
+          onAdd={selectionMode ? undefined : () => handleAdd(hit)}
+          data-testid={`catalog-row-${hit.id}`}
+          className={cn(
+            (selectionMode ? isSelected : i === activeIndex) && 'bg-primary/8 j-cyan-rim-active',
+          )}
+        />
+      );
+    },
+    [activeIndex, handleAdd, selectionMode, selectedKeys, toggleSelect],
+  );
 
   return (
     <section className={cn('ws-col ws-col--catalog', className)} aria-label="קטלוג וחיפוש">
@@ -70,6 +143,8 @@ export function CatalogPanel({ onAddSong, className }: CatalogPanelProps) {
         <h2 className="ws-col__title">קטלוג</h2>
         <span className="ws-col__meta tabular-nums">{hasResults ? results.length : '—'}</span>
       </header>
+
+      <WorkspaceFilterChips />
 
       <div className="ws-col__toolbar px-2 pb-1.5">
         <div className="relative">
@@ -80,7 +155,7 @@ export function CatalogPanel({ onAddSong, className }: CatalogPanelProps) {
             enterKeyHint="search"
             autoComplete="off"
             placeholder="חיפוש שיר, אמן, תגית…"
-            className="ws-search-input h-8 rounded-lg pr-9 pl-2 text-xs bg-[hsl(var(--surface-1))] border-border/40"
+            className="ws-search-input h-8 rounded-lg pr-9 pl-2 text-xs bg-[hsl(var(--surface-1)/0.55)] border-border/40 j-cinematic-glass"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
@@ -93,6 +168,42 @@ export function CatalogPanel({ onAddSong, className }: CatalogPanelProps) {
         </div>
         {query.length > 0 && query.length < 2 ? (
           <p className="mt-1 px-0.5 text-[10px] text-muted-foreground">לפחות 2 תווים</p>
+        ) : null}
+        {hasResults ? (
+          <div className="flex items-center gap-1 mt-1.5">
+            <Button
+              type="button"
+              variant={selectionMode ? 'default' : 'outline'}
+              size="sm"
+              className="h-6 text-[9px] rounded-md px-2"
+              onClick={() => (selectionMode ? exitSelectionMode() : setSelectionMode(true))}
+            >
+              {selectionMode ? <CheckSquare className="h-3 w-3 ml-0.5" /> : <Square className="h-3 w-3 ml-0.5" />}
+              {selectionMode ? `נבחרו ${selectedKeys.size}` : 'בחירה מרובה'}
+            </Button>
+            {selectionMode && selectedKeys.size > 0 ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-6 text-[9px] rounded-md px-2"
+                  onClick={handleBulkToStaging}
+                >
+                  <Layers className="h-3 w-3 ml-0.5" />
+                  להחזקה ({selectedKeys.size})
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-6 text-[9px] rounded-md px-2"
+                  onClick={handleBulkToPlaylist}
+                >
+                  לפלייליסט ({selectedKeys.size})
+                </Button>
+              </>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -122,21 +233,16 @@ export function CatalogPanel({ onAddSong, className }: CatalogPanelProps) {
             </div>
           ) : null
         }
-        renderItem={(hit, i) => (
-          <TrackRow
-            song={hit}
-            showIndex={false}
-            isSelected={i === activeIndex}
-            onAdd={() => handleAdd(hit)}
-            data-testid={`catalog-row-${hit.id}`}
-            className={cn(i === activeIndex && 'bg-primary/8')}
-          />
-        )}
+        renderItem={(hit, i) => renderRow(hit, i)}
       />
 
       {hasResults ? (
-        <p className="ws-col__hint shrink-0">↑↓ · Enter להוספה</p>
+        <p className="ws-col__hint shrink-0">
+          {selectionMode ? 'לחץ לבחירה · להחזקה/פלייליסט בכפתורים למעלה' : '↑↓ · Enter להוספה'}
+        </p>
       ) : null}
     </section>
   );
 }
+
+export const CatalogPanel = memo(CatalogPanelInner);

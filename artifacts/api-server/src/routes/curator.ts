@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   artistCountsFromLines,
   buildCuratorPromptV2,
+  buildRefinementPrompt,
   buildFillCuratorPrompt,
   buildFillRankSelectionPrompt,
   buildFillTopicQueries,
@@ -458,6 +459,92 @@ router.post("/build/stream", async (req, res) => {
   } catch (err) {
     send({ stage: "error", error: err instanceof Error ? err.message : "Unknown error" });
     res.end();
+  }
+});
+
+/**
+ * POST /api/curator/refine — multi-turn conversational playlist refinement
+ */
+router.post("/refine", async (req, res) => {
+  const {
+    originalPrompt,
+    refinement,
+    currentLines = [],
+    conversationHistory = [],
+    targetSize,
+  } = req.body as {
+    originalPrompt?: string;
+    refinement?: string;
+    currentLines?: string[];
+    conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
+    targetSize?: number;
+  };
+
+  if (!originalPrompt?.trim() || !refinement?.trim()) {
+    res.status(400).json({ error: "originalPrompt and refinement required" });
+    return;
+  }
+
+  const operatorName = (req as RequestWithOperator).operatorName ?? "";
+  const lines = currentLines.map((l) => l.trim()).filter(Boolean);
+  const size = computeTargetSize({
+    isListMode: lines.length >= 3,
+    requestedTarget: targetSize ?? Math.max(lines.length, 35),
+  });
+
+  try {
+    const settings = await fetchSettingsKeys([SETTINGS_KEYS.AI_CUSTOM_INSTRUCTIONS]);
+    const customInstructions = settings[SETTINGS_KEYS.AI_CUSTOM_INSTRUCTIONS]?.trim() ?? "";
+    const operatorMemory = operatorName ? await buildOperatorMemoryBlock(operatorName) : "";
+
+    const client = await getGeminiClientOrThrow();
+    const refinePrompt = buildRefinementPrompt({
+      originalPrompt: originalPrompt.trim(),
+      refinement: refinement.trim(),
+      currentLines: lines,
+      conversationHistory,
+      customInstructions,
+      operatorMemory,
+      targetSize: size,
+    });
+    const text = await geminiGenerate(client, refinePrompt);
+    const refinedLines = linesFromLegacyJson(text);
+
+    if (!refinedLines.length) {
+      res.status(422).json({ error: "לא התקבלה רשימה מעודכנת מה-AI" });
+      return;
+    }
+
+    let vibe = parseVibeFromPrompt(`${originalPrompt} ${refinement}`);
+    try {
+      const vibeText = await geminiGenerate(client, buildVibeAnalysisPrompt(refinement));
+      vibe = parseVibeJson(vibeText, refinement);
+    } catch {
+      /* rule-based vibe is fine */
+    }
+
+    res.json({
+      meta: {
+        vibe: vibe.mood,
+        tact: vibe.tact,
+        targetSize: size,
+        reason: vibe.reason ?? `עודכן לפי: ${refinement.trim().slice(0, 80)}`,
+      },
+      lines: refinedLines,
+      items: refinedLines.map((line) => ({
+        line,
+        artist: line.split(" - ")[0] ?? "",
+        title: line.split(" - ")[1] ?? line,
+      })),
+    } satisfies CuratorBuildResult);
+  } catch (err) {
+    logger.warn({ err }, "Curator refine failed");
+    res.status(503).json({
+      error:
+        err instanceof Error
+          ? err.message
+          : "שירות ה-AI אינו זמין כרגע — נסה שוב מאוחר יותר",
+    });
   }
 });
 

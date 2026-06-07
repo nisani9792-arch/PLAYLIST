@@ -4,6 +4,7 @@ import {
 } from '@workspace/playlist-validation';
 import type { SearchFilterOptions } from './search-filters';
 import { SONGS_ONLY_FILTERS } from './search-filters';
+import { getCachedSearch, setCachedSearch } from './search-cache';
 
 export interface MsHit {
   id: string;
@@ -77,13 +78,17 @@ export async function meilisearchSearch(
   limit = 20,
   filters: SearchFilterOptions = SONGS_ONLY_FILTERS,
 ): Promise<SearchResponse> {
-  if (!query.trim()) return { hits: [] };
+  const trimmed = query.trim();
+  if (!trimmed) return { hits: [] };
+
+  const cached = getCachedSearch(trimmed, limit, filters);
+  if (cached) return cached;
 
   const res = await fetch('/api/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      q: query,
+      q: trimmed,
       limit,
       songsOnly: true,
       genre: filters.genre,
@@ -111,7 +116,9 @@ export async function meilisearchSearch(
       ? data._warning.trim()
       : undefined;
 
-  return { hits, warning };
+  const response = { hits, warning };
+  setCachedSearch(trimmed, limit, filters, response);
+  return response;
 }
 
 /** Strict catalog resolve for Lomdaat/Odoo export (high-confidence matches only). */

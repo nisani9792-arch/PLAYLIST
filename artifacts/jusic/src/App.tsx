@@ -14,6 +14,7 @@ import { Route, Switch } from 'wouter';
 import { APP_SHORT_NAME } from '@/lib/brand';
 import { flushSyncQueue } from '@/stores/workspace-store';
 import { savePlaylistToServer, postStagingEvents, saveOperatorPreferences } from '@/lib/memory-api';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,18 +88,24 @@ function AppShell() {
         : '';
 
   return (
-    <SearchFiltersProvider>
-      <StagingSessionProvider>
-        <Switch>
-          <Route path="/settings">
-            <SettingsPage operatorName={operatorName} />
-          </Route>
-          <Route>
-            <Workspace operatorName={operatorName} offline={status.state === 'offline'} />
-          </Route>
-        </Switch>
-      </StagingSessionProvider>
-    </SearchFiltersProvider>
+    <ErrorBoundary label="האפליקציה">
+      <SearchFiltersProvider>
+        <StagingSessionProvider>
+          <Switch>
+            <Route path="/settings">
+              <ErrorBoundary label="הגדרות">
+                <SettingsPage operatorName={operatorName} />
+              </ErrorBoundary>
+            </Route>
+            <Route>
+              <ErrorBoundary label="סביבת העבודה">
+                <Workspace operatorName={operatorName} offline={status.state === 'offline'} />
+              </ErrorBoundary>
+            </Route>
+          </Switch>
+        </StagingSessionProvider>
+      </SearchFiltersProvider>
+    </ErrorBoundary>
   );
 }
 
@@ -108,7 +115,7 @@ function App() {
       <TooltipProvider>
         <AppShell />
         <Toaster
-          theme="light"
+          theme="dark"
           dir="rtl"
           toastOptions={{
             classNames: {

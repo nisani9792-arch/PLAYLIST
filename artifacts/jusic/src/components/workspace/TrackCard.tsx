@@ -72,12 +72,12 @@ export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
         style={style}
         layout="position"
         className={cn(
-          'group flex items-center gap-2 sm:gap-3 rounded-[0.875rem] border transition-colors duration-200 min-h-[4.25rem] px-2 sm:px-3',
+          'group flex items-center gap-2 sm:gap-3 rounded-[0.875rem] border transition-all duration-200 min-h-[4.25rem] px-2 sm:px-3 j-cinematic-glass',
           isDragging
-            ? 'bg-card border-primary/35 j-glow-primary z-50 ring-1 ring-primary/20 scale-[1.01] shadow-lg'
+            ? 'border-primary/45 j-cyan-rim-active z-50 scale-[1.01] shadow-lg'
             : isSelected
-              ? 'bg-primary/10 border-primary/40 ring-1 ring-primary/25'
-              : 'bg-card/75 border-border/50 hover:border-primary/28 hover:bg-primary/4',
+              ? 'bg-primary/12 border-primary/45 j-cyan-rim-active ring-1 ring-primary/30'
+              : 'border-border/40 hover:border-primary/35 hover:j-cyan-rim',
           className,
         )}
         onPointerDown={onLongPressStart}

@@ -1,48 +1,25 @@
 import { create } from 'zustand';
 import type { MsHit } from '@/lib/meilisearch';
+import { createSearchSlice, type SearchSlice } from './slices/searchSlice';
+import { createPlayerSlice, type PlayerSlice } from './slices/playerSlice';
+import {
+  createStagingSlice,
+  loadSyncQueue,
+  saveSyncQueue,
+  type PlaylistSyncItem,
+  type StagingSlice,
+} from './slices/stagingSlice';
 
-type WorkspaceUiState = {
-  targetPlaylistSize: number;
-  lastCuratorVibe: string | null;
-  syncQueueLength: number;
-  setTargetPlaylistSize: (n: number) => void;
-  setLastCuratorVibe: (vibe: string | null) => void;
-  enqueueSync: () => void;
-  dequeueSync: () => void;
-};
+export type WorkspaceStore = SearchSlice & PlayerSlice & StagingSlice;
 
-export const useWorkspaceStore = create<WorkspaceUiState>((set) => ({
-  targetPlaylistSize: 35,
-  lastCuratorVibe: null,
-  syncQueueLength: 0,
-  setTargetPlaylistSize: (n) => set({ targetPlaylistSize: n }),
-  setLastCuratorVibe: (vibe) => set({ lastCuratorVibe: vibe }),
-  enqueueSync: () => set((s) => ({ syncQueueLength: s.syncQueueLength + 1 })),
-  dequeueSync: () => set((s) => ({ syncQueueLength: Math.max(0, s.syncQueueLength - 1) })),
+export const useWorkspaceStore = create<WorkspaceStore>()((...args) => ({
+  ...createSearchSlice(...args),
+  ...createPlayerSlice(...args),
+  ...createStagingSlice(...args),
 }));
 
-export type PlaylistSyncItem = {
-  id: string;
-  type: 'playlist-save' | 'staging-events' | 'preferences';
-  payload: unknown;
-  createdAt: number;
-};
-
-const SYNC_KEY = 'jusic_playlist_sync_queue_v1';
-
-export function loadSyncQueue(): PlaylistSyncItem[] {
-  try {
-    const raw = localStorage.getItem(SYNC_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as PlaylistSyncItem[];
-  } catch {
-    return [];
-  }
-}
-
-export function saveSyncQueue(items: PlaylistSyncItem[]): void {
-  localStorage.setItem(SYNC_KEY, JSON.stringify(items.slice(-50)));
-}
+export type { PlaylistSyncItem, MsHit };
+export type { VibeFilter } from './slices/searchSlice';
 
 export function pushSyncItem(item: Omit<PlaylistSyncItem, 'id' | 'createdAt'>): void {
   const queue = loadSyncQueue();
@@ -79,8 +56,6 @@ export async function flushSyncQueue(
   }
 
   saveSyncQueue(remaining);
-  useWorkspaceStore.setState({ syncQueueLength: remaining.length });
+  useWorkspaceStore.getState().setSyncQueueLength(remaining.length);
   return flushed;
 }
-
-export type { MsHit };

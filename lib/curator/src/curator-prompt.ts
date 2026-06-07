@@ -61,3 +61,66 @@ JSON בלבד:
 בקשת המשתמש:
 "${input.prompt}"`;
 }
+
+export type RefinementTurn = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export function buildRefinementPrompt(input: {
+  originalPrompt: string;
+  refinement: string;
+  currentLines: string[];
+  conversationHistory?: RefinementTurn[];
+  customInstructions?: string;
+  operatorMemory?: string;
+  targetSize: number;
+}): string {
+  const historyBlock =
+    input.conversationHistory?.length
+      ? `\n## היסטוריית שיחה\n${input.conversationHistory
+          .map((t) => `${t.role === 'user' ? 'משתמש' : 'עוזר'}: ${t.content}`)
+          .join('\n')}\n`
+      : '';
+
+  const currentBlock =
+    input.currentLines.length > 0
+      ? `\n## פלייליסט נוכחי (${input.currentLines.length} שירים)\n${input.currentLines
+          .slice(0, 60)
+          .map((l, i) => `${i + 1}. ${l}`)
+          .join('\n')}\n`
+      : '';
+
+  return `# System Role: Jusic AI Playlist Refinement
+
+תפקיד: לעדכן פלייליסט קיים לפי בקשת שיפור של המשתמש — בשיחה רב-סבבית.
+מטרה: שמור על איכות, hashkafa, ורצף אנרגטי; בצע רק את השינויים המבוקשים.
+
+## חוקי ברזל
+1) גבולות גזרה: רק מוזיקה חרדית מאושרת — אין קול אישה, אין זמרים חילוניים.
+2) שמור שירים שעדיין מתאימים אלא אם המשתמש ביקש להסירם במפורש.
+3) דוגמאות לשיפורים:
+   - "יותר אנרגטי" → העלה BPM/אנרגיה, הוסף שירים מקפיצים, הסר שקטים מדי.
+   - "הסר אמנים חילוניים" → הסר כל שורה עם אמן חסום.
+   - "פחות חזנות" → החלף בז'אנרים מזרחי/פופ חרדי.
+4) אסור להמציא שירים — רק מתוך מאגר שסופק או מהרשימה הקיימת.
+
+${input.customInstructions ? `## הנחיות נוספות\n${input.customInstructions}\n` : ''}
+${input.operatorMemory ? `${input.operatorMemory}\n` : ''}
+${historyBlock}
+## בקשה מקורית
+"${input.originalPrompt}"
+${currentBlock}
+
+## בקשת שיפור נוכחית
+"${input.refinement}"
+
+## פלט חובה
+JSON בלבד:
+{"meta":{"vibe":"...","tact":"...","targetSize":${input.targetSize},"reason":"מה שונה"},"songs":["אמן - שם שיר", "..."]}
+
+כללים:
+- ${PLAYLIST_MIN} עד ${PLAYLIST_MAX} שירים (יעד ${input.targetSize}).
+- כל שורה: "אמן - שם שיר".
+- החזר את הרשימה המלאה המעודכנת, לא רק שינויים.`;
+}

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { WorkspaceFilterChips } from '@/components/workspace/WorkspaceFilterChips';
 import { migrateLocalLearningOnce } from '@/lib/memory-api';
 import { usePlaylist } from '../hooks/use-playlist';
 import { useIsMobile } from '../hooks/use-mobile';
@@ -72,7 +74,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
     }
   }, [stagingActive, isMobile]);
 
-  const applyAutoPlaylistName = (label: string | null) => {
+  const applyAutoPlaylistName = useCallback((label: string | null) => {
     const suggested =
       label ??
       inferPlaylistDisplayName({
@@ -80,17 +82,17 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
       });
     const next = resolveAutoPlaylistName(playlist.playlistName, suggested);
     if (next !== playlist.playlistName) playlist.setPlaylistName(next);
-  };
+  }, [parashaContext?.targetParasha, playlist.playlistName, playlist.setPlaylistName]);
 
-  const handleApproveStaging = (songs: MsHit[]) => {
+  const handleApproveStaging = useCallback((songs: MsHit[]) => {
     playlist.addSongs(songs);
     applyAutoPlaylistName(stagingBuildLabel);
     clearStaging();
     setActiveParashaExportContext(null, null, null);
     if (isMobile) setMobileStep('playlist');
-  };
+  }, [playlist.addSongs, applyAutoPlaylistName, stagingBuildLabel, clearStaging, isMobile]);
 
-  const handleSmartFill = async () => {
+  const handleSmartFill = useCallback(async () => {
     if (!playlist.songs.length) return;
     setFillBusy(true);
     const toastId = toast.loading('משלים פלייליסט…');
@@ -127,11 +129,11 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
     } finally {
       setFillBusy(false);
     }
-  };
+  }, [playlist, startStaging]);
 
   const fillTarget = computeFillTarget(playlist.songs.length);
 
-  const canvasProps = {
+  const canvasProps = useMemo(() => ({
     playlistName: playlist.playlistName,
     setPlaylistName: playlist.setPlaylistName,
     songs: playlist.songs,
@@ -147,7 +149,22 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
     onSmartFill: handleSmartFill,
     smartFillBusy: fillBusy,
     className: 'h-full min-h-0',
-  };
+  }), [
+    playlist.playlistName,
+    playlist.setPlaylistName,
+    playlist.songs,
+    playlist.removeSong,
+    playlist.removeSongsById,
+    playlist.reorderSongs,
+    playlist.replaceSongs,
+    playlist.clearPlaylist,
+    playlist.isDirty,
+    playlist.committing,
+    playlist.commitPlaylist,
+    fillTarget,
+    handleSmartFill,
+    fillBusy,
+  ]);
 
   return (
     <div
@@ -170,8 +187,11 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
         </div>
 
         {isMobile ? (
-          <div className="px-3 pb-2">
-            <SearchBar onAddSong={playlist.addSong} />
+          <div className="px-3 pb-2 space-y-2">
+            <WorkspaceFilterChips />
+            <ErrorBoundary label="חיפוש">
+              <SearchBar onAddSong={playlist.addSong} />
+            </ErrorBoundary>
           </div>
         ) : null}
       </header>
@@ -179,7 +199,9 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
       <main className="flex-1 flex flex-col overflow-hidden min-h-0 touch-manipulation">
         {isStudio ? (
           <div className="ws-studio flex-1 min-h-0">
-            <CatalogPanel onAddSong={playlist.addSong} className="min-h-0" />
+            <ErrorBoundary label="קטלוג">
+              <CatalogPanel onAddSong={playlist.addSong} className="min-h-0" />
+            </ErrorBoundary>
 
             <section className="ws-col ws-col--stage min-h-0" aria-label="החזקה ו-AI">
               <header className="ws-col__header">
@@ -192,17 +214,19 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
                 onSmartFill={handleSmartFill}
                 className="shrink-0"
               />
-              <SmartComposer
-                variant="studio"
-                onAddSongs={playlist.addSongs}
-                onApplyAutoPlaylistName={applyAutoPlaylistName}
-                draftHistory={playlist.draftHistory}
-                onRememberDraft={playlist.rememberCurrentDraft}
-                onLoadDraft={playlist.loadDraft}
-                onDeleteDraft={playlist.deleteDraft}
-                hideStaging
-                className="flex-1 min-h-0"
-              />
+              <ErrorBoundary label="Smart Composer">
+                <SmartComposer
+                  variant="studio"
+                  onAddSongs={playlist.addSongs}
+                  onApplyAutoPlaylistName={applyAutoPlaylistName}
+                  draftHistory={playlist.draftHistory}
+                  onRememberDraft={playlist.rememberCurrentDraft}
+                  onLoadDraft={playlist.loadDraft}
+                  onDeleteDraft={playlist.deleteDraft}
+                  hideStaging
+                  className="flex-1 min-h-0"
+                />
+              </ErrorBoundary>
               {stagingActive ? (
                 <div className="ws-staging-embed flex-1 min-h-0 flex flex-col border-t border-border/30">
                   <StagingArea
@@ -291,6 +315,8 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
   );
 }
 
+const WorkspaceBodyMemo = memo(WorkspaceBody);
+
 export default function Workspace(props: WorkspaceProps) {
-  return <WorkspaceBody {...props} />;
+  return <WorkspaceBodyMemo {...props} />;
 }

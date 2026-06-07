@@ -51,13 +51,15 @@ export async function savePlaylistSnapshot(input: {
     const playlistId = row?.id;
     if (!playlistId) return null;
 
-    await db.insert(playlistItems).values(
-      input.songs.map((song, index) => ({
-        playlistId,
-        position: index,
-        song,
-      })),
-    );
+    const itemRows = input.songs.map((song, index) => ({
+      playlistId,
+      position: index,
+      song,
+    }));
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < itemRows.length; i += BATCH_SIZE) {
+      await db.insert(playlistItems).values(itemRows.slice(i, i + BATCH_SIZE));
+    }
 
     await db.insert(playlistRevisions).values({
       playlistId,
@@ -123,16 +125,18 @@ export async function recordStagingEvents(
   if (!events.length) return;
   const name = operatorName.trim();
   try {
-    await db.insert(stagingEvents).values(
-      events.map((e) => ({
-        operatorName: name,
-        query: e.query,
-        chosenUid: e.chosenUid ?? null,
-        rejectedUids: e.rejectedUids ?? [],
-        parasha: e.parasha ?? null,
-        confidence: e.confidence ?? null,
-      })),
-    );
+    const rows = events.map((e) => ({
+      operatorName: name,
+      query: e.query,
+      chosenUid: e.chosenUid ?? null,
+      rejectedUids: e.rejectedUids ?? [],
+      parasha: e.parasha ?? null,
+      confidence: e.confidence ?? null,
+    }));
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      await db.insert(stagingEvents).values(rows.slice(i, i + BATCH_SIZE));
+    }
   } catch (err) {
     logger.warn({ err }, "staging_events insert failed");
   }

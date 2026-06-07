@@ -4,7 +4,12 @@ import { APP_SHORT_NAME } from '@/lib/brand';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { setActiveParashaExportContext } from '@/lib/parasha-export-context';
 import type { StagingParashaContext } from '@/lib/staging-context';
-import { buildCuratorPlaylist, useCuratorStream } from '@/hooks/use-curator-build';
+import {
+  buildCuratorPlaylist,
+  refineCuratorPlaylist,
+  useCuratorStream,
+  type RefinementTurn,
+} from '@/hooks/use-curator-build';
 import { PlaylistProgressRing } from '@/components/ui/playlist-progress-ring';
 import { VibeBadge } from '@/components/ui/vibe-badge';
 import { Sparkles, Loader2, History, BookmarkPlus, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
@@ -89,7 +94,19 @@ export function ASIComposerPanel({
   const [showDrafts, setShowDrafts] = useState(!useMobileTabs);
   const [styleHint, setStyleHint] = useState('');
   const [curatorBusy, setCuratorBusy] = useState(false);
+  const [refinementInput, setRefinementInput] = useState('');
+  const [refineBusy, setRefineBusy] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<RefinementTurn[]>([]);
+  const [lastOriginalPrompt, setLastOriginalPrompt] = useState('');
   const curatorStream = useCuratorStream();
+
+  const REFINEMENT_CHIPS = [
+    'יותר אנרגטי',
+    'יותר שקט',
+    'הסר אמנים חילוניים',
+    'פחות חזנות',
+    'הוסף מזרחי',
+  ] as const;
 
   useEffect(() => {
     void fetchSuggestions().then((s) => {
@@ -112,6 +129,8 @@ export function ASIComposerPanel({
 
   const handleGenerateFromAI = (prompt: string) => {
     setCuratorBusy(true);
+    setLastOriginalPrompt(prompt.trim());
+    setConversationHistory([{ role: 'user', content: prompt.trim() }]);
     curatorStream.reset();
     curatorStream.startStream(prompt, 35);
     void buildCuratorPlaylist({ prompt, mode: 'topic', targetSize: 35 })
@@ -119,6 +138,13 @@ export function ASIComposerPanel({
         curatorStream.cancel();
         if (res.lines?.length) {
           if (res.meta?.reason) toast.info(res.meta.reason);
+          setConversationHistory((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `נוצרו ${res.lines.length} שירים${res.meta?.vibe ? ` · וייב: ${res.meta.vibe}` : ''}`,
+            },
+          ]);
           startStaging(
             res.lines.map((line) => createStagingItem(line)),
             null,
@@ -227,11 +253,58 @@ export function ASIComposerPanel({
     handleGenerateFromAI(input);
   };
 
+  const handleRefinement = async (refinement: string) => {
+    const trimmed = refinement.trim();
+    if (!trimmed || !lastOriginalPrompt) return;
+    setRefineBusy(true);
+    const toastId = toast.loading('משפר פלייליסט…');
+    try {
+      const currentLines = stagingItems
+        .filter((i) => i.match)
+        .map((i) => `${i.match!.artist} - ${i.match!.song_name}`);
+      const fallbackLines = listLines.length ? listLines : currentLines;
+      const res = await refineCuratorPlaylist({
+        originalPrompt: lastOriginalPrompt,
+        refinement: trimmed,
+        currentLines: fallbackLines,
+        conversationHistory,
+        targetSize: 35,
+      });
+      if (!res.lines?.length) {
+        toast.error('לא התקבלה רשימה מעודכנת', { id: toastId });
+        return;
+      }
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: 'user', content: trimmed },
+        {
+          role: 'assistant',
+          content: `עודכנו ${res.lines.length} שירים${res.meta?.reason ? ` — ${res.meta.reason}` : ''}`,
+        },
+      ]);
+      startStaging(
+        res.lines.map((line) => createStagingItem(line)),
+        parashaContext,
+        stagingBuildLabel,
+        stagingTopic ?? lastOriginalPrompt,
+      );
+      setRefinementInput('');
+      toast.success(`עודכנו ${res.lines.length} שירים`, { id: toastId });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'שגיאה בשיפור', { id: toastId });
+    } finally {
+      setRefineBusy(false);
+    }
+  };
+
   const handleApprove = (songs: MsHit[]) => {
     onAddSongs(songs);
     onApplyAutoPlaylistName?.(stagingBuildLabel);
     clearStaging();
     setComposerInput('');
+    setRefinementInput('');
+    setConversationHistory([]);
+    setLastOriginalPrompt('');
     toast.success(`נוספו ${songs.length} שירים`);
   };
 
@@ -247,8 +320,8 @@ export function ASIComposerPanel({
       className={cn(
         'relative flex flex-col shrink-0 overflow-hidden min-h-0 transition-all duration-300',
         isStudio
-          ? 'h-full min-w-0 border-0 bg-transparent shadow-none rounded-none'
-          : 'rounded-none sm:rounded-[1.35rem] md:mr-2 border-0 sm:border border-border/45 j-glass-panel j-gradient-border',
+          ? 'h-full min-w-0 border-0 bg-transparent shadow-none rounded-none j-cyan-rim'
+          : 'rounded-none sm:rounded-[1.35rem] md:mr-2 border-0 sm:border border-border/45 j-glass-panel j-gradient-border j-cyan-rim',
         !isStudio &&
           (panelOpen
             ? useMobileTabs
@@ -395,8 +468,61 @@ export function ASIComposerPanel({
                     </>
                   )}
                 </Button>
+                {(stagingActive || lastOriginalPrompt) && !inputLooksLikeList ? (
+                  <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-2 j-cinematic-glass">
+                    <p className="text-[10px] font-semibold text-primary/90">שיפור בשיחה</p>
+                    {conversationHistory.length > 1 ? (
+                      <ul className="max-h-20 overflow-y-auto custom-scrollbar space-y-1 text-[10px] text-muted-foreground">
+                        {conversationHistory.slice(-4).map((turn, i) => (
+                          <li key={`${turn.role}-${i}`} className="truncate">
+                            <span className="font-semibold text-foreground/80">
+                              {turn.role === 'user' ? 'אתה' : 'AI'}:
+                            </span>{' '}
+                            {turn.content}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <div className="flex flex-wrap gap-1">
+                      {REFINEMENT_CHIPS.map((chip) => (
+                        <button
+                          key={chip}
+                          type="button"
+                          className="ws-filter-chip"
+                          disabled={refineBusy}
+                          onClick={() => void handleRefinement(chip)}
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={refinementInput}
+                        onChange={(e) => setRefinementInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void handleRefinement(refinementInput);
+                        }}
+                        placeholder="למשל: יותר אנרגטי, פחות חזנות…"
+                        className="flex-1 h-8 rounded-lg border border-border/50 bg-background/60 px-2 text-xs"
+                        dir="rtl"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-8 rounded-lg text-xs shrink-0"
+                        disabled={refineBusy || !refinementInput.trim()}
+                        onClick={() => void handleRefinement(refinementInput)}
+                      >
+                        {refineBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'שפר'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
                 {(curatorStream.isStreaming || curatorStream.lines.length > 0) ? (
-                  <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-primary/5 border border-primary/15">
+                  <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-primary/5 border border-primary/15 j-cyan-rim">
                     <PlaylistProgressRing
                       current={curatorStream.lines.length}
                       target={curatorStream.progress?.targetSize ?? 35}

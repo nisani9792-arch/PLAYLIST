@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -99,7 +99,7 @@ function SortableTrackRow({
   );
 }
 
-export function PlaylistView({
+function PlaylistViewInner({
   playlistName,
   setPlaylistName,
   songs,
@@ -156,7 +156,7 @@ export function PlaylistView({
     getItemKey: (index) => sortableIds[index] ?? String(index),
   });
 
-  const handleExportCsv = () => {
+  const handleExportCsv = useCallback(() => {
     if (!songs.length || exporting) return;
     setExporting(true);
     const toastId = toast.loading('מייצא CSV...');
@@ -168,16 +168,16 @@ export function PlaylistView({
         toast.dismiss(toastId);
         setExporting(false);
       });
-  };
+  }, [songs, exporting, playlistName]);
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id || filter.trim()) return;
     const oldIndex = songs.findIndex((s) => trackRowKey(s) === active.id);
     const newIndex = songs.findIndex((s) => trackRowKey(s) === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
     reorderSongs(oldIndex, newIndex);
-  };
+  }, [filter, songs, reorderSongs]);
 
   const toggleSelect = useCallback((song: MsHit) => {
     const key = trackRowKey(song);
@@ -189,24 +189,24 @@ export function PlaylistView({
     });
   }, []);
 
-  const exitSelectionMode = () => {
+  const exitSelectionMode = useCallback(() => {
     setSelectionMode(false);
     setSelectedKeys(new Set());
-  };
+  }, []);
 
-  const removeSelected = () => {
+  const removeSelected = useCallback(() => {
     removeSongsById(selectedKeys);
     exitSelectionMode();
-  };
+  }, [removeSongsById, selectedKeys, exitSelectionMode]);
 
-  const handlePlay = (song: MsHit) => {
+  const handlePlay = useCallback((song: MsHit) => {
     if (!player) return;
     if (isSongPlaying(player, song)) {
       player.togglePlay();
     } else {
       player.playSong(song);
     }
-  };
+  }, [player]);
 
   return (
     <div
@@ -293,7 +293,7 @@ export function PlaylistView({
               >
                 <div
                   className="relative w-full"
-                  style={{ height: `${virtualizer.getTotalSize()}px` }}
+                  style={{ height: `${virtualizer.getTotalSize()}px`, contain: 'layout style' }}
                 >
                   {virtualizer.getVirtualItems().map((virtualRow) => {
                     const song = filteredSongs[virtualRow.index]!;
@@ -335,3 +335,5 @@ export function PlaylistView({
     </div>
   );
 }
+
+export const PlaylistView = memo(PlaylistViewInner);
