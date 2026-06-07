@@ -6,8 +6,6 @@ import { migrateStorageKeysOnce } from "./lib/storage-keys";
 
 migrateStorageKeysOnce();
 
-document.documentElement.classList.add('dark');
-
 createRoot(document.getElementById("root")!).render(<App />);
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {

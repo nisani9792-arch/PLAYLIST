@@ -115,7 +115,7 @@ function App() {
       <TooltipProvider>
         <AppShell />
         <Toaster
-          theme="dark"
+          theme="light"
           dir="rtl"
           toastOptions={{
             classNames: {
