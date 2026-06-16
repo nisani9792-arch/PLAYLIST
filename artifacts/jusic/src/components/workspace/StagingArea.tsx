@@ -278,6 +278,7 @@ const StagingListItem = React.memo(function StagingListItem({
   onApproveReview,
   onPickAlternative,
   sortable = false,
+  disableMotion = false,
 }: {
   item: StagingItem;
   itemTone: string;
@@ -285,6 +286,8 @@ const StagingListItem = React.memo(function StagingListItem({
   onApproveReview: (id: string) => void;
   onPickAlternative: (id: string, hit: MsHit) => void;
   sortable?: boolean;
+  /** Avoid Framer layout + dnd-kit transform conflicts on mobile. */
+  disableMotion?: boolean;
 }) {
   const {
     attributes,
@@ -299,21 +302,8 @@ const StagingListItem = React.memo(function StagingListItem({
     ? { transform: CSS.Transform.toString(transform), transition }
     : undefined;
 
-  return (
-    <motion.li
-      ref={sortable ? setNodeRef : undefined}
-      style={style}
-      layout="position"
-      initial={{ opacity: 0, y: -6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: 24, scale: 0.96 }}
-      transition={{ duration: 0.18 }}
-      className={cn(
-        "bp-staging-item",
-        itemTone,
-        isDragging && "bp-staging-item--dragging",
-      )}
-    >
+  const row = (
+    <>
       {sortable ? (
         <button
           type="button"
@@ -325,7 +315,7 @@ const StagingListItem = React.memo(function StagingListItem({
           <GripVertical className="h-3 w-3 opacity-50" />
         </button>
       ) : null}
-      <div className="min-w-0 w-full space-y-1">
+      <div className="flex-1 min-w-0 space-y-1">
         <p
           className="text-xs font-semibold leading-snug line-clamp-2 break-words text-foreground"
           title={item.query}
@@ -371,18 +361,18 @@ const StagingListItem = React.memo(function StagingListItem({
           <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
         )}
         {item.status === "blocked" && (
-          <span className="flex items-center gap-1 text-[10px] text-destructive bg-destructive/10 border border-destructive/25 px-2 py-1 rounded-lg shrink-0">
+          <span className="flex items-center gap-1 text-[10px] text-destructive bg-destructive/10 px-2 py-1 rounded-full shrink-0">
             <ShieldAlert className="h-3 w-3" /> חסום
           </span>
         )}
         {item.status === "not-found" && (
-          <span className="flex items-center gap-1 text-xs text-destructive bg-destructive/10 border border-destructive/20 px-2 py-0.5 rounded-lg shrink-0">
+          <span className="flex items-center gap-1 text-xs text-destructive bg-destructive/10 px-2 py-0.5 rounded-full shrink-0">
             <SearchX className="h-3 w-3" /> לא נמצא
           </span>
         )}
         {item.status === "skipped" && (
           <span
-            className="text-[10px] text-muted-foreground bg-muted/30 border border-border px-2 py-0.5 rounded-lg shrink-0"
+            className="text-[10px] text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-full shrink-0"
             title={item.skipReason}
           >
             {item.skipReason?.includes("אמן") ? "אמן בלבד" : "דולג"}
@@ -390,13 +380,13 @@ const StagingListItem = React.memo(function StagingListItem({
         )}
         {item.status === "review" && item.match && (
           <>
-            <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-lg shrink-0">
+            <span className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-500/10 px-2 py-0.5 rounded-full shrink-0">
               <AlertTriangle className="h-3 w-3" /> ממתין לאישור
             </span>
             <Button
               type="button"
               size="sm"
-              className="h-8 md:h-7 rounded-lg px-3 text-xs font-semibold"
+              className="h-10 min-h-[var(--bp-touch-min)] rounded-full px-3 text-xs font-semibold"
               onClick={() => onApproveReview(item.id)}
             >
               אשר
@@ -413,13 +403,13 @@ const StagingListItem = React.memo(function StagingListItem({
         )}
         {item.status === "matched" && item.match && (
           <>
-            <span className="flex items-center gap-1 text-[10px] text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-lg shrink-0">
+            <span className="flex items-center gap-1 text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full shrink-0">
               <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
               הותאם
             </span>
             <button
               type="button"
-              className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              className="bp-icon-btn"
               onClick={() => onSkip(item.id)}
             >
               <X className="h-4 w-4" />
@@ -427,6 +417,40 @@ const StagingListItem = React.memo(function StagingListItem({
           </>
         )}
       </div>
+    </>
+  );
+
+  if (disableMotion) {
+    return (
+      <li
+        ref={sortable ? setNodeRef : undefined}
+        style={style}
+        className={cn(
+          "bp-staging-item",
+          itemTone,
+          isDragging && "bp-staging-item--dragging",
+        )}
+      >
+        {row}
+      </li>
+    );
+  }
+
+  return (
+    <motion.li
+      ref={sortable ? setNodeRef : undefined}
+      style={style}
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className={cn(
+        "bp-staging-item",
+        itemTone,
+        isDragging && "bp-staging-item--dragging",
+      )}
+    >
+      {row}
     </motion.li>
   );
 });
@@ -871,9 +895,14 @@ export function StagingArea({
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-          <ul className="bp-staging__scroll custom-scrollbar list-none m-0 p-0">
-            <AnimatePresence initial={false} mode="popLayout">
-              {visibleItems.map((item) => (
+          <ul
+            className={cn(
+              "bp-staging__scroll custom-scrollbar list-none m-0 p-0",
+              mobileLayout && "bp-staging__scroll--mobile",
+            )}
+          >
+            {mobileLayout ? (
+              visibleItems.map((item) => (
                 <StagingListItem
                   key={item.id}
                   item={item}
@@ -882,9 +911,24 @@ export function StagingArea({
                   onApproveReview={handleApproveReview}
                   onPickAlternative={handlePickAlternative}
                   sortable
+                  disableMotion
                 />
-              ))}
-            </AnimatePresence>
+              ))
+            ) : (
+              <AnimatePresence initial={false}>
+                {visibleItems.map((item) => (
+                  <StagingListItem
+                    key={item.id}
+                    item={item}
+                    itemTone={itemTone(item.status)}
+                    onSkip={handleSkip}
+                    onApproveReview={handleApproveReview}
+                    onPickAlternative={handlePickAlternative}
+                    sortable
+                  />
+                ))}
+              </AnimatePresence>
+            )}
           </ul>
         </SortableContext>
       </DndContext>

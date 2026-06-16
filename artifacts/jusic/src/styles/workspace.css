@@ -27,8 +27,8 @@
   --bp-staging-dock-h: 3rem;
   --bp-playlist-commit-h: 3.75rem;
   --bp-touch-min: 3rem;
-  --ws-mobile-nav-h: calc(var(--bp-tab-bar-h) + max(env(safe-area-inset-bottom, 0px), 0.5rem));
-  --ws-mobile-scroll-pb: calc(var(--ws-mobile-nav-h) + 1rem);
+  --ws-mobile-nav-h: calc(7.75rem + max(env(safe-area-inset-bottom, 0px), 0.5rem));
+  --ws-mobile-scroll-pb: calc(var(--ws-mobile-nav-h) + 1.25rem);
 }
 
 @media (min-width: 768px) {
@@ -204,7 +204,14 @@
 }
 
 .ws-mobile-scroll-pad {
+  /* Prefer .ws-scroll-bottom-safe on the actual overflow-y-auto element */
   padding-bottom: var(--ws-mobile-scroll-pb);
+}
+
+/** Bottom inset for mobile scroll containers (clears fixed bottom nav). */
+.ws-scroll-bottom-safe {
+  padding-bottom: var(--ws-mobile-scroll-pb);
+  scroll-padding-bottom: var(--ws-mobile-scroll-pb);
 }
 
 .ws-track-row {
@@ -399,12 +406,17 @@
 .bp-staging--focus {
   flex: 1 1 0%;
   min-height: 0;
-  gap: 0.375rem;
-  padding: 0.5rem;
-  border-radius: 0.75rem;
-  border: 1px solid hsl(var(--primary) / 0.18);
-  background: hsl(var(--surface-1) / 0.9);
+  height: 100%;
+  gap: 0.5rem;
+  padding: 0.625rem;
+  border-radius: 1.25rem;
+  background: hsl(var(--surface-2) / 0.65);
   box-shadow: var(--m3-elevation-2);
+}
+
+.bp-staging__scroll--mobile {
+  padding-bottom: var(--ws-mobile-scroll-pb);
+  scroll-padding-bottom: var(--ws-mobile-scroll-pb);
 }
 
 .bp-staging__header {
@@ -431,27 +443,60 @@
 .bp-staging__dock {
   flex-shrink: 0;
   display: flex;
-  gap: 0.375rem;
-  padding-top: 0.375rem;
-  border-top: 1px solid hsl(var(--border) / 0.4);
-  background: hsl(var(--surface-1) / 0.95);
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  background: hsl(var(--surface-2) / 0.85);
+  box-shadow: 0 -2px 8px hsl(215 30% 18% / 0.04);
+  z-index: var(--z-sticky);
 }
 
 .bp-staging-item {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 0.375rem;
-  padding: 0.25rem 0.375rem;
-  border-radius: 0.5rem;
-  border: 1px solid hsl(var(--border) / 0.45);
-  background: hsl(var(--surface-1) / 0.55);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 1rem;
+  background: hsl(var(--surface-1) / 0.72);
+  box-shadow: var(--m3-elevation-1);
   min-height: var(--ws-track-h);
   min-width: 0;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  position: relative;
+  list-style: none;
+  transition: box-shadow 0.2s, background 0.2s;
+}
+
+.bp-staging-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  flex-shrink: 0;
+  max-width: 42%;
+}
+
+.bp-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--bp-touch-min);
+  min-height: var(--bp-touch-min);
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  transition: background 0.12s, color 0.12s, transform 0.12s;
+}
+
+.bp-icon-btn:hover {
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+}
+
+.bp-icon-btn:active {
+  transform: scale(0.95);
 }
 
 .bp-staging-item--matched {
@@ -461,10 +506,9 @@
 }
 
 .bp-staging-item--dragging {
-  border-color: hsl(var(--cyan-rim, var(--primary)) / 0.5);
-  box-shadow: 0 0 20px hsl(var(--cyan-glow, var(--primary)) / 0.22);
-  z-index: 40;
-  transform: scale(1.01);
+  background: hsl(var(--primary) / 0.12);
+  box-shadow: var(--m3-elevation-3);
+  z-index: var(--z-drag);
 }
 
 .bp-staging--glass {

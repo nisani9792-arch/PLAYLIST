@@ -365,7 +365,7 @@ export function ASIComposerPanel({
               transition={{ duration: 0.16 }}
               className={
                 useMobileTabs
-                  ? `bp-workspace-pane p-3 ${mobileStagingFocus ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`
+                  ? `bp-workspace-pane p-3 overflow-y-auto custom-scrollbar ws-scroll-bottom-safe ${mobileStagingFocus ? 'overflow-hidden' : ''}`
                   : isStudio
                     ? 'h-full p-2 overflow-y-auto custom-scrollbar flex flex-col gap-2 min-h-0'
                     : 'h-full p-3 sm:p-5 overflow-y-auto custom-scrollbar mt-12 md:mt-0 pt-4 md:pt-5'

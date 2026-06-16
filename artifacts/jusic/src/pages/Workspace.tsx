@@ -253,7 +253,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
           <>
             <div
               className={cn(
-                'flex min-h-0 flex-1 flex-col ws-mobile-scroll-pad',
+                'flex min-h-0 flex-1 flex-col overflow-hidden',
                 mobileStep === 'match' && 'hidden',
               )}
             >
@@ -276,9 +276,10 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
             </div>
 
             {mobileStep === 'match' ? (
-              <section className="flex flex-1 flex-col min-h-0 overflow-hidden p-2 ws-mobile-scroll-pad">
+              <section className="flex flex-1 flex-col min-h-0 overflow-hidden p-2">
                 {stagingActive ? (
-                  <StagingArea
+                  <div className="flex flex-1 min-h-0">
+                    <StagingArea
                     key={stagingBatchId}
                     items={stagingItems}
                     setItems={setStagingItems}
@@ -292,6 +293,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
                     topicContext={stagingTopic}
                     mobileLayout
                   />
+                  </div>
                 ) : (
                   <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground p-6 text-center">
                     אין התאמה פעילה. חזור לשלב &quot;בנה&quot;.
