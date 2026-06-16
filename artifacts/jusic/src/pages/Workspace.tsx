@@ -253,7 +253,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
           <>
             <div
               className={cn(
-                'flex min-h-0 flex-1 flex-col',
+                'flex min-h-0 flex-1 flex-col ws-mobile-scroll-pad',
                 mobileStep === 'match' && 'hidden',
               )}
             >
@@ -276,7 +276,7 @@ function WorkspaceBody({ operatorName, offline = false }: WorkspaceProps) {
             </div>
 
             {mobileStep === 'match' ? (
-              <section className="flex flex-1 flex-col min-h-0 overflow-hidden p-2 pb-0">
+              <section className="flex flex-1 flex-col min-h-0 overflow-hidden p-2 ws-mobile-scroll-pad">
                 {stagingActive ? (
                   <StagingArea
                     key={stagingBatchId}

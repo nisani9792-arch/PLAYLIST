@@ -5,6 +5,7 @@ import { canonicalSongKey } from '@workspace/playlist-validation';
 import { MsHit } from '../lib/meilisearch';
 
 import { newClientId } from '../lib/ids';
+import { ensureTrackInstanceId, trackRowKey } from '../lib/track-format';
 
 import {
 
@@ -64,7 +65,7 @@ function snapshotKey(name: string, songs: MsHit[]): string {
 
     name: name.trim(),
 
-    ids: songs.map((s) => s._id || s.id),
+    ids: songs.map((s) => trackRowKey(s)),
 
   });
 
@@ -98,7 +99,9 @@ export function usePlaylist() {
 
     if (saved?.name) setPlaylistName(saved.name);
 
-    if (Array.isArray(saved?.songs)) setSongsState(saved.songs);
+    if (Array.isArray(saved?.songs)) {
+      setSongsState(saved.songs.map((s) => ensureTrackInstanceId(s)));
+    }
 
     setDraftHistory(loadDraftHistory());
 
@@ -106,7 +109,9 @@ export function usePlaylist() {
 
     const initialName = saved?.name ?? 'פלייליסט חדש';
 
-    const initialSongs = Array.isArray(saved?.songs) ? saved.songs : [];
+    const initialSongs = Array.isArray(saved?.songs)
+      ? saved.songs.map((s) => ensureTrackInstanceId(s))
+      : [];
 
     setCommittedSnapshot(snapshotKey(initialName, initialSongs));
 
@@ -154,7 +159,7 @@ export function usePlaylist() {
 
     setPlaylistName(found.name || 'פלייליסט חדש');
 
-    setSongsState(found.songs);
+    setSongsState(found.songs.map((s) => ensureTrackInstanceId(s)));
 
   };
 
@@ -294,7 +299,7 @@ export function usePlaylist() {
 
     if (!ids.size) return;
 
-    setSongsState((prev) => prev.filter((s) => !ids.has(s._id || s.id)));
+    setSongsState((prev) => prev.filter((s) => !ids.has(trackRowKey(s))));
 
   }, []);
 

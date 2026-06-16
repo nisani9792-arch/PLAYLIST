@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { MsHit } from '../lib/meilisearch';
+import { tracksAreSame } from '@/lib/track-format';
 
 export function usePlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -10,7 +11,7 @@ export function usePlayer() {
   const [volume, setVolume] = useState(1);
 
   const playSong = (song: MsHit) => {
-    if (currentSong?.id === song.id && isPlaying) return;
+    if (tracksAreSame(currentSong, song) && isPlaying) return;
     setCurrentSong(song);
     setCurrentTime(0);
     setDuration(0);

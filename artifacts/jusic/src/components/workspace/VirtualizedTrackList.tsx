@@ -14,6 +14,8 @@ export type VirtualizedTrackListProps<T> = {
   emptyState?: ReactNode;
   header?: ReactNode;
   footer?: ReactNode;
+  /** Extra scroll padding at bottom (mobile nav / mini-player clearance). */
+  scrollPaddingBottom?: string;
   'data-testid'?: string;
 };
 
@@ -28,6 +30,7 @@ function VirtualizedTrackListInner<T>({
   emptyState,
   header,
   footer,
+  scrollPaddingBottom,
   'data-testid': testId,
 }: VirtualizedTrackListProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -64,9 +67,10 @@ function VirtualizedTrackListInner<T>({
       <div
         ref={parentRef}
         className={cn(
-          'flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar contain-strict',
+          'flex-1 min-h-0 overflow-y-auto overflow-x-hidden custom-scrollbar contain-strict ws-track-list',
           listClassName,
         )}
+        style={scrollPaddingBottom ? { paddingBottom: scrollPaddingBottom } : undefined}
       >
         <div
           className="relative w-full"
@@ -74,18 +78,20 @@ function VirtualizedTrackListInner<T>({
         >
           {virtualizer.getVirtualItems().map((virtualRow) => {
             const item = items[virtualRow.index]!;
+            const itemKey = getItemKey(item, virtualRow.index);
             const itemStyle: CSSProperties = {
               position: 'absolute',
               top: 0,
               left: 0,
               width: '100%',
               transform: `translateY(${virtualRow.start}px)`,
-              height: estimateSize,
+              minHeight: estimateSize,
             };
             return (
               <div
-                key={virtualRow.key}
+                key={itemKey}
                 data-index={virtualRow.index}
+                data-item-key={itemKey}
                 ref={virtualizer.measureElement}
                 style={itemStyle}
               >

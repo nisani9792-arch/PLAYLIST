@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, memo } from 'react';
 import type { DraggableAttributes } from '@dnd-kit/core';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { motion } from 'framer-motion';
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import type { MsHit } from '@/lib/meilisearch';
 import type { OverlapInfo } from '@/hooks/use-playlist-overlap';
 import { extractBpm, extractKey } from '@/lib/playlist-arrange';
+import { trackRowKey } from '@/lib/track-format';
 
 function coverFallbackLabel(song: MsHit): string {
   const src = song.album?.trim() || song.artist?.trim() || song.song_name;
@@ -41,7 +42,7 @@ export type TrackCardProps = {
   style?: React.CSSProperties;
 };
 
-export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
+const TrackCardInner = forwardRef<HTMLDivElement, TrackCardProps>(
   function TrackCard(
     {
       song,
@@ -71,13 +72,16 @@ export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
         ref={ref}
         style={style}
         layout="position"
+        data-track-id={trackRowKey(song)}
         className={cn(
-          'group flex items-center gap-2 sm:gap-3 rounded-[0.875rem] border transition-all duration-200 min-h-[4.25rem] px-2 sm:px-3 j-cinematic-glass',
+          'group flex items-center gap-2 sm:gap-3 min-h-12 rounded-2xl sm:rounded-3xl px-3 py-2',
+          'bg-[hsl(var(--surface-2)/0.55)] shadow-sm transition-all duration-200',
+          'active:scale-[0.98]',
           isDragging
-            ? 'border-primary/45 j-cyan-rim-active z-50 scale-[1.01] shadow-lg'
+            ? 'bg-[hsl(var(--surface-3)/0.9)] z-[var(--z-drag)] scale-[1.01] shadow-md'
             : isSelected
-              ? 'bg-primary/12 border-primary/45 j-cyan-rim-active ring-1 ring-primary/30'
-              : 'border-border/40 hover:border-primary/35 hover:j-cyan-rim',
+              ? 'bg-primary/12 ring-2 ring-primary/25 shadow-md'
+              : 'hover:bg-[hsl(var(--surface-3)/0.7)] hover:shadow-md',
           className,
         )}
         onPointerDown={onLongPressStart}
@@ -89,7 +93,7 @@ export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
         {dragHandleProps ? (
           <button
             type="button"
-            className="touch-none shrink-0 p-1.5 text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing rounded-lg"
+            className="touch-none shrink-0 flex h-12 w-10 items-center justify-center text-muted-foreground/50 hover:text-muted-foreground cursor-grab active:cursor-grabbing rounded-full"
             aria-label="גרור לסידור"
             {...dragHandleProps.attributes}
             {...dragHandleProps.listeners}
@@ -101,10 +105,10 @@ export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
         {selectionMode ? (
           <span
             className={cn(
-              'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold',
+              'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold',
               isSelected
                 ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border/60 bg-background/80',
+                : 'border-border/50 bg-[hsl(var(--surface-1))]',
             )}
             aria-hidden
           >
@@ -112,17 +116,14 @@ export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
           </span>
         ) : null}
 
-        <motion.div
-          className="w-7 sm:w-8 text-center text-[11px] font-display font-bold tabular-nums shrink-0 text-primary/85 bg-primary/[0.08] rounded-lg py-2 border border-primary/15"
+        <div
+          className="w-8 sm:w-9 text-center text-xs font-display font-bold tabular-nums shrink-0 text-primary/90 bg-primary/[0.1] rounded-full py-2"
           style={{ fontFamily: "'Space Grotesk', monospace" }}
         >
           {index + 1}
-        </motion.div>
+        </div>
 
-        <motion.div
-          className="relative h-11 w-11 sm:h-12 sm:w-12 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-muted/40"
-          whileTap={{ scale: 0.95 }}
-        >
+        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-[hsl(var(--surface-3)/0.6)] shadow-sm">
           {coverUrl ? (
             <img
               src={coverUrl}
@@ -131,9 +132,9 @@ export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
               loading="lazy"
             />
           ) : (
-            <motion.div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 to-muted/30 text-sm font-bold text-primary">
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 to-muted/30 text-sm font-bold text-primary">
               {coverFallbackLabel(song)}
-            </motion.div>
+            </div>
           )}
           <button
             type="button"
@@ -153,33 +154,33 @@ export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
               <Play className="h-4 w-4 text-white drop-shadow ml-0.5" />
             )}
           </button>
-        </motion.div>
+        </div>
 
-        <motion.div className="flex-1 min-w-0 py-1 flex flex-col justify-center gap-0.5">
-          <motion.div className="font-medium text-sm truncate text-foreground">
+        <div className="flex-1 min-w-0 py-0.5 flex flex-col justify-center gap-0.5">
+          <div className="font-semibold text-sm line-clamp-1 text-foreground">
             {song.song_name}
-          </motion.div>
-          <motion.div className="text-xs text-muted-foreground/70 flex items-center gap-1.5 truncate">
+          </div>
+          <div className="text-xs text-muted-foreground/80 flex items-center gap-1.5 min-w-0">
             <span className="truncate">{song.artist}</span>
             {song.genre ? (
               <>
-                <span className="opacity-40">·</span>
+                <span className="opacity-40 shrink-0">·</span>
                 <span className="truncate opacity-70">{song.genre}</span>
               </>
             ) : null}
-          </motion.div>
+          </div>
           {(bpm || key) && (
-            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60 line-clamp-1">
               {bpm ? <span>{bpm} BPM</span> : null}
               {bpm && key ? <span>·</span> : null}
               {key ? <span>{key}</span> : null}
             </div>
           )}
-        </motion.div>
+        </div>
 
         {overlap ? (
           <span
-            className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300 shrink-0"
+            className="inline-flex items-center gap-1 rounded-full bg-amber-500/12 px-2.5 py-1.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300 shrink-0 shadow-sm"
             title={`קיים גם ב"${overlap.playlistName}"`}
           >
             <Layers className="h-3 w-3" />
@@ -192,14 +193,14 @@ export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-xl text-muted-foreground/50 hover:text-destructive hover:bg-destructive/8"
+              className="h-12 w-12 rounded-full text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
               onClick={(e) => {
                 e.stopPropagation();
                 onRemove();
               }}
               title="הסר"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </Button>
           </div>
         ) : null}
@@ -207,3 +208,22 @@ export const TrackCard = forwardRef<HTMLDivElement, TrackCardProps>(
     );
   },
 );
+
+function trackCardPropsAreEqual(prev: TrackCardProps, next: TrackCardProps): boolean {
+  return (
+    trackRowKey(prev.song) === trackRowKey(next.song) &&
+    prev.index === next.index &&
+    prev.overlap === next.overlap &&
+    prev.isPlaying === next.isPlaying &&
+    prev.isDragging === next.isDragging &&
+    prev.isSelected === next.isSelected &&
+    prev.selectionMode === next.selectionMode &&
+    prev.className === next.className &&
+    prev.onPlay === next.onPlay &&
+    prev.onRemove === next.onRemove &&
+    prev.onToggleSelect === next.onToggleSelect &&
+    prev.dragHandleProps === next.dragHandleProps
+  );
+}
+
+export const TrackCard = memo(TrackCardInner, trackCardPropsAreEqual);

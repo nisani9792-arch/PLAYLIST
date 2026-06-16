@@ -1,4 +1,5 @@
 import type { MsHit } from '@/lib/meilisearch';
+import { newClientId } from '@/lib/ids';
 
 /** Optional duration when catalog exposes it (seconds). */
 export function getTrackDurationSeconds(hit: MsHit & { duration?: number; duration_sec?: number }): number | null {
@@ -22,6 +23,21 @@ export function getTrackVibeLabel(hit: MsHit): string | null {
   return tag ? (tag.length > 14 ? `${tag.slice(0, 12)}…` : tag) : null;
 }
 
+/** Stable React / DnD key — playlist rows use `_id`; catalog hits use catalog `id`. */
 export function trackRowKey(hit: MsHit): string {
-  return hit._id || hit.id;
+  if (hit._id) return hit._id;
+  if (hit.id) return hit.id;
+  const artist = hit.artist?.trim() ?? '';
+  const title = hit.song_name?.trim() ?? '';
+  return `track-${artist}|${title}`.toLocaleLowerCase();
+}
+
+/** Ensure every playlist row has a unique instance id (survives draft reload). */
+export function ensureTrackInstanceId(song: MsHit): MsHit {
+  return song._id ? song : { ...song, _id: newClientId() };
+}
+
+export function tracksAreSame(a: MsHit | null | undefined, b: MsHit | null | undefined): boolean {
+  if (!a || !b) return false;
+  return trackRowKey(a) === trackRowKey(b);
 }

@@ -1,6 +1,7 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { usePlayer } from '@/hooks/use-player';
 import type { MsHit } from '@/lib/meilisearch';
+import { tracksAreSame } from '@/lib/track-format';
 
 type PlayerContextValue = ReturnType<typeof usePlayer>;
 
@@ -37,5 +38,5 @@ export function isSongPlaying(
   player: PlayerContextValue | null,
   song: MsHit,
 ): boolean {
-  return Boolean(player?.currentSong?.id === song.id && player.isPlaying);
+  return Boolean(player?.isPlaying && tracksAreSame(player.currentSong, song));
 }
